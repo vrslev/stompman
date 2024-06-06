@@ -1,0 +1,73 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  DEFAULT_PYTHON_VERSION: "3.12"
+
+jobs:
+  check-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON_VERSION}}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry
+          key: check-types-${{ hashFiles('pyproject.toml') }}
+      - run: pip install -U poetry
+      - uses: extractions/setup-just@v2
+      - run: just install check-types
+
+  lint-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON_VERSION}}
+      - run: pip install -U poetry
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry
+          key: lint-format-${{ hashFiles('pyproject.toml') }}
+      - uses: extractions/setup-just@v2
+      - run: just install lint-format
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry
+          key: ${{ github.job }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+      - run: pip install -U poetry
+      - uses: extractions/setup-just@v2
+      - run: just install test -vv

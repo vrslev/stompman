@@ -1,0 +1,9 @@
+services:
+  artemis:
+    image: apache/activemq-artemis:2.34.0-alpine
+    environment:
+      ARTEMIS_USER: admin
+      ARTEMIS_PASSWORD: admin
+    ports:
+      - 8161:8161
+      - 61616:61616
