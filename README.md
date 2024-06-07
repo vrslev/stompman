@@ -45,7 +45,8 @@ async with client.enter_transaction() as transaction:
         await client.send(body=b"hi there!", destination="/DLQ/", transaction=transaction)
         await asyncio.sleep(0.1)
 ```
-**Listening for Messages**
+
+### Listening for Messages
 
 Now, let's subscribe to a queue and listen for messages.
 
