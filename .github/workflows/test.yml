@@ -82,15 +82,7 @@ jobs:
           - "3.12"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.cache/pypoetry
-          key: ${{ github.job }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-      - run: pip install -U poetry
       - uses: extractions/setup-just@v2
-      - run: just install test-integration
+      - run: just test-integration
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
