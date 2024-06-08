@@ -1,11 +1,11 @@
 import asyncio
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
-from typing import Protocol, cast
+from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ConnectError, ReadTimeoutError
 from stompman.frames import ClientFrame, ServerFrame, UnknownFrame
-from stompman.protocol import dump_frame, load_frames, separate_complete_and_incomplete_packets
+from stompman.protocol import HEARTBEAT_MARKER, dump_frame, load_frames, separate_complete_and_incomplete_packet_parts
 
 
 @dataclass
@@ -14,6 +14,9 @@ class ConnectionParameters:
     port: int
     login: str
     passcode: str = field(repr=False)
+
+
+ServerFrameT = TypeVar("ServerFrameT", bound=ServerFrame | UnknownFrame)
 
 
 @dataclass
@@ -25,9 +28,15 @@ class AbstractConnection(Protocol):
 
     async def connect(self) -> None: ...
     async def close(self) -> None: ...
-    def write_raw(self, data: bytes) -> None: ...
+    def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None: ...
     def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]: ...
+
+    async def read_frame_of_type(self, type_: type[ServerFrameT]) -> ServerFrameT:
+        while True:
+            async for frame in self.read_frames():
+                if isinstance(frame, type_):
+                    return frame
 
 
 @dataclass
@@ -52,8 +61,8 @@ class Connection(AbstractConnection):
         self.writer.close()
         await self.writer.wait_closed()
 
-    def write_raw(self, data: bytes) -> None:
-        self.writer.write(data)
+    def write_heartbeat(self) -> None:
+        return self.writer.write(HEARTBEAT_MARKER)
 
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None:
         self.writer.write(dump_frame(frame))
@@ -61,22 +70,22 @@ class Connection(AbstractConnection):
 
     async def _read_non_empty_bytes(self) -> bytes:
         while (
-            read_bytes := await self.reader.read(self.read_max_chunk_size)
+            chunk := await self.reader.read(self.read_max_chunk_size)
         ) == b"":  # pragma: no cover (it defenitely happens)
             await asyncio.sleep(0)
-        return read_bytes
+        return chunk
 
     async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
-        bytes_to_prepend_in_next_round = b""
+        incomplete_bytes = b""
 
         while True:
             try:
-                read_bytes = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
+                received_bytes = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
             except TimeoutError as exception:
                 raise ReadTimeoutError(timeout=self.read_timeout) from exception
 
-            frame_read_bytes, bytes_to_prepend_in_next_round = separate_complete_and_incomplete_packets(
-                bytes_to_prepend_in_next_round + read_bytes
+            complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
+                incomplete_bytes + received_bytes
             )
-            for frame in cast(Iterable[ServerFrame], load_frames(frame_read_bytes)):
+            for frame in cast(Iterable[ServerFrame | UnknownFrame], load_frames(complete_bytes)):
                 yield frame

@@ -19,9 +19,14 @@ run-artemis:
 run-consumer:
     poetry run python testing/consumer.py
 
-run-publisher:
-    poetry run python testing/publisher.py
+run-producer:
+    poetry run python testing/producer.py
 
 publish number:
     poetry version {{number}}
     poetry publish --build
+
+test-integration *args:
+    docker compose down --remove-orphans
+    docker compose run --build --rm app poetry run pytest tests/integration.py --no-cov {{args}}
+    docker compose down --remove-orphans

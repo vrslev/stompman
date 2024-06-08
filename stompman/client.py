@@ -1,7 +1,6 @@
 import asyncio
-import typing
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import NamedTuple, Self
@@ -30,19 +29,19 @@ from stompman.frames import (
     UnsubscribeFrame,
 )
 from stompman.listen_events import AnyListenEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
-from stompman.protocol import HEARTBEAT_MARKER, PROTOCOL_VERSION
+from stompman.protocol import PROTOCOL_VERSION
 
 
 class Heartbeat(NamedTuple):
     will_send_interval_ms: int
     want_to_receive_interval_ms: int
 
-    def dump(self) -> str:
+    def to_header(self) -> str:
         return f"{self.will_send_interval_ms},{self.want_to_receive_interval_ms}"
 
     @classmethod
-    def load(cls, value: str) -> Self:
-        first, second = value.split(",", maxsplit=1)
+    def from_header(cls, header: str) -> Self:
+        first, second = header.split(",", maxsplit=1)
         return cls(int(first), int(second))
 
 
@@ -53,13 +52,24 @@ class Client:
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 2
-    connection_confirmation_timeout = 2
+    connection_confirmation_timeout: int = 2
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
 
     _connection: AbstractConnection = field(init=False)
-    _server_heartbeat: Heartbeat = field(init=False)
+    _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
+
+    async def __aenter__(self) -> Self:
+        self._connection = await self._connect_to_any_server()
+        await self._exit_stack.enter_async_context(self._connection_lifespan())
+        return self
+
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        await self._exit_stack.aclose()
+        await self._connection.close()
 
     async def _connect_to_one_server(self, server: ConnectionParameters) -> AbstractConnection | None:
         for attempt in range(self.connect_retry_attempts):
@@ -91,101 +101,96 @@ class Client:
             timeout=self.connect_timeout,
         )
 
-    async def _raise_connection_unconfirmed(self) -> None:
-        await asyncio.sleep(self.connection_confirmation_timeout)
-        raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout)
+    @asynccontextmanager
+    async def _connection_lifespan(self) -> AsyncGenerator[None, None]:
+        # On startup:
+        # - send CONNECT frame
+        # - wait for CONNECTED frame
+        # - start heartbeats
+        # On shutdown:
+        # - stop heartbeats
+        # - send DISCONNECT frame
+        # - wait for RECEIPT frame
 
-    async def __aenter__(self) -> Self:
-        self._connection = await self._connect_to_any_server()
         await self._connection.write_frame(
             ConnectFrame(
                 headers={
                     "accept-version": PROTOCOL_VERSION,
-                    "heart-beat": self.heartbeat.dump(),
+                    "heart-beat": self.heartbeat.to_header(),
                     "login": self._connection.connection_parameters.login,
                     "passcode": self._connection.connection_parameters.passcode,
                 },
             )
         )
-        async with asyncio.TaskGroup() as task_group:
-            raise_connection_unconfirmed_task = task_group.create_task(self._raise_connection_unconfirmed())
-            async for frame in self._connection.read_frames():
-                match frame:
-                    case ConnectedFrame(headers={"version": version, "heart-beat": raw_heart_beat}):
-                        if version != PROTOCOL_VERSION:
-                            raise UnsupportedProtocolVersionError(
-                                given_version=version,
-                                supported_version=PROTOCOL_VERSION,
-                            )
-                        self._server_heartbeat = Heartbeat.load(raw_heart_beat)
-                        raise_connection_unconfirmed_task.cancel()
-                        break
-
-        return self
-
-    async def __aexit__(
-        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
-    ) -> None:
-        receipt_id = str(uuid4())
-        await self._connection.write_frame(DisconnectFrame(headers={"receipt": receipt_id}))
-
-        async for frame in self._connection.read_frames():
-            match frame:
-                case ReceiptFrame():
-                    return await self._connection.close()
-        return None  # pragma: no cover
-
-    @asynccontextmanager
-    async def subscribe(self, destination: str) -> typing.AsyncGenerator[None, None]:
-        subscription_id = str(uuid4())
-        await self._connection.write_frame(
-            SubscribeFrame(
-                headers={
-                    "id": subscription_id,
-                    "destination": destination,
-                    "ack": "client-individual",
-                }
+        try:
+            connected_frame = await asyncio.wait_for(
+                self._connection.read_frame_of_type(ConnectedFrame), timeout=self.connection_confirmation_timeout
             )
+        except TimeoutError as exception:
+            raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout) from exception
+
+        if connected_frame.headers["version"] != PROTOCOL_VERSION:
+            raise UnsupportedProtocolVersionError(
+                given_version=connected_frame.headers["version"], supported_version=PROTOCOL_VERSION
+            )
+
+        server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
+        heartbeat_interval = (
+            max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
         )
 
+        async def send_heartbeats_forever() -> None:
+            while True:
+                self._connection.write_heartbeat()
+                await asyncio.sleep(heartbeat_interval)
+
+        async with asyncio.TaskGroup() as task_group:
+            task = task_group.create_task(send_heartbeats_forever())
+            try:
+                yield
+            finally:
+                task.cancel()
+
+        await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
+        await self._connection.read_frame_of_type(ReceiptFrame)
+
+    @asynccontextmanager
+    async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
+        subscription_id = str(uuid4())
+        await self._connection.write_frame(
+            SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
+        )
         try:
             yield
         finally:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
 
-    @asynccontextmanager
-    async def _start_sending_heartbeats(self) -> typing.AsyncGenerator[None, None]:
-        async def start() -> None:
-            while True:
-                self._connection.write_raw(HEARTBEAT_MARKER)
-                await asyncio.sleep(send_interval)
-
-        send_interval = (
-            max(
-                self.heartbeat.will_send_interval_ms,
-                self._server_heartbeat.want_to_receive_interval_ms,
-            )
-            / 1000
-        )
-
-        async with asyncio.TaskGroup() as task_group:
-            task_group.create_task(start())
-            yield
-
     async def listen(self) -> AsyncIterator[AnyListenEvent]:
-        async with self._start_sending_heartbeats():
-            async for frame in self._connection.read_frames():
-                match frame:
-                    case MessageFrame():
-                        yield MessageEvent(_client=self, _frame=frame)
-                    case ErrorFrame():
-                        yield ErrorEvent(_client=self, _frame=frame)
-                    case HeartbeatFrame():
-                        yield HeartbeatEvent(_client=self, _frame=frame)
-                    case ConnectedFrame() | ReceiptFrame():  # pragma: no cover
-                        raise AssertionError("unreachable")
-                    case _:
-                        yield UnknownEvent(_client=self, _frame=frame)
+        async for frame in self._connection.read_frames():
+            match frame:
+                case MessageFrame():
+                    yield MessageEvent(_client=self, _frame=frame)
+                case ErrorFrame():
+                    yield ErrorEvent(_client=self, _frame=frame)
+                case HeartbeatFrame():
+                    yield HeartbeatEvent(_client=self, _frame=frame)
+                case ConnectedFrame() | ReceiptFrame():
+                    raise AssertionError("Should be unreachable! Report the issue.", frame)
+                case _:
+                    yield UnknownEvent(_client=self, _frame=frame)
+
+    @asynccontextmanager
+    async def enter_transaction(self) -> AsyncGenerator[str, None]:
+        transaction_id = str(uuid4())
+        await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
+
+        try:
+            yield transaction_id
+        except Exception:
+            await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
+            raise
+        else:
+            await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
     async def send(
         self,
@@ -200,16 +205,3 @@ class Client:
         if transaction is not None:
             full_headers["transaction"] = transaction
         await self._connection.write_frame(SendFrame(headers=full_headers, body=body))
-
-    @asynccontextmanager
-    async def enter_transaction(self) -> typing.AsyncGenerator[str, None]:
-        transaction_id = str(uuid4())
-        await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
-
-        try:
-            yield transaction_id
-        except Exception:
-            await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
-            raise
-        else:
-            await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))

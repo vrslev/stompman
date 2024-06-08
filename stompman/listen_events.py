@@ -39,7 +39,7 @@ class MessageEvent:
                 headers={
                     "subscription": self._frame.headers["subscription"],
                     "message-id": self._frame.headers["message-id"],
-                },
+                }
             )
         )
 

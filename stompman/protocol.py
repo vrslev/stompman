@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from typing import Any, cast
 
 from stompman.frames import (
-    COMMAND_TO_FRAME_TYPE,
+    COMMANDS_TO_FRAME_TYPES,
     AnyFrame,
     BaseFrame,
     HeartbeatFrame,
@@ -67,16 +67,11 @@ def ends_with_crlf(buffer: deque[bytes]) -> bool:
     return four_last_bytes == CRLFCRLR_MARKER
 
 
-def separate_complete_and_incomplete_packets(raw_frames: bytes) -> tuple[bytes, bytes]:
-    if raw_frames.replace(b"\n", b"") == b"":
+def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
+    if raw_frames.endswith(EOF_MARKER) or raw_frames.replace(b"\n", b"") == b"":
         return (raw_frames, b"")
-
-    if raw_frames.endswith(EOF_MARKER):
-        return (raw_frames, b"")
-
-    return raw_frames.rpartition(EOF_MARKER)[0] + raw_frames.rpartition(EOF_MARKER)[1], raw_frames.rpartition(
-        EOF_MARKER
-    )[2]
+    parts = raw_frames.rpartition(EOF_MARKER)
+    return parts[0] + parts[1], parts[2]
 
 
 def dump_frame(frame: BaseFrame[Any]) -> bytes:
@@ -103,7 +98,7 @@ def _build_frame_from_buffer(buffer: deque[bytes]) -> AnyFrame:
             headers[decoded_key] = unescape_header(value).decode()
 
     body = b"".join(buffer)
-    if known_frame_type := COMMAND_TO_FRAME_TYPE.get(command):
+    if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
         return known_frame_type(headers=headers, body=body)
     return UnknownFrame(command=command, headers=headers, body=body)
 

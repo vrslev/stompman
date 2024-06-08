@@ -1,4 +1,15 @@
 services:
+  app:
+    build:
+      context: .
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:-3.12}
+    depends_on:
+      artemis:
+        condition: service_started
+    environment:
+      ARTEMIS_HOST: artemis
+
   artemis:
     image: apache/activemq-artemis:2.34.0-alpine
     environment:

@@ -212,7 +212,7 @@ ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame | Heartb
 
 AnyFrame = ClientFrame | ServerFrame | UnknownFrame
 
-COMMAND_TO_FRAME_TYPE: dict[str, type[ClientFrame | ServerFrame]] = {
+COMMANDS_TO_FRAME_TYPES: dict[str, type[ClientFrame | ServerFrame]] = {
     "CONNECT": ConnectFrame,
     "STOMP": ConnectFrame,
     "SEND": SendFrame,
