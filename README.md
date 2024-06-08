@@ -11,11 +11,14 @@ There were no such one—and now there're is.
 ## How To Use
 
 Before you start using stompman, make sure you have it installed:
+
 ```sh
 pip install stompman
 poetry add stompman
 ```
+
 Initialize a client:
+
 ```python
 async with stompman.Client(
     servers=[
@@ -32,13 +35,17 @@ async with stompman.Client(
 ) as client:
     ...
 ```
+
 ### Sending Messages
 
 To send a message, use the following code:
+
 ```python
 await client.send(body=b"hi there!", destination="DLQ", headers={"persistent": "true"})
 ```
+
 Or, to send messages in a transaction:
+
 ```python
 async with client.enter_transaction() as transaction:
     for _ in range(10):
@@ -51,6 +58,7 @@ async with client.enter_transaction() as transaction:
 Now, let's subscribe to a queue and listen for messages.
 
 Notice that `listen()` is not bound to a destination: it will listen to all subscribed destinations. If you want separate subscribtions, create separate clients for that.
+
 ```python
 async with client.subscribe("DLQ"):
     async for event in client.listen():
@@ -76,37 +84,19 @@ async for event in client.listen():
 More complex example, that involves handling all possible events:
 
 ```python
-async for event in client.listen():
-    match event:
-        case stompman.MessageEvent(body=body):
-            try:
-                await handle_message(body)
-            except Exception:
-                await event.nack()
-                raise
-            else:
-                await event.ack()
-        case stompman.ErrorEvent(message_header=short_description, body=body):
-            logger.error("Received an error from server", short_description=short_description, body=body, event=event)
-        case stompman.HeartbeatEvent():
-            await update_healthcheck_status()
-        case stompman.UnknownEvent():
-            logger.error("Received unknown event from server", event=event)
-
-
-async def handle_message(body: bytes) -> None:
-    validated_message = MyModel.model_validate_json(body)
-    await run_business_logic(validated_message)
-```
-
-And the last example where `asyncio.TaskGroup()` is used to run tasks concurrently:
-
-```python
 async with asyncio.TaskGroup() as task_group:
     async for event in client.listen():
         match event:
             case stompman.MessageEvent(body=body):
-                task_group.create_task(handle_and_ack_or_nack(body, event))
+                # Validate message ASAP and ack/nack, so that server won't assume we're not reliable
+                try:
+                    validated_message = MyMessageModel.model_validate_json(body)
+                except ValidationError:
+                    await event.nack()
+                    raise
+
+                await event.ack()
+                task_group.create_task(run_business_logic(validated_message))
             case stompman.ErrorEvent(message_header=short_description, body=body):
                 logger.error(
                     "Received an error from server", short_description=short_description, body=body, event=event
@@ -115,21 +105,6 @@ async with asyncio.TaskGroup() as task_group:
                 task_group.create_task(update_healthcheck_status())
             case stompman.UnknownEvent():
                 logger.error("Received unknown event from server", event=event)
-
-
-async def handle_message(body: bytes) -> None:
-    validated_message = MyModel.model_validate_json(body)
-    await run_business_logic(validated_message)
-
-
-async def handle_and_ack_or_nack(body: bytes, event: stompman.MessageEvent) -> None:
-    try:
-        await handle_message(body)
-    except Exception:
-        await event.nack()
-        raise
-    else:
-        await event.ack()
 ```
 
 ### Cleaning Up
