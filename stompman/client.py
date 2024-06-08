@@ -52,7 +52,7 @@ class Client:
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 2
-    connection_confirmation_timeout = 2
+    connection_confirmation_timeout: int = 2
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
@@ -69,6 +69,7 @@ class Client:
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
         await self._exit_stack.aclose()
+        await self._connection.close()
 
     async def _connect_to_one_server(self, server: ConnectionParameters) -> AbstractConnection | None:
         for attempt in range(self.connect_retry_attempts):
@@ -102,6 +103,14 @@ class Client:
 
     @asynccontextmanager
     async def _enter_connection_context(self) -> AsyncGenerator[None, None]:
+        # On startup:
+        # - send CONNECT frame
+        # - wait for CONNECTED frame
+        # - start heartbeats
+        # On shutdown:
+        # - stop heartbeats
+        # - send DISCONNECT frame
+        # - wait for RECEIPT frame
         await self._connection.write_frame(
             ConnectFrame(
                 headers={
@@ -113,15 +122,9 @@ class Client:
             )
         )
 
-        async def read_connected_frame() -> ConnectedFrame:
-            while True:
-                async for frame in self._connection.read_frames():
-                    if isinstance(frame, ConnectedFrame):
-                        return frame
-
         try:
             async with asyncio.timeout(self.connection_confirmation_timeout):
-                connected_frame = await read_connected_frame()
+                connected_frame = await self._connection.read_frame_of_type(ConnectedFrame)
         except TimeoutError as exception:
             raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout) from exception
 
@@ -135,15 +138,18 @@ class Client:
             max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
         )
         async with asyncio.TaskGroup() as task_group:
-            task = task_group.create_task(self._connection.send_heartbeats_forever(heartbeat_interval))
+            task = task_group.create_task(self._send_heartbeats_forever(heartbeat_interval))
             yield
             task.cancel()
 
         await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
-        async for frame in self._connection.read_frames():
-            match frame:
-                case ReceiptFrame():
-                    await self._connection.close()
+        await self._connection.read_frame_of_type(ReceiptFrame)
+        return
+
+    async def _send_heartbeats_forever(self, interval: float) -> None:
+        while True:
+            self._connection.write_heartbeat()
+            await asyncio.sleep(interval)
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:

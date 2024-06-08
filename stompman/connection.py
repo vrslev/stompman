@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
-from typing import Protocol, cast
+from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ConnectError, ReadTimeoutError
 from stompman.frames import ClientFrame, ServerFrame, UnknownFrame
@@ -16,6 +16,9 @@ class ConnectionParameters:
     passcode: str = field(repr=False)
 
 
+ServerFrameT = TypeVar("ServerFrameT", bound=ServerFrame | UnknownFrame)
+
+
 @dataclass
 class AbstractConnection(Protocol):
     connection_parameters: ConnectionParameters
@@ -25,9 +28,15 @@ class AbstractConnection(Protocol):
 
     async def connect(self) -> None: ...
     async def close(self) -> None: ...
-    async def send_heartbeats_forever(self, interval: float) -> None: ...
+    def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None: ...
     def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]: ...
+
+    async def read_frame_of_type(self, type_: type[ServerFrameT]) -> ServerFrameT:
+        while True:
+            async for frame in self.read_frames():
+                if isinstance(frame, type_):
+                    return frame
 
 
 @dataclass
@@ -52,10 +61,8 @@ class Connection(AbstractConnection):
         self.writer.close()
         await self.writer.wait_closed()
 
-    async def send_heartbeats_forever(self, interval: float) -> None:
-        while True:
-            self.writer.write(HEARTBEAT_MARKER)
-            await asyncio.sleep(interval)
+    def write_heartbeat(self) -> None:
+        return self.writer.write(HEARTBEAT_MARKER)
 
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None:
         self.writer.write(dump_frame(frame))
