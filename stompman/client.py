@@ -62,7 +62,7 @@ class Client:
 
     async def __aenter__(self) -> Self:
         self._connection = await self._connect_to_any_server()
-        await self._exit_stack.enter_async_context(self._enter_connection_context())
+        await self._exit_stack.enter_async_context(self._connection_lifespan())
         return self
 
     async def __aexit__(
@@ -102,7 +102,7 @@ class Client:
         )
 
     @asynccontextmanager
-    async def _enter_connection_context(self) -> AsyncGenerator[None, None]:
+    async def _connection_lifespan(self) -> AsyncGenerator[None, None]:
         # On startup:
         # - send CONNECT frame
         # - wait for CONNECTED frame
@@ -111,6 +111,7 @@ class Client:
         # - stop heartbeats
         # - send DISCONNECT frame
         # - wait for RECEIPT frame
+
         await self._connection.write_frame(
             ConnectFrame(
                 headers={
@@ -121,7 +122,6 @@ class Client:
                 },
             )
         )
-
         try:
             async with asyncio.timeout(self.connection_confirmation_timeout):
                 connected_frame = await self._connection.read_frame_of_type(ConnectedFrame)
@@ -137,19 +137,20 @@ class Client:
         heartbeat_interval = (
             max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
         )
+
+        async def send_heartbeats_forever() -> None:
+            while True:
+                self._connection.write_heartbeat()
+                await asyncio.sleep(heartbeat_interval)
+
         async with asyncio.TaskGroup() as task_group:
-            task = task_group.create_task(self._send_heartbeats_forever(heartbeat_interval))
+            task = task_group.create_task(send_heartbeats_forever())
             yield
             task.cancel()
 
         await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
         await self._connection.read_frame_of_type(ReceiptFrame)
         return
-
-    async def _send_heartbeats_forever(self, interval: float) -> None:
-        while True:
-            self._connection.write_heartbeat()
-            await asyncio.sleep(interval)
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
