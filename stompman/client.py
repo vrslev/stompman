@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import typing
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -58,6 +59,7 @@ class Client:
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
 
+    _heartbeat_exitstack: contextlib.AsyncExitStack = field(init=False, default_factory=contextlib.AsyncExitStack)
     _connection: AbstractConnection = field(init=False)
     _server_heartbeat: Heartbeat = field(init=False)
 
@@ -121,13 +123,14 @@ class Client:
                         raise_connection_unconfirmed_task.cancel()
                         break
 
+        await self._heartbeat_exitstack.enter_async_context(self._start_sending_heartbeats())
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
-        receipt_id = str(uuid4())
-        await self._connection.write_frame(DisconnectFrame(headers={"receipt": receipt_id}))
+        await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
+        await self._heartbeat_exitstack.aclose()
 
         async for frame in self._connection.read_frames():
             match frame:
@@ -155,37 +158,33 @@ class Client:
 
     @asynccontextmanager
     async def _start_sending_heartbeats(self) -> typing.AsyncGenerator[None, None]:
+        send_interval = (
+            max(self.heartbeat.will_send_interval_ms, self._server_heartbeat.want_to_receive_interval_ms) / 1000
+        )
+
         async def start() -> None:
             while True:
                 self._connection.write_raw(HEARTBEAT_MARKER)
                 await asyncio.sleep(send_interval)
 
-        send_interval = (
-            max(
-                self.heartbeat.will_send_interval_ms,
-                self._server_heartbeat.want_to_receive_interval_ms,
-            )
-            / 1000
-        )
-
         async with asyncio.TaskGroup() as task_group:
-            task_group.create_task(start())
+            task = task_group.create_task(start())
             yield
+            task.cancel()
 
     async def listen(self) -> AsyncIterator[AnyListenEvent]:
-        async with self._start_sending_heartbeats():
-            async for frame in self._connection.read_frames():
-                match frame:
-                    case MessageFrame():
-                        yield MessageEvent(_client=self, _frame=frame)
-                    case ErrorFrame():
-                        yield ErrorEvent(_client=self, _frame=frame)
-                    case HeartbeatFrame():
-                        yield HeartbeatEvent(_client=self, _frame=frame)
-                    case ConnectedFrame() | ReceiptFrame():  # pragma: no cover
-                        raise AssertionError("unreachable")
-                    case _:
-                        yield UnknownEvent(_client=self, _frame=frame)
+        async for frame in self._connection.read_frames():
+            match frame:
+                case MessageFrame():
+                    yield MessageEvent(_client=self, _frame=frame)
+                case ErrorFrame():
+                    yield ErrorEvent(_client=self, _frame=frame)
+                case HeartbeatFrame():
+                    yield HeartbeatEvent(_client=self, _frame=frame)
+                case ConnectedFrame() | ReceiptFrame():  # pragma: no cover
+                    raise AssertionError("unreachable")
+                case _:
+                    yield UnknownEvent(_client=self, _frame=frame)
 
     async def send(
         self,
