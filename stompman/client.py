@@ -167,8 +167,10 @@ class Client:
 
         async with asyncio.TaskGroup() as task_group:
             task = task_group.create_task(start())
-            yield
-            task.cancel()
+            try:
+                yield
+            finally:
+                task.cancel()
 
     async def listen(self) -> AsyncIterator[AnyListenEvent]:
         async for frame in self._connection.read_frames():
