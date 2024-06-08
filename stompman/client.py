@@ -45,13 +45,6 @@ class Heartbeat(NamedTuple):
         return cls(int(first), int(second))
 
 
-async def _read_connected_frame(connection: AbstractConnection) -> ConnectedFrame:
-    while True:
-        async for frame in connection.read_frames():
-            if isinstance(frame, ConnectedFrame):
-                return frame
-
-
 @dataclass
 class Client:
     servers: list[ConnectionParameters]
@@ -119,9 +112,16 @@ class Client:
                 },
             )
         )
+
+        async def read_connected_frame() -> ConnectedFrame:
+            while True:
+                async for frame in self._connection.read_frames():
+                    if isinstance(frame, ConnectedFrame):
+                        return frame
+
         try:
             async with asyncio.timeout(self.connection_confirmation_timeout):
-                connected_frame = await _read_connected_frame(self._connection)
+                connected_frame = await read_connected_frame()
         except TimeoutError as exception:
             raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout) from exception
 
