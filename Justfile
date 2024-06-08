@@ -19,8 +19,8 @@ run-artemis:
 run-consumer:
     poetry run python testing/consumer.py
 
-run-publisher:
-    poetry run python testing/publisher.py
+run-producer:
+    poetry run python testing/producer.py
 
 publish number:
     poetry version {{number}}
