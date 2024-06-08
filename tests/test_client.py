@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
-from typing import AsyncContextManager
 from unittest import mock
 
 import pytest
@@ -40,7 +39,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.protocol import HEARTBEAT_MARKER, PROTOCOL_VERSION
+from stompman.protocol import PROTOCOL_VERSION
 
 
 @dataclass
@@ -56,8 +55,7 @@ class BaseMockConnection(AbstractConnection):
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None: ...
     async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
         await asyncio.Future()
-        if False:
-            yield  # type: ignore[misc]
+        yield  # type: ignore[misc]  # pragma: no cover
 
 
 def create_spying_connection(
@@ -97,17 +95,6 @@ class EnrichedClient(Client):
     servers: list[ConnectionParameters] = field(
         default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
-
-
-@dataclass
-class EnrichedClientWithoutHeartbeats(Client):
-    servers: list[ConnectionParameters] = field(
-        default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
-    )
-
-    @asynccontextmanager
-    async def _start_sending_heartbeats(self) -> AsyncGenerator[None, None]:
-        yield
 
 
 @pytest.fixture()
@@ -246,11 +233,11 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
     )
 
     client = EnrichedClient(connection_class=connection_class)
-    with pytest.raises(ExceptionGroup) as exc_info:
+    with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
         await client.__aenter__()
 
-    assert exc_info.value.exceptions == (
-        UnsupportedProtocolVersionError(given_version=given_version, supported_version=PROTOCOL_VERSION),
+    assert exc_info.value == UnsupportedProtocolVersionError(
+        given_version=given_version, supported_version=PROTOCOL_VERSION
     )
 
 
@@ -288,11 +275,11 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr("asyncio.sleep", mock_sleep)
 
-    write_raw_mock = mock.Mock()
+    write_heartbeat_mock = mock.Mock()
     connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([]))
 
     class MockConnection(connection_class):  # type: ignore[valid-type, misc]
-        write_raw = write_raw_mock
+        write_heartbeat = write_heartbeat_mock
 
     async with EnrichedClient(connection_class=MockConnection):
         await real_sleep(0)
@@ -300,10 +287,10 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
         await real_sleep(0)
 
     assert sleep_calls == [1, 1]
-    assert write_raw_mock.mock_calls == [
-        mock.call(HEARTBEAT_MARKER),
-        mock.call(HEARTBEAT_MARKER),
-        mock.call(HEARTBEAT_MARKER),
+    assert write_heartbeat_mock.mock_calls == [
+        mock.call(),
+        mock.call(),
+        mock.call(),
     ]
 
 
@@ -316,7 +303,7 @@ async def test_client_listen_ok() -> None:
     connection_class, _ = create_spying_connection(
         get_read_frames_with_lifespan([[message_frame, error_frame, heartbeat_frame, unknown_frame]])
     )
-    async with EnrichedClientWithoutHeartbeats(connection_class=connection_class) as client:
+    async with EnrichedClient(connection_class=connection_class) as client:
         events = [event async for event in client.listen()]
 
     assert events == [
@@ -334,7 +321,7 @@ async def test_client_listen_ok() -> None:
 async def test_client_listen_unreachable(frame: ConnectedFrame | ReceiptFrame) -> None:
     connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[frame]]))
 
-    async with EnrichedClientWithoutHeartbeats(connection_class=connection_class) as client:
+    async with EnrichedClient(connection_class=connection_class) as client:
         with pytest.raises(AssertionError, match="unreachable"):
             [event async for event in client.listen()]
 
@@ -350,7 +337,7 @@ async def test_ack_nack() -> None:
     ack_frame = AckFrame(headers={"subscription": subscription, "message-id": message_id})
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
-    async with EnrichedClientWithoutHeartbeats(connection_class=connection_class) as client:
+    async with EnrichedClient(connection_class=connection_class) as client:
         events = [event async for event in client.listen()]
 
         assert len(events) == 1
