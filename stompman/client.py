@@ -134,8 +134,7 @@ class Client:
         async for frame in self._connection.read_frames():
             match frame:
                 case ReceiptFrame():
-                    return await self._connection.close()
-        return None  # pragma: no cover
+                    await self._connection.close()
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
@@ -180,8 +179,8 @@ class Client:
                     yield ErrorEvent(_client=self, _frame=frame)
                 case HeartbeatFrame():
                     yield HeartbeatEvent(_client=self, _frame=frame)
-                case ConnectedFrame() | ReceiptFrame():  # pragma: no cover
-                    raise AssertionError("unreachable")
+                case ConnectedFrame() | ReceiptFrame():
+                    raise AssertionError("Should be unreachable! Report the issue.", frame)
                 case _:
                     yield UnknownEvent(_client=self, _frame=frame)
 

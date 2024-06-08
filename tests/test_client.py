@@ -287,7 +287,7 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
     ]
 
 
-async def test_client_listen() -> None:
+async def test_client_listen_ok() -> None:
     message_frame = MessageFrame(headers={}, body=b"hello")
     error_frame = ErrorFrame(headers={"message": "short description"})
     heartbeat_frame = HeartbeatFrame(headers={})
@@ -308,6 +308,15 @@ async def test_client_listen() -> None:
     assert events[0].body == message_frame.body  # type: ignore[union-attr]
     assert events[1].message_header == error_frame.headers["message"]  # type: ignore[union-attr]
     assert events[1].body == error_frame.body  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("frame", [ConnectedFrame(headers={}), ReceiptFrame(headers={})])
+async def test_client_listen_unreachable(frame: ConnectedFrame | ReceiptFrame) -> None:
+    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[frame]]))
+
+    async with EnrichedClientWithoutHeartbeats(connection_class=connection_class) as client:
+        with pytest.raises(AssertionError, match="unreachable"):
+            [event async for event in client.listen()]
 
 
 async def test_ack_nack() -> None:
