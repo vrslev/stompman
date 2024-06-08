@@ -1,9 +1,12 @@
 [tool.poetry]
 name = "stompman"
-version = "0.1.0"
+version = "0"
 description = "Python STOMP client with pleasant API"
+license = "MIT"
 authors = ["Lev Vereshchagin <mail@vrslev.com>"]
 readme = "README.md"
+repository = "https://github.com/vrslev/stompman"
+keywords = ["stomp", "artemis", "activemq", "messaging", "jms"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
