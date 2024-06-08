@@ -28,7 +28,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.listen_events import AnyListenEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
+from stompman.listen_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
 from stompman.protocol import PROTOCOL_VERSION
 
 
@@ -165,7 +165,7 @@ class Client:
         finally:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
 
-    async def listen(self) -> AsyncIterator[AnyListenEvent]:
+    async def listen_to_events(self) -> AsyncIterator[AnyListeningEvent]:
         async for frame in self._connection.read_frames():
             match frame:
                 case MessageFrame():

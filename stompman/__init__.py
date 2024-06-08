@@ -30,7 +30,7 @@ from stompman.frames import (
     UnknownFrame,
     UnsubscribeFrame,
 )
-from stompman.listen_events import AnyListenEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
+from stompman.listen_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
 
 __all__ = [
     "AbortFrame",
@@ -38,7 +38,7 @@ __all__ = [
     "AckFrame",
     "FailedAllConnectAttemptsError",
     "AnyFrame",
-    "AnyListenEvent",
+    "AnyListeningEvent",
     "BaseFrame",
     "BaseListenEvent",
     "BeginFrame",

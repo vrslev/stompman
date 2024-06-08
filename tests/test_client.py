@@ -288,7 +288,7 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
 
 
-async def test_client_listen_ok() -> None:
+async def test_client_listen_to_events_ok() -> None:
     message_frame = MessageFrame(headers={}, body=b"hello")
     error_frame = ErrorFrame(headers={"message": "short description"})
     heartbeat_frame = HeartbeatFrame(headers={})
@@ -298,7 +298,7 @@ async def test_client_listen_ok() -> None:
         get_read_frames_with_lifespan([[message_frame, error_frame, heartbeat_frame, unknown_frame]])
     )
     async with EnrichedClient(connection_class=connection_class) as client:
-        events = [event async for event in client.listen()]
+        events = [event async for event in client.listen_to_events()]
 
     assert events == [
         MessageEvent(_client=client, _frame=message_frame),
@@ -312,12 +312,12 @@ async def test_client_listen_ok() -> None:
 
 
 @pytest.mark.parametrize("frame", [ConnectedFrame(headers={}), ReceiptFrame(headers={})])
-async def test_client_listen_unreachable(frame: ConnectedFrame | ReceiptFrame) -> None:
+async def test_client_listen_to_events_unreachable(frame: ConnectedFrame | ReceiptFrame) -> None:
     connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[frame]]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
         with pytest.raises(AssertionError, match="unreachable"):
-            [event async for event in client.listen()]
+            [event async for event in client.listen_to_events()]
 
 
 async def test_ack_nack() -> None:
@@ -332,7 +332,7 @@ async def test_ack_nack() -> None:
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
     async with EnrichedClient(connection_class=connection_class) as client:
-        events = [event async for event in client.listen()]
+        events = [event async for event in client.listen_to_events()]
 
         assert len(events) == 1
         event = events[0]

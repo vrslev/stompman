@@ -8,7 +8,7 @@ async def main() -> None:
         stompman.Client(servers=[stompman.ConnectionParameters("0.0.0.0", 61616, "admin", "admin")]) as client,  # noqa: S104
         client.subscribe("DLQ"),
     ):
-        async for event in client.listen():
+        async for event in client.listen_to_events():
             print(event)  # noqa: T201
             match event:
                 case stompman.MessageEvent():

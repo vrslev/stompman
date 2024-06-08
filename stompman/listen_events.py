@@ -68,4 +68,4 @@ class UnknownEvent:
     _client: "Client" = field(repr=False)
 
 
-AnyListenEvent = MessageEvent | ErrorEvent | HeartbeatEvent | UnknownEvent
+AnyListeningEvent = MessageEvent | ErrorEvent | HeartbeatEvent | UnknownEvent
