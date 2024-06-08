@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "stompman"
-version = "0.1.0"
+version = "0"
 description = "Python STOMP client with pleasant API"
 authors = ["Lev Vereshchagin <mail@vrslev.com>"]
 readme = "README.md"
