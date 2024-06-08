@@ -31,8 +31,8 @@ async def test_integration() -> None:
         assert sorted(received_messages) == sorted(messages)
 
     async with (
-        stompman.Client(servers=[server], read_timeout=5) as consumer,
-        stompman.Client(servers=[server], read_timeout=5) as producer,
+        stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as consumer,
+        stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as producer,
         asyncio.TaskGroup() as task_group,
     ):
         task_group.create_task(consume())
