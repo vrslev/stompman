@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
-import typing
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -139,7 +138,7 @@ class Client:
         return None  # pragma: no cover
 
     @asynccontextmanager
-    async def subscribe(self, destination: str) -> typing.AsyncGenerator[None, None]:
+    async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
         subscription_id = str(uuid4())
         await self._connection.write_frame(
             SubscribeFrame(
@@ -157,7 +156,7 @@ class Client:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
 
     @asynccontextmanager
-    async def _start_sending_heartbeats(self) -> typing.AsyncGenerator[None, None]:
+    async def _start_sending_heartbeats(self) -> AsyncGenerator[None, None]:
         send_interval = (
             max(self.heartbeat.will_send_interval_ms, self._server_heartbeat.want_to_receive_interval_ms) / 1000
         )
@@ -201,7 +200,7 @@ class Client:
         await self._connection.write_frame(SendFrame(headers=full_headers, body=body))
 
     @asynccontextmanager
-    async def enter_transaction(self) -> typing.AsyncGenerator[str, None]:
+    async def enter_transaction(self) -> AsyncGenerator[str, None]:
         transaction_id = str(uuid4())
         await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
 

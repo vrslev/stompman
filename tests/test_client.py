@@ -96,6 +96,17 @@ class EnrichedClient(Client):
     )
 
 
+@dataclass
+class EnrichedClientWithoutHeartbeats(Client):
+    servers: list[ConnectionParameters] = field(
+        default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
+    )
+
+    @asynccontextmanager
+    async def _start_sending_heartbeats(self) -> AsyncGenerator[None, None]:
+        yield
+
+
 @pytest.fixture()
 def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
     monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())
@@ -279,11 +290,6 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
     ]
 
 
-@asynccontextmanager
-async def mock_start_sending_heartbeats() -> AsyncGenerator[None, None]:
-    yield
-
-
 async def test_client_listen() -> None:
     message_frame = MessageFrame(headers={}, body=b"hello")
     error_frame = ErrorFrame(headers={"message": "short description"})
@@ -293,8 +299,7 @@ async def test_client_listen() -> None:
     connection_class, _ = create_spying_connection(
         get_read_frames_with_lifespan([[message_frame, error_frame, heartbeat_frame, unknown_frame]])
     )
-    async with EnrichedClient(connection_class=connection_class) as client:
-        client._start_sending_heartbeats = mock_start_sending_heartbeats  # type: ignore[method-assign]
+    async with EnrichedClientWithoutHeartbeats(connection_class=connection_class) as client:
         events = [event async for event in client.listen()]
 
     assert events == [
@@ -319,8 +324,7 @@ async def test_ack_nack() -> None:
     ack_frame = AckFrame(headers={"subscription": subscription, "message-id": message_id})
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
-    async with EnrichedClient(connection_class=connection_class) as client:
-        client._start_sending_heartbeats = mock_start_sending_heartbeats  # type: ignore[method-assign]
+    async with EnrichedClientWithoutHeartbeats(connection_class=connection_class) as client:
         events = [event async for event in client.listen()]
 
         assert len(events) == 1
