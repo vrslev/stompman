@@ -146,12 +146,13 @@ class Client:
 
         async with asyncio.TaskGroup() as task_group:
             task = task_group.create_task(send_heartbeats_forever())
-            yield
-            task.cancel()
+            try:
+                yield
+            finally:
+                task.cancel()
 
         await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
         await self._connection.read_frame_of_type(ReceiptFrame)
-        return
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
