@@ -28,6 +28,5 @@ publish number:
 
 test-integration *args:
     docker compose down --remove-orphans
-    docker compose up -d
-    @just test tests/integration.py --no-cov {{args}}
+    docker compose run --build --rm app poetry run pytest tests/integration.py --no-cov {{args}}
     docker compose down --remove-orphans
