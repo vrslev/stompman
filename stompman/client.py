@@ -8,19 +8,16 @@ from typing import NamedTuple, Self
 from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection, ConnectionParameters
+from stompman.contexts import enter_connection_context
 from stompman.errors import (
     ConnectError,
-    ConnectionConfirmationTimeoutError,
     FailedAllConnectAttemptsError,
-    UnsupportedProtocolVersionError,
 )
 from stompman.frames import (
     AbortFrame,
     BeginFrame,
     CommitFrame,
     ConnectedFrame,
-    ConnectFrame,
-    DisconnectFrame,
     ErrorFrame,
     HeartbeatFrame,
     MessageFrame,
@@ -30,7 +27,6 @@ from stompman.frames import (
     UnsubscribeFrame,
 )
 from stompman.listen_events import AnyListenEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
-from stompman.protocol import HEARTBEAT_MARKER, PROTOCOL_VERSION
 
 
 class Heartbeat(NamedTuple):
@@ -92,85 +88,32 @@ class Client:
             timeout=self.connect_timeout,
         )
 
-    async def _raise_connection_unconfirmed(self) -> None:
-        await asyncio.sleep(self.connection_confirmation_timeout)
-        raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout)
-
     async def __aenter__(self) -> Self:
         self._connection = await self._connect_to_any_server()
-        await self._connection.write_frame(
-            ConnectFrame(
-                headers={
-                    "accept-version": PROTOCOL_VERSION,
-                    "heart-beat": self.heartbeat.dump(),
-                    "login": self._connection.connection_parameters.login,
-                    "passcode": self._connection.connection_parameters.passcode,
-                },
+        await self._heartbeat_exitstack.enter_async_context(
+            enter_connection_context(
+                connection=self._connection,
+                client_heartbeat=self.heartbeat,
+                connection_confirmation_timeout=self.connection_confirmation_timeout,
             )
         )
-        async with asyncio.TaskGroup() as task_group:
-            raise_connection_unconfirmed_task = task_group.create_task(self._raise_connection_unconfirmed())
-            async for frame in self._connection.read_frames():
-                match frame:
-                    case ConnectedFrame(headers={"version": version, "heart-beat": raw_heart_beat}):
-                        if version != PROTOCOL_VERSION:
-                            raise UnsupportedProtocolVersionError(
-                                given_version=version,
-                                supported_version=PROTOCOL_VERSION,
-                            )
-                        self._server_heartbeat = Heartbeat.load(raw_heart_beat)
-                        raise_connection_unconfirmed_task.cancel()
-                        break
-
-        await self._heartbeat_exitstack.enter_async_context(self._start_sending_heartbeats())
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
-        await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
         await self._heartbeat_exitstack.aclose()
-
-        async for frame in self._connection.read_frames():
-            match frame:
-                case ReceiptFrame():
-                    await self._connection.close()
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
         subscription_id = str(uuid4())
         await self._connection.write_frame(
-            SubscribeFrame(
-                headers={
-                    "id": subscription_id,
-                    "destination": destination,
-                    "ack": "client-individual",
-                }
-            )
+            SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
         )
-
         try:
             yield
         finally:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
-
-    @asynccontextmanager
-    async def _start_sending_heartbeats(self) -> AsyncGenerator[None, None]:
-        send_interval = (
-            max(self.heartbeat.will_send_interval_ms, self._server_heartbeat.want_to_receive_interval_ms) / 1000
-        )
-
-        async def start() -> None:
-            while True:
-                self._connection.write_raw(HEARTBEAT_MARKER)
-                await asyncio.sleep(send_interval)
-
-        async with asyncio.TaskGroup() as task_group:
-            task = task_group.create_task(start())
-            try:
-                yield
-            finally:
-                task.cancel()
 
     async def listen(self) -> AsyncIterator[AnyListenEvent]:
         async for frame in self._connection.read_frames():
