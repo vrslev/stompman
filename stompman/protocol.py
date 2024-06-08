@@ -68,15 +68,10 @@ def ends_with_crlf(buffer: deque[bytes]) -> bool:
 
 
 def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
-    if raw_frames.replace(b"\n", b"") == b"":
+    if raw_frames.endswith(EOF_MARKER) or raw_frames.replace(b"\n", b"") == b"":
         return (raw_frames, b"")
-
-    if raw_frames.endswith(EOF_MARKER):
-        return (raw_frames, b"")
-
-    return raw_frames.rpartition(EOF_MARKER)[0] + raw_frames.rpartition(EOF_MARKER)[1], raw_frames.rpartition(
-        EOF_MARKER
-    )[2]
+    parts = raw_frames.rpartition(EOF_MARKER)
+    return parts[0] + parts[1], parts[2]
 
 
 def dump_frame(frame: BaseFrame[Any]) -> bytes:
