@@ -36,13 +36,13 @@ async with stompman.Client(
 
 To send a message, use the following code:
 ```python
-await client.send(body=b"hi there!", destination="/DLQ/", headers={"persistent": "true"})
+await client.send(body=b"hi there!", destination="DLQ", headers={"persistent": "true"})
 ```
 Or, to send messages in a transaction:
 ```python
 async with client.enter_transaction() as transaction:
     for _ in range(10):
-        await client.send(body=b"hi there!", destination="/DLQ/", transaction=transaction)
+        await client.send(body=b"hi there!", destination="DLQ", transaction=transaction)
         await asyncio.sleep(0.1)
 ```
 
@@ -52,7 +52,7 @@ Now, let's subscribe to a queue and listen for messages.
 
 Notice that `listen()` is not bound to a destination: it will listen to all subscribed destinations. If you want separate subscribtions, create separate clients for that.
 ```python
-async with client.subscribe("/DLQ/"):
+async with client.subscribe("DLQ"):
     async for event in client.listen():
         ...
 ```

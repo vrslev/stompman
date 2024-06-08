@@ -9,7 +9,9 @@ async def main() -> None:
         client.enter_transaction() as transaction,
     ):
         for _ in range(10):
-            await client.send(body=b"hi there!", destination="/DLQ/", transaction=transaction)
+            await client.send(body=b"hi there!", destination="DLQ", transaction=transaction)
+        await asyncio.sleep(3)
+        await client.send(body=b"hi there!", destination="DLQ", transaction=transaction)
 
 
 if __name__ == "__main__":

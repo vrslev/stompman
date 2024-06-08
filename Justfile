@@ -25,3 +25,9 @@ run-publisher:
 publish number:
     poetry version {{number}}
     poetry publish --build
+
+test-integration *args:
+    docker compose down --remove-orphans
+    docker compose up -d
+    @just test tests/integration.py --no-cov {{args}}
+    docker compose down --remove-orphans
