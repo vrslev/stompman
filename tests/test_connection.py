@@ -78,7 +78,7 @@ async def test_connection_lifespan(connection: Connection) -> None:
             connection.connection_parameters.port = port
             await connection.connect()
 
-            connection.write_raw(b"\n")
+            connection.write_heartbeat()
             await connection.write_frame(UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"}))
 
             async def take_frames(count: int) -> list[ServerFrame | UnknownFrame]:
