@@ -196,7 +196,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         ConnectFrame(
             headers={
                 "accept-version": PROTOCOL_VERSION,
-                "heart-beat": client.heartbeat.to_str(),
+                "heart-beat": client.heartbeat.to_header(),
                 "login": login,
                 "passcode": passcode,
             }
