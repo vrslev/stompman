@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
+from typing import AsyncContextManager
 from unittest import mock
 
 import pytest
@@ -222,15 +223,20 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    sleep_mock = mock.AsyncMock()
-    monkeypatch.setattr("asyncio.sleep", sleep_mock)
+    @asynccontextmanager
+    async def timeout(delay: float | None) -> AsyncGenerator[asyncio.Timeout, None]:
+        assert delay == client.connection_confirmation_timeout
+        async with original_timeout(0):
+            yield asyncio.Timeout(delay)
+
+    original_timeout = asyncio.timeout
+    monkeypatch.setattr("asyncio.timeout", timeout)
 
     client = EnrichedClient(connection_class=BaseMockConnection)
-    with pytest.raises(ExceptionGroup) as exc_info:
+    with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
         await client.__aenter__()
 
-    assert exc_info.value.exceptions == (ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout),)
-    sleep_mock.assert_called_once_with(client.connection_confirmation_timeout)
+    assert exc_info.value == ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout)
 
 
 async def test_client_lifespan_unsupported_protocol_version() -> None:
