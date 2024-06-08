@@ -5,7 +5,7 @@ from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ConnectError, ReadTimeoutError
 from stompman.frames import ClientFrame, ServerFrame, UnknownFrame
-from stompman.protocol import HEARTBEAT_MARKER, dump_frame, load_frames, separate_complete_and_incomplete_packets
+from stompman.protocol import HEARTBEAT_MARKER, dump_frame, load_frames, separate_complete_and_incomplete_packet_parts
 
 
 @dataclass
@@ -70,22 +70,22 @@ class Connection(AbstractConnection):
 
     async def _read_non_empty_bytes(self) -> bytes:
         while (
-            read_bytes := await self.reader.read(self.read_max_chunk_size)
+            chunk := await self.reader.read(self.read_max_chunk_size)
         ) == b"":  # pragma: no cover (it defenitely happens)
             await asyncio.sleep(0)
-        return read_bytes
+        return chunk
 
     async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
-        bytes_to_prepend_in_next_round = b""
+        incomplete_bytes = b""
 
         while True:
             try:
-                read_bytes = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
+                received_bytes = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
             except TimeoutError as exception:
                 raise ReadTimeoutError(timeout=self.read_timeout) from exception
 
-            frame_read_bytes, bytes_to_prepend_in_next_round = separate_complete_and_incomplete_packets(
-                bytes_to_prepend_in_next_round + read_bytes
+            complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
+                incomplete_bytes + received_bytes
             )
-            for frame in cast(Iterable[ServerFrame | UnknownFrame], load_frames(frame_read_bytes)):
+            for frame in cast(Iterable[ServerFrame | UnknownFrame], load_frames(complete_bytes)):
                 yield frame

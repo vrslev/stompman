@@ -1,7 +1,8 @@
 import asyncio
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, suppress
+from collections.abc import AsyncGenerator, Awaitable
+from contextlib import suppress
 from dataclasses import dataclass, field
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -53,9 +54,9 @@ class BaseMockConnection(AbstractConnection):
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None: ...
-    async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
+    async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:  # pragma: no cover
         await asyncio.Future()
-        yield  # type: ignore[misc]  # pragma: no cover
+        yield  # type: ignore[misc]
 
 
 def create_spying_connection(
@@ -209,14 +210,12 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    @asynccontextmanager
-    async def timeout(delay: float | None) -> AsyncGenerator[asyncio.Timeout, None]:
-        assert delay == client.connection_confirmation_timeout
-        async with original_timeout(0):
-            yield asyncio.Timeout(delay)
+    async def timeout(future: Awaitable[Any], timeout: float) -> Any:  # noqa: ANN401
+        assert timeout == client.connection_confirmation_timeout
+        return await original_wait_for(future, 0)
 
-    original_timeout = asyncio.timeout
-    monkeypatch.setattr("asyncio.timeout", timeout)
+    original_wait_for = asyncio.wait_for
+    monkeypatch.setattr("asyncio.wait_for", timeout)
 
     client = EnrichedClient(connection_class=BaseMockConnection)
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:

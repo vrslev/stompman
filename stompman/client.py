@@ -123,8 +123,9 @@ class Client:
             )
         )
         try:
-            async with asyncio.timeout(self.connection_confirmation_timeout):
-                connected_frame = await self._connection.read_frame_of_type(ConnectedFrame)
+            connected_frame = await asyncio.wait_for(
+                self._connection.read_frame_of_type(ConnectedFrame), timeout=self.connection_confirmation_timeout
+            )
         except TimeoutError as exception:
             raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout) from exception
 

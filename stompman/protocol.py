@@ -67,7 +67,7 @@ def ends_with_crlf(buffer: deque[bytes]) -> bool:
     return four_last_bytes == CRLFCRLR_MARKER
 
 
-def separate_complete_and_incomplete_packets(raw_frames: bytes) -> tuple[bytes, bytes]:
+def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
     if raw_frames.replace(b"\n", b"") == b"":
         return (raw_frames, b"")
 
