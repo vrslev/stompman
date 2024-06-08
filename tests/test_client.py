@@ -143,6 +143,27 @@ async def test_client_connect_to_one_server_fails() -> None:
 
 
 @pytest.mark.usefixtures("mock_sleep")
+async def test_client_connect_to_any_server_ok() -> None:
+    class MockConnection(BaseMockConnection):
+        async def connect(self) -> None:
+            if self.connection_parameters.port != successful_server.port:
+                raise ConnectError(self.connection_parameters)
+
+    successful_server = ConnectionParameters("localhost", 10, "login", "pass")
+    client = EnrichedClient(
+        servers=[
+            ConnectionParameters("localhost", 0, "login", "pass"),
+            ConnectionParameters("localhost", 1, "login", "pass"),
+            successful_server,
+            ConnectionParameters("localhost", 3, "login", "pass"),
+        ],
+        connection_class=MockConnection,
+    )
+    connection = await client._connect_to_any_server()
+    assert connection.connection_parameters == successful_server
+
+
+@pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         async def connect(self) -> None:
