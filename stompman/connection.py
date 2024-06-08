@@ -35,7 +35,6 @@ class AbstractConnection(Protocol):
     async def read_frame_of_type(self, type_: type[ServerFrameT]) -> ServerFrameT:
         while True:
             async for frame in self.read_frames():
-                print(frame)
                 if isinstance(frame, type_):
                     return frame
 
@@ -82,7 +81,6 @@ class Connection(AbstractConnection):
         while True:
             try:
                 received_bytes = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
-                print(received_bytes)
             except TimeoutError as exception:
                 raise ReadTimeoutError(timeout=self.read_timeout) from exception
 
