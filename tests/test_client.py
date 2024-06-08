@@ -54,7 +54,9 @@ class BaseMockConnection(AbstractConnection):
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None: ...
     async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
-        yield  # type: ignore[misc]
+        await asyncio.Future()
+        if False:
+            yield  # type: ignore[misc]
 
 
 def create_spying_connection(
@@ -187,28 +189,19 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     connected_frame = ConnectedFrame(headers={"version": PROTOCOL_VERSION, "heart-beat": "1,1"})
     receipt_frame = ReceiptFrame(headers={"receipt-id": "whatever"})
     connection_class, collected_frames = create_spying_connection([[connected_frame], [receipt_frame]])
-    write_raw_mock = mock.Mock()
+    write_heartbeat_mock = mock.Mock()
 
-    @dataclass
+    # @dataclass
     class MockConnection(connection_class):  # type: ignore[valid-type, misc]
-        write_raw = write_raw_mock
-
-        async def connect(self) -> None:
-            if self.connection_parameters.port != port:
-                raise ConnectError(self.connection_parameters)
+        write_heartbeat = write_heartbeat_mock
 
     receipt_id = "myid"
     monkeypatch.setattr(stompman.client, "uuid4", lambda: receipt_id)
 
-    port = 10
     login = "login"
     passcode = "passcode"
     async with EnrichedClient(
-        servers=[
-            ConnectionParameters("localhost", port, login, passcode),
-            ConnectionParameters("localhost", 10345, "", ""),
-        ],
-        connection_class=MockConnection,
+        [ConnectionParameters("localhost", 10, login, passcode)], connection_class=MockConnection
     ) as client:
         await asyncio.sleep(0)
 
@@ -225,7 +218,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         DisconnectFrame(headers={"receipt": receipt_id}),
         receipt_frame,
     ]
-    write_raw_mock.assert_called_once_with(HEARTBEAT_MARKER)
+    write_heartbeat_mock.assert_called_once_with()
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
