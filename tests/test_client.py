@@ -179,7 +179,6 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     connection_class, collected_frames = create_spying_connection([[connected_frame], [receipt_frame]])
     write_heartbeat_mock = mock.Mock()
 
-    # @dataclass
     class MockConnection(connection_class):  # type: ignore[valid-type, misc]
         write_heartbeat = write_heartbeat_mock
 
@@ -287,11 +286,7 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
         await real_sleep(0)
 
     assert sleep_calls == [1, 1]
-    assert write_heartbeat_mock.mock_calls == [
-        mock.call(),
-        mock.call(),
-        mock.call(),
-    ]
+    assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
 
 
 async def test_client_listen_ok() -> None:
