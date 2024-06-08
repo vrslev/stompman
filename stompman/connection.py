@@ -87,5 +87,5 @@ class Connection(AbstractConnection):
             frame_read_bytes, bytes_to_prepend_in_next_round = separate_complete_and_incomplete_packets(
                 bytes_to_prepend_in_next_round + read_bytes
             )
-            for frame in cast(Iterable[ServerFrame], load_frames(frame_read_bytes)):
+            for frame in cast(Iterable[ServerFrame | UnknownFrame], load_frames(frame_read_bytes)):
                 yield frame

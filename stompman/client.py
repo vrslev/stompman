@@ -36,11 +36,11 @@ class Heartbeat(NamedTuple):
     will_send_interval_ms: int
     want_to_receive_interval_ms: int
 
-    def dump(self) -> str:
+    def to_str(self) -> str:
         return f"{self.will_send_interval_ms},{self.want_to_receive_interval_ms}"
 
     @classmethod
-    def load(cls, value: str) -> Self:
+    def from_str(cls, value: str) -> Self:
         first, second = value.split(",", maxsplit=1)
         return cls(int(first), int(second))
 
@@ -116,7 +116,7 @@ class Client:
             ConnectFrame(
                 headers={
                     "accept-version": PROTOCOL_VERSION,
-                    "heart-beat": self.heartbeat.dump(),
+                    "heart-beat": self.heartbeat.to_str(),
                     "login": self._connection.connection_parameters.login,
                     "passcode": self._connection.connection_parameters.passcode,
                 },
@@ -133,7 +133,7 @@ class Client:
                 given_version=connected_frame.headers["version"], supported_version=PROTOCOL_VERSION
             )
 
-        server_heartbeat = Heartbeat.load(connected_frame.headers["heart-beat"])
+        server_heartbeat = Heartbeat.from_str(connected_frame.headers["heart-beat"])
         heartbeat_interval = (
             max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
         )

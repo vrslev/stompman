@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from typing import Any, cast
 
 from stompman.frames import (
-    COMMAND_TO_FRAME_TYPE,
+    COMMANDS_TO_FRAME_TYPES,
     AnyFrame,
     BaseFrame,
     HeartbeatFrame,
@@ -103,7 +103,7 @@ def _build_frame_from_buffer(buffer: deque[bytes]) -> AnyFrame:
             headers[decoded_key] = unescape_header(value).decode()
 
     body = b"".join(buffer)
-    if known_frame_type := COMMAND_TO_FRAME_TYPE.get(command):
+    if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
         return known_frame_type(headers=headers, body=body)
     return UnknownFrame(command=command, headers=headers, body=body)
 
