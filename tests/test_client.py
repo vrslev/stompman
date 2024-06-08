@@ -166,9 +166,12 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     connected_frame = ConnectedFrame(headers={"version": PROTOCOL_VERSION, "heart-beat": "1,1"})
     receipt_frame = ReceiptFrame(headers={"receipt-id": "whatever"})
     connection_class, collected_frames = create_spying_connection([[connected_frame], [receipt_frame]])
+    write_raw_mock = mock.Mock()
 
     @dataclass
     class MockConnection(connection_class):  # type: ignore[valid-type, misc]
+        write_raw = write_raw_mock
+
         async def connect(self) -> None:
             if self.connection_parameters.port != port:
                 raise ConnectError(self.connection_parameters)
@@ -186,7 +189,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         ],
         connection_class=MockConnection,
     ) as client:
-        pass
+        await asyncio.sleep(0)
 
     assert collected_frames == [
         ConnectFrame(
@@ -201,6 +204,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         DisconnectFrame(headers={"receipt": receipt_id}),
         receipt_frame,
     ]
+    write_raw_mock.assert_called_once_with(HEARTBEAT_MARKER)
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -270,17 +274,10 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
     class MockConnection(connection_class):  # type: ignore[valid-type, misc]
         write_raw = write_raw_mock
 
-    async with EnrichedClient(connection_class=MockConnection) as client, asyncio.TaskGroup() as task_group:
-
-        async def send_heartbeats_forever() -> None:
-            async with client._start_sending_heartbeats():
-                pass
-
-        task = task_group.create_task(send_heartbeats_forever())
+    async with EnrichedClient(connection_class=MockConnection):
         await real_sleep(0)
         await real_sleep(0)
         await real_sleep(0)
-        task.cancel()
 
     assert sleep_calls == [1, 1]
     assert write_raw_mock.mock_calls == [
