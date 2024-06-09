@@ -154,8 +154,6 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             headers = parse_headers(buffer)
         except IndexError:
             return
-        if not buffer:
-            return
 
         try:
             body = parse_body(buffer)

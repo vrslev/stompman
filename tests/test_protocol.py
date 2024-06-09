@@ -204,6 +204,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
         ),
         # no end of line after command
         (b"SOME_COMMAND", []),
+        (b"SOME_COMMAND\n", []),
         (b"SOME_COMMAND\x00", []),
         # \r\n after command
         (b"SOME_COMMAND\r\n\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={})]),
@@ -234,6 +235,11 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
         (b"SOME_COMMAND\nheader:what:?\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={})]),
         # no NULL
         (b"SOME_COMMAND\nheader:what:?\n\nhello", []),
+        # header never end
+        (b"SOME_COMMAND\nheader:hello", []),
+        (b"SOME_COMMAND\nheader:hello\n", []),
+        (b"SOME_COMMAND\nheader:hello\n\x00", []),
+        (b"SOME_COMMAND\nn", []),
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
