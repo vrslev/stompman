@@ -192,6 +192,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert collected_frames == [
         ConnectFrame(
             headers={
+                "host": client._connection.connection_parameters.host,
                 "accept-version": PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
                 "login": login,
@@ -285,7 +286,7 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
 
 
 async def test_client_listen_to_events_ok() -> None:
-    message_frame = MessageFrame(headers={}, body=b"hello")
+    message_frame = MessageFrame(headers={"destination": "", "message-id": "", "subscription": ""}, body=b"hello")
     error_frame = ErrorFrame(headers={"message": "short description"})
     heartbeat_frame = HeartbeatFrame()
 
@@ -313,7 +314,7 @@ async def test_client_listen_to_events_ok() -> None:
     assert events[1].body == error_frame.body  # type: ignore[union-attr]
 
 
-@pytest.mark.parametrize("frame", [ConnectedFrame(headers={}), ReceiptFrame(headers={})])
+@pytest.mark.parametrize("frame", [ConnectedFrame(headers={"version": ""}), ReceiptFrame(headers={"receipt-id": ""})])
 async def test_client_listen_to_events_unreachable(frame: ConnectedFrame | ReceiptFrame) -> None:
     connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[frame]]))
 

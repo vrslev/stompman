@@ -118,6 +118,7 @@ class Client:
                 headers={
                     "accept-version": PROTOCOL_VERSION,
                     "heart-beat": self.heartbeat.to_header(),
+                    "host": self._connection.connection_parameters.host,
                     "login": self._connection.connection_parameters.login,
                     "passcode": self._connection.connection_parameters.passcode,
                 },

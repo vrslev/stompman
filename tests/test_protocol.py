@@ -15,11 +15,8 @@ from stompman.protocol import Parser, dump_frame
     ("frame", "dumped_frame"),
     [
         (
-            AckFrame(
-                headers={"subscription": "1", "message-id": "1"},
-                body=b"I Am The Walrus",
-            ),
-            (b"ACK\nmessage-id:1\nsubscription:1\n\nI Am The Walrus\x00"),
+            AckFrame(headers={"subscription": "1", "id": "1"}, body=b"I Am The Walrus"),
+            (b"ACK\nid:1\nsubscription:1\n\nI Am The Walrus\x00"),
         ),
         (
             ConnectedFrame(headers={"heart-beat": "1,1", "version": "1"}),
