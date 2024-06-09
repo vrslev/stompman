@@ -27,7 +27,6 @@ REVERSE_ESCAPE_CHARS = {
 }
 EOF_MARKER = b"\x00"
 HEARTBEAT_MARKER = b"\n"
-CRLFCRLR_MARKER = (b"\r", b"\n", b"\r", b"\n")
 
 
 NULL = b"\x00"
@@ -143,7 +142,7 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
                 key_parsed = False
                 value_buffer.clear()
 
-            if (last_four_bytes[-1], last_four_bytes[-2]) == (NEWLINE, NEWLINE) or last_four_bytes == CRLFCRLR_MARKER:
+            if last_four_bytes[-2] == NEWLINE:
                 return headers
 
 
