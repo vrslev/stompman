@@ -217,5 +217,5 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> 
         ),
     ],
 )
-def test_load_frames_2(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
+def test_load_frames_again(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
     assert list(load_frames(raw_frames)) == loaded_frames

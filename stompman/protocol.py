@@ -124,9 +124,8 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
 
         elif has_processed_headers:
             if byte == EOF_MARKER:
-                yield _build_frame_from_buffer(command_buffer, headers, body_buffer)
+                yield _build_frame_from_buffer(command_buffer, headers.copy(), body_buffer)
                 command_buffer.clear()
-                one_header_buffer.clear()
                 body_buffer.clear()
                 headers.clear()
                 has_processed_command = False
