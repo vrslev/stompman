@@ -112,7 +112,7 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
                 key_buffer.append(byte)
             continue
 
-        if key_buffer and value_buffer and (key := b"".join(key_buffer).decode()) not in headers:
+        if key_buffer and (key := b"".join(key_buffer).decode()) not in headers:
             headers[key] = unescape_header(value_buffer).decode()
             key_buffer.clear()
             key_parsed = False
