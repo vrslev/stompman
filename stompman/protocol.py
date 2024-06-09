@@ -80,47 +80,34 @@ def parse_command(raw_frame: deque[bytes]) -> str:
     return b"".join(parse()).decode()
 
 
-def parse_header(raw_frame: deque[bytes]) -> Iterator[bytes | None]:
-    four_last_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
-
-    while True:
-        if not raw_frame:
-            yield None
-
-        byte = raw_frame.popleft()
-        four_last_bytes = (four_last_bytes[1], four_last_bytes[2], four_last_bytes[3], byte)
-        if byte not in (b"\n", b"\r"):
-            yield byte
-            continue
-        if (four_last_bytes[-1], four_last_bytes[-2]) == (b"\n", b"\n") or four_last_bytes == CRLFCRLR_MARKER:
-            yield None
-        else:
-            return
-
-
 def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     headers: dict[str, str] = {}
+    four_last_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
+    key_buffer: list[bytes] = []
+    key_parsed = False
+    value_buffer: list[bytes] = []
 
     while True:
-        key_buffer: list[bytes] = []
-        key_parsed = False
-        value_buffer: list[bytes] = []
+        byte = raw_frame.popleft()
+        four_last_bytes = (four_last_bytes[1], four_last_bytes[2], four_last_bytes[3], byte)
 
-        for byte in parse_header(raw_frame):
-            if byte is None:
-                return headers
-
+        if byte not in (b"\n", b"\r"):
             if key_parsed:
                 value_buffer.append(byte)
             elif not key_parsed and byte == b":":
                 key_parsed = True
             else:
                 key_buffer.append(byte)
+            continue
 
         if key_buffer and value_buffer and (key := b"".join(key_buffer).decode()) not in headers:
             headers[key] = unescape_header(b"".join(value_buffer)).decode()
+            key_buffer.clear()
+            key_parsed = False
+            value_buffer.clear()
 
-    return headers
+        if (four_last_bytes[-1], four_last_bytes[-2]) == (b"\n", b"\n") or four_last_bytes == CRLFCRLR_MARKER:
+            return headers
 
 
 def parse_body(raw_frame: deque[bytes]) -> bytes:
@@ -145,7 +132,6 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             if not raw_frames_deque:
                 return
             headers = parse_headers(raw_frames_deque)
-            print(raw_frames_deque)
             if not raw_frames_deque:
                 return
             body = parse_body(raw_frames_deque)
