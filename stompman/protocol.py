@@ -27,7 +27,7 @@ REVERSE_ESCAPE_CHARS = {
 }
 EOF_MARKER = b"\x00"
 HEARTBEAT_MARKER = b"\n"
-CRLFCRLR_MARKER = [b"\r", b"\n", b"\r", b"\n"]
+CRLFCRLR_MARKER = (b"\r", b"\n", b"\r", b"\n")
 
 
 def escape_header_value(header: str) -> str:
@@ -83,33 +83,54 @@ def parse_command(raw_frame: deque[bytes]) -> str:
 def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     headers: dict[str, str] = {}
     one_header_buffer: list[bytes] = []
-    three_previous_bytes: tuple[typing.Any, typing.Any, typing.Any] = (None, None, None)
+    four_last_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
 
     while True:
         byte = raw_frame.popleft()
-        if byte == b"\n":
-            if three_previous_bytes[-1] == b"\n":
-                should_stop = True
-            elif [three_previous_bytes, byte] == CRLFCRLR_MARKER:
-                should_stop = True
-                one_header_buffer.pop()
-                one_header_buffer.pop()
-                one_header_buffer.pop()
-            else:
-                should_stop = False
+        four_last_bytes = (four_last_bytes[1], four_last_bytes[2], four_last_bytes[3], byte)
 
-            if one_header_buffer:
-                key, value = b"".join(one_header_buffer).split(b":", 1)
-                if (decoded_key := key.decode()) not in headers:
-                    headers[decoded_key] = unescape_header(value).decode()
-                one_header_buffer.clear()
-
-            if should_stop:
-                break
-        else:
+        if byte not in (b"\n", b"\r"):
             one_header_buffer.append(byte)
+            continue
 
-        three_previous_bytes = (three_previous_bytes[1], three_previous_bytes[2], byte)
+        if (four_last_bytes[-1], four_last_bytes[-2]) == (b"\n", b"\n") or four_last_bytes == CRLFCRLR_MARKER:
+            should_stop = True
+        else:
+            should_stop = False
+
+        # yield do_work(one_header_buffer)
+
+        if one_header_buffer:
+            key, value = b"".join(one_header_buffer).split(b":", 1)
+            if (decoded_key := key.decode()) not in headers:
+                headers[decoded_key] = unescape_header(value).decode()
+            one_header_buffer.clear()
+
+        if should_stop:
+            break
+
+        # if byte == b"\n":
+        #     if four_last_bytes[-1] == b"\n":
+        #         should_stop = True
+        #     elif [four_last_bytes, byte] == CRLFCRLR_MARKER:
+        #         should_stop = True
+        #         one_header_buffer.pop()
+        #         one_header_buffer.pop()
+        #         one_header_buffer.pop()
+        #     else:
+        #         should_stop = False
+
+        #     if one_header_buffer:
+        #         key, value = b"".join(one_header_buffer).split(b":", 1)
+        #         if (decoded_key := key.decode()) not in headers:
+        #             headers[decoded_key] = unescape_header(value).decode()
+        #         one_header_buffer.clear()
+
+        #     if should_stop:
+        #         break
+        # else:
+        #     one_header_buffer.append(byte)
+
     return headers
 
 
