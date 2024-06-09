@@ -116,27 +116,22 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     while buffer:
         byte = buffer.popleft()
 
-        if headers_processed:
-            if byte == NULL:
-                lines.append(current_line)
-                yield parse_lines_into_frame(lines)
-                headers_processed = False
-                lines.clear()
-                current_line = []
-            else:
-                current_line.append(byte)
+        if headers_processed and byte == NULL:
+            lines.append(current_line)
+            yield parse_lines_into_frame(lines)
+            headers_processed = False
+            lines.clear()
+            current_line = []
 
-        elif byte == NEWLINE:
+        elif not headers_processed and byte == NEWLINE:
             if current_line or lines:
-                if not current_line:  # empty line
+                if not current_line:  # extra empty line after headers
                     headers_processed = True
 
                 if previous_byte == b"\r":
                     current_line.pop()
-                    lines.append(current_line)
-                else:
-                    lines.append(current_line)
 
+                lines.append(current_line)
                 current_line = []
             else:
                 yield HeartbeatFrame(headers={})

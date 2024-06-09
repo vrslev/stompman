@@ -206,7 +206,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
         (b"SOME_COMMAND\n", []),
         (b"SOME_COMMAND\x00", []),
         # \r\n after command
-        (b"SOME_COMMAND\r\n\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={}, body="\n")]),
+        (b"SOME_COMMAND\r\n\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={}, body=b"\n")]),
         (b"SOME_COMMAND\r\nheader:1.0\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})]),
         # header without :
         (b"SOME_COMMAND\nhead\nheader:1.1\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.1"})]),
