@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Generic, Literal, Required, TypedDict, TypeVar
+from typing import Generic, Literal, NotRequired, TypedDict, TypeVar
 
 HeadersType = TypeVar("HeadersType")
 
@@ -14,13 +14,12 @@ class BaseFrame(Generic[HeadersType]):
 ConnectHeaders = TypedDict(
     "ConnectHeaders",
     {
-        "accept-version": Required[str],
-        "host": Required[str],
-        "login": str,
-        "passcode": str,
-        "heart-beat": str,
+        "accept-version": str,
+        "host": str,
+        "login": NotRequired[str],
+        "passcode": NotRequired[str],
+        "heart-beat": NotRequired[str],
     },
-    total=False,
 )
 
 
@@ -31,8 +30,7 @@ class ConnectFrame(BaseFrame[ConnectHeaders]):
 
 ConnectedHeaders = TypedDict(
     "ConnectedHeaders",
-    {"version": str, "server": str, "heart-beat": str},
-    total=False,
+    {"version": str, "server": NotRequired[str], "heart-beat": NotRequired[str]},
 )
 
 
@@ -47,9 +45,8 @@ SendHeaders = TypedDict(
         "content-length": str,
         "content-type": str,
         "destination": str,
-        "transaction": str,
+        "transaction": NotRequired[str],
     },
-    total=False,
 )
 
 
@@ -58,11 +55,10 @@ class SendFrame(BaseFrame[SendHeaders | dict[str, str]]):
     command: Literal["SEND"] = "SEND"
 
 
-class SubscribeHeaders(TypedDict, total=False):
+class SubscribeHeaders(TypedDict):
     id: str
     destination: str
-    ack: Literal["client", "client-individual", "auto"]
-    transaction: str
+    ack: NotRequired[Literal["client", "client-individual", "auto"]]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -70,7 +66,7 @@ class SubscribeFrame(BaseFrame[SubscribeHeaders]):
     command: Literal["SUBSCRIBE"] = "SUBSCRIBE"
 
 
-class UnsubscribeHeaders(TypedDict, total=False):
+class UnsubscribeHeaders(TypedDict):
     id: str
 
 
@@ -81,12 +77,7 @@ class UnsubscribeFrame(BaseFrame[UnsubscribeHeaders]):
 
 AckHeaders = TypedDict(
     "AckHeaders",
-    {
-        "subscription": str,
-        "message-id": str,
-        "transaction": str,
-    },
-    total=False,
+    {"subscription": str, "message-id": str, "transaction": NotRequired[str]},
 )
 
 
@@ -97,12 +88,7 @@ class AckFrame(BaseFrame[AckHeaders]):
 
 NackHeaders = TypedDict(
     "NackHeaders",
-    {
-        "subscription": str,
-        "message-id": str,
-        "transaction": str,
-    },
-    total=False,
+    {"subscription": str, "message-id": str, "transaction": NotRequired[str]},
 )
 
 
@@ -111,7 +97,7 @@ class NackFrame(BaseFrame[NackHeaders]):
     command: Literal["NACK"] = "NACK"
 
 
-class BeginHeaders(TypedDict, total=False):
+class BeginHeaders(TypedDict):
     transaction: str
 
 
@@ -120,7 +106,7 @@ class BeginFrame(BaseFrame[BeginHeaders]):
     command: Literal["BEGIN"] = "BEGIN"
 
 
-class CommitHeaders(TypedDict, total=False):
+class CommitHeaders(TypedDict):
     transaction: str
 
 
@@ -129,7 +115,7 @@ class CommitFrame(BaseFrame[CommitHeaders]):
     command: Literal["COMMIT"] = "COMMIT"
 
 
-class AbortHeaders(TypedDict, total=False):
+class AbortHeaders(TypedDict):
     transaction: str
 
 
@@ -138,8 +124,8 @@ class AbortFrame(BaseFrame[AbortHeaders]):
     command: Literal["ABORT"] = "ABORT"
 
 
-class DisconnectHeaders(TypedDict, total=False):
-    receipt: str
+class DisconnectHeaders(TypedDict):
+    receipt: NotRequired[str]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -147,13 +133,7 @@ class DisconnectFrame(BaseFrame[DisconnectHeaders]):
     command: Literal["DISCONNECT"] = "DISCONNECT"
 
 
-ReceiptHeaders = TypedDict(
-    "ReceiptHeaders",
-    {
-        "receipt-id": str,
-    },
-    total=False,
-)
+ReceiptHeaders = TypedDict("ReceiptHeaders", {"receipt-id": str})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -163,13 +143,8 @@ class ReceiptFrame(BaseFrame[ReceiptHeaders]):
 
 MessageHeaders = TypedDict(
     "MessageHeaders",
-    {
-        "subscription": str,
-        "message-id": str,
-        "destination": str,
-        "content-type": str,
-    },
-    total=False,
+    # TODO: ack??
+    {"destination": str, "message-id": str, "subscription": str, "ack": NotRequired[str], "content-type": str},
 )
 
 
@@ -178,8 +153,8 @@ class MessageFrame(BaseFrame[MessageHeaders]):
     command: Literal["MESSAGE"] = "MESSAGE"
 
 
-class ErrorHeaders(TypedDict, total=False):
-    message: str
+class ErrorHeaders(TypedDict):
+    message: NotRequired[str]
 
 
 @dataclass(frozen=True, kw_only=True)
