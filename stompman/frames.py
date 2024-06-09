@@ -93,7 +93,7 @@ AckHeaders = TypedDict(
     "AckHeaders",
     {
         "subscription": str,
-        "message-id": str,
+        "id": str,
         "transaction": NotRequired[str],
         "content-length": NotRequired[str],
     },
@@ -110,7 +110,7 @@ NackHeaders = TypedDict(
     "NackHeaders",
     {
         "subscription": str,
-        "message-id": str,
+        "id": str,
         "transaction": NotRequired[str],
         "content-length": NotRequired[str],
     },
