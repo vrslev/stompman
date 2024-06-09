@@ -106,14 +106,11 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame | None:
 
 @dataclass
 class Parser:
-    _remainder_from_last_packet_lines: deque[list[bytes]] = field(default_factory=deque, init=False)
-    _remainder_from_last_packet_current_line: list[bytes] = field(default_factory=list, init=False)
+    _lines: deque[list[bytes]] = field(default_factory=deque, init=False)
+    _current_line: list[bytes] = field(default_factory=list, init=False)
 
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
-        all_bytes = raw_frames
-        buffer = deque(struct.unpack(f"{len(all_bytes)!s}c", all_bytes))
-        lines = self._remainder_from_last_packet_lines
-        current_line = self._remainder_from_last_packet_current_line
+        buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
         previous_byte = None
         headers_processed = False
 
@@ -121,30 +118,27 @@ class Parser:
             byte = buffer.popleft()
 
             if headers_processed and byte == NULL:
-                lines.append(current_line)
-                if parsed_frame := parse_lines_into_frame(lines):
+                self._lines.append(self._current_line)
+                if parsed_frame := parse_lines_into_frame(self._lines):
                     yield parsed_frame
                 headers_processed = False
-                lines.clear()
-                current_line = []
+                self._lines.clear()
+                self._current_line = []
 
             elif not headers_processed and byte == NEWLINE:
-                if current_line or lines:
-                    if not current_line:  # extra empty line after headers
+                if self._current_line or self._lines:
+                    if not self._current_line:  # extra empty line after headers
                         headers_processed = True
 
                     if previous_byte == b"\r":
-                        current_line.pop()
+                        self._current_line.pop()
 
-                    lines.append(current_line)
-                    current_line = []
+                    self._lines.append(self._current_line)
+                    self._current_line = []
                 else:
                     yield HeartbeatFrame()
 
             else:
-                current_line.append(byte)
+                self._current_line.append(byte)
 
             previous_byte = byte
-
-        self._remainder_from_last_packet_lines = lines
-        self._remainder_from_last_packet_current_line = current_line
