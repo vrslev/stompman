@@ -34,6 +34,18 @@ def escape_header_value(header: str) -> str:
     return "".join(ESCAPE_CHARS.get(char, char) for char in header)
 
 
+def dump_frame(frame: BaseFrame[Any]) -> bytes:
+    lines = (
+        frame.command.encode(),
+        b"\n",
+        *(f"{key}:{escape_header_value(value)}\n".encode() for key, value in sorted(frame.headers.items())),
+        b"\n",
+        frame.body,
+        EOF_MARKER,
+    )
+    return b"".join(lines)
+
+
 def iter_bytes(value: bytes) -> Iterator[bytes]:
     yield from cast(tuple[bytes, ...], struct.unpack(f"{len(value)!s}c", value))
 
@@ -58,18 +70,6 @@ def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[by
         return (raw_frames, b"")
     parts = raw_frames.rpartition(EOF_MARKER)
     return parts[0] + parts[1], parts[2]
-
-
-def dump_frame(frame: BaseFrame[Any]) -> bytes:
-    lines = (
-        frame.command.encode(),
-        b"\n",
-        *(f"{key}:{escape_header_value(value)}\n".encode() for key, value in sorted(frame.headers.items())),
-        b"\n",
-        frame.body,
-        EOF_MARKER,
-    )
-    return b"".join(lines)
 
 
 def parse_command(raw_frame: deque[bytes]) -> str:
