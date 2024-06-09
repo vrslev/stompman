@@ -206,3 +206,16 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
     assert list(load_frames(raw_frames)) == loaded_frames
+
+
+@pytest.mark.parametrize(
+    ("raw_frames", "loaded_frames"),
+    [
+        (
+            b"SOME_COMMAND\nheader:1.0\n\n\x00",
+            [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})],
+        ),
+    ],
+)
+def test_load_frames_2(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
+    assert list(load_frames(raw_frames)) == loaded_frames

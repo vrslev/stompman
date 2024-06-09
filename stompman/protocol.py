@@ -28,6 +28,7 @@ REVERSE_ESCAPE_CHARS = {
 EOF_MARKER = b"\x00"
 HEARTBEAT_MARKER = b"\n"
 CRLFCRLR_MARKER = (b"\r", b"\n", b"\r", b"\n")
+CRLFCRLR_MARKER_LIST = [b"\r", b"\n", b"\r", b"\n"]
 
 
 def escape_header_value(header: str) -> str:
@@ -87,27 +88,29 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
 
 
 def _build_frame_from_buffer(
-    command_buffer: deque[bytes], headers_buffer: deque[bytes], body_buffer: deque[bytes]
+    command_buffer: deque[bytes], headers: dict[str, str], body_buffer: deque[bytes]
 ) -> AnyFrame:
     command = b"".join(command_buffer).decode()
-    headers: Any = {}
+    # headers: Any = {}
 
-    while len(line := parse_one_line(headers_buffer)) > 1:
-        key, value = line.split(b":", 1)
-        decoded_key = key.decode()
+    # if False:
+    #     while len(line := parse_one_line(headers)) > 1:
+    #         key, value = line.split(b":", 1)
+    #         decoded_key = key.decode()
 
-        if decoded_key not in headers:
-            headers[decoded_key] = unescape_header(value).decode()
+    #         if decoded_key not in headers:
+    #             headers[decoded_key] = unescape_header(value).decode()
 
     body = b"".join(body_buffer)
     if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
-        return known_frame_type(headers=headers, body=body)
+        return known_frame_type(headers=cast(Any, headers), body=body)
     return UnknownFrame(command=command, headers=headers, body=body)
 
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     command_buffer = deque[bytes]()
-    headers_buffer = deque[bytes]()
+    one_header_buffer = list[bytes]()
+    headers: dict[str, str] = {}
     body_buffer = deque[bytes]()
     previous_byte = None
     has_processed_command = False
@@ -116,23 +119,41 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     for byte in iter_bytes(raw_frames):
         byte_is_newline = byte == b"\n"
 
-        if byte_is_newline and not command_buffer and not headers_buffer:
+        if byte_is_newline and not (command_buffer or one_header_buffer or headers):
             yield HeartbeatFrame(headers={})
 
         elif has_processed_headers:
             if byte == EOF_MARKER:
-                yield _build_frame_from_buffer(command_buffer, headers_buffer, body_buffer)
+                yield _build_frame_from_buffer(command_buffer, headers, body_buffer)
                 command_buffer.clear()
-                headers_buffer.clear()
+                one_header_buffer.clear()
                 body_buffer.clear()
+                headers.clear()
                 has_processed_command = False
                 has_processed_headers = False
             else:
                 body_buffer.append(byte)
         elif has_processed_command:
-            headers_buffer.append(byte)
-            if byte_is_newline and (previous_byte == b"\n" or ends_with_crlf(headers_buffer)):
-                has_processed_headers = True
+            one_header_buffer.append(byte)
+            if byte_is_newline:
+                one_header_buffer.pop()
+                if previous_byte == b"\n":
+                    has_processed_headers = True
+                elif one_header_buffer[-4:] == CRLFCRLR_MARKER_LIST:
+                    has_processed_headers = True
+                    one_header_buffer.pop()
+                    one_header_buffer.pop()
+                    one_header_buffer.pop()
+                    one_header_buffer.pop()
+
+                if one_header_buffer:
+                    key, value = b"".join(one_header_buffer).split(b":", 1)
+                    decoded_key = key.decode()
+
+                    if decoded_key not in headers:
+                        headers[decoded_key] = unescape_header(value).decode()
+                    one_header_buffer.clear()
+
         else:  # noqa: PLR5501
             if byte_is_newline:
                 has_processed_command = True
