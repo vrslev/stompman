@@ -99,14 +99,14 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     key_parsed = False
     value_buffer: list[bytes] = []
 
-    while True:
+    while raw_frame:
         byte = raw_frame.popleft()
         last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
-        if byte not in (b"\n", b"\r"):
+        if byte not in (CARRIAGE, NEWLINE):
             if key_parsed:
                 value_buffer.append(byte)
-            elif not key_parsed and byte == b":":
+            elif byte == b":":
                 key_parsed = True
             else:
                 key_buffer.append(byte)
@@ -118,8 +118,10 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
             key_parsed = False
             value_buffer.clear()
 
-        if (last_four_bytes[-1], last_four_bytes[-2]) == (b"\n", b"\n") or last_four_bytes == CRLFCRLR_MARKER:
+        if (last_four_bytes[-1], last_four_bytes[-2]) == (NEWLINE, NEWLINE) or last_four_bytes == CRLFCRLR_MARKER:
             return headers
+
+    return {}
 
 
 def parse_body(raw_frame: deque[bytes]) -> bytes:
