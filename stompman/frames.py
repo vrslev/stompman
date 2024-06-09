@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Generic, Literal, TypedDict, TypeVar
+from typing import Generic, Literal, Required, TypedDict, TypeVar
 
 HeadersType = TypeVar("HeadersType")
 
@@ -14,8 +14,8 @@ class BaseFrame(Generic[HeadersType]):
 ConnectHeaders = TypedDict(
     "ConnectHeaders",
     {
-        "accept-version": str,
-        "host": str,
+        "accept-version": Required[str],
+        "host": Required[str],
         "login": str,
         "passcode": str,
         "heart-beat": str,
@@ -195,6 +195,27 @@ class HeartbeatFrame(BaseFrame[dict[str, str]]):
 @dataclass(frozen=True, kw_only=True)
 class UnknownFrame(BaseFrame[dict[str, str]]): ...
 
+
+CLIENT_FRAMES = {
+    "SEND": SendFrame,
+    "SUBSCRIBE": SubscribeFrame,
+    "UNSUBSCRIBE": UnsubscribeFrame,
+    "BEGIN": BeginFrame,
+    "COMMIT": CommitFrame,
+    "ABORT": AbortFrame,
+    "ACK": AckFrame,
+    "NACK": NackFrame,
+    "DISCONNECT": DisconnectFrame,
+    "CONNECT": ConnectFrame,
+    "STOMP": StompFrame,
+}
+
+SERVER_FRAMES = {
+    "CONNECTED": ConnectedFrame,
+    "MESSAGE": MessageFrame,
+    "RECEIPT": ReceiptFrame,
+    "ERROR": ErrorFrame,
+}
 
 ClientFrame = (
     ConnectFrame
