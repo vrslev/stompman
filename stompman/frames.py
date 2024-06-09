@@ -204,9 +204,7 @@ class ErrorFrame:
 
 
 @dataclass
-class HeartbeatFrame:
-    headers: dict[str, str]
-    body: bytes = b""
+class HeartbeatFrame: ...
 
 
 @dataclass
@@ -255,8 +253,6 @@ COMMANDS_TO_FRAMES: dict[
 }
 FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
 
-# SERVER_COMMANDS_TO_FRAMES: dict[bytes, type[ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame]] = {}
-# SERVER_FRAMES_TO_COMMANDS = {value: key for key, value in SERVER_COMMANDS_TO_FRAMES.items()}
 
 ClientFrame = (
     ConnectFrame

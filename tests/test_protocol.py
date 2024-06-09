@@ -108,7 +108,7 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
                     },
                     body=b"222.222.22.222",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "12",
@@ -123,7 +123,7 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
                     },
                     body=b"88.88.888.88",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "11",
@@ -138,7 +138,7 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
                     },
                     body=b"111.11.1.11",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "14",
@@ -153,7 +153,7 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
                     },
                     body=b"222.222.22.222",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "12",
@@ -168,7 +168,7 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
                     },
                     body=b"88.88.888.88",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
             ],
         ),
         # Partial packet #2
@@ -176,9 +176,9 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
             b"CONNECT\naccept-version:1.0\n\n\x00\nCONNECTED\nversion:1.0\n\n\x00\n",
             [
                 ConnectFrame(headers={"accept-version": "1.0"}),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 ConnectedFrame(headers={"version": "1.0"}),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
             ],
         ),
         # Utf-8
@@ -186,14 +186,14 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
             b"CONNECTED\naccept-version:1.0\n\n\x00\nERROR\nheader:1.0\n\n\xc3\xa7\x00\n",
             [
                 ConnectedFrame(headers={"accept-version": "1.0"}),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 ErrorFrame(headers={"header": "1.0"}, body="ç".encode()),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
             ],
         ),
         (
             b"\n",
-            [HeartbeatFrame(headers={})],
+            [HeartbeatFrame()],
         ),
         # Two headers: only first should be accepted
         (

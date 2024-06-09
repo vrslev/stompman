@@ -138,7 +138,7 @@ class Parser:
                     lines.append(current_line)
                     current_line = []
                 else:
-                    yield HeartbeatFrame(headers={})
+                    yield HeartbeatFrame()
 
             else:
                 current_line.append(byte)

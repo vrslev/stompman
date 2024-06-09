@@ -291,7 +291,7 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
 async def test_client_listen_to_events_ok() -> None:
     message_frame = MessageFrame(headers={}, body=b"hello")
     error_frame = ErrorFrame(headers={"message": "short description"})
-    heartbeat_frame = HeartbeatFrame(headers={})
+    heartbeat_frame = HeartbeatFrame()
     unknown_frame = UnknownFrame(command="WHATEVER", headers={}, body=b"other")
 
     connection_class, _ = create_spying_connection(

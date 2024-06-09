@@ -91,9 +91,9 @@ async def test_connection_lifespan(connection: Connection) -> None:
                 return frames
 
             expected_frames = [
-                HeartbeatFrame(headers={}),
-                HeartbeatFrame(headers={}),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
+                HeartbeatFrame(),
+                HeartbeatFrame(),
                 ConnectedFrame(headers={"heart-beat": "0,0", "version": "1.1", "server": "some server"}),
             ]
             assert await take_frames(len(expected_frames)) == expected_frames
