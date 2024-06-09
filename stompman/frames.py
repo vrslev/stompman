@@ -215,26 +215,29 @@ class UnknownFrame:
     body: bytes = b""
 
 
-CLIENT_FRAMES = {
-    "SEND": SendFrame,
-    "SUBSCRIBE": SubscribeFrame,
-    "UNSUBSCRIBE": UnsubscribeFrame,
-    "BEGIN": BeginFrame,
-    "COMMIT": CommitFrame,
-    "ABORT": AbortFrame,
-    "ACK": AckFrame,
-    "NACK": NackFrame,
-    "DISCONNECT": DisconnectFrame,
-    "CONNECT": ConnectFrame,
-    "STOMP": StompFrame,
+CLIENT_COMMANDS_TO_FRAMES = {
+    b"SEND": SendFrame,
+    b"SUBSCRIBE": SubscribeFrame,
+    b"UNSUBSCRIBE": UnsubscribeFrame,
+    b"BEGIN": BeginFrame,
+    b"COMMIT": CommitFrame,
+    b"ABORT": AbortFrame,
+    b"ACK": AckFrame,
+    b"NACK": NackFrame,
+    b"DISCONNECT": DisconnectFrame,
+    b"CONNECT": ConnectFrame,
+    b"STOMP": StompFrame,
+}
+CLIENT_FRAMES_TO_COMMANDS = {value: key for key, value in CLIENT_COMMANDS_TO_FRAMES.items()}
+
+SERVER_COMMANDS_TO_FRAMES: dict[bytes, type[ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame]] = {
+    b"CONNECTED": ConnectedFrame,
+    b"MESSAGE": MessageFrame,
+    b"RECEIPT": ReceiptFrame,
+    b"ERROR": ErrorFrame,
 }
 
-SERVER_FRAMES = {
-    "CONNECTED": ConnectedFrame,
-    "MESSAGE": MessageFrame,
-    "RECEIPT": ReceiptFrame,
-    "ERROR": ErrorFrame,
-}
+SERVER_FRAMES_TO_COMMANDS = {value: key for key, value in SERVER_COMMANDS_TO_FRAMES.items()}
 
 ClientFrame = (
     ConnectFrame
@@ -248,9 +251,9 @@ ClientFrame = (
     | NackFrame
     | DisconnectFrame
 )
-ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame | HeartbeatFrame
 
-AnyFrame = ClientFrame | ServerFrame | UnknownFrame
+ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
+AnyFrame = ClientFrame | ServerFrame | UnknownFrame | HeartbeatFrame
 
 COMMANDS_TO_FRAME_TYPES: dict[str, type[ClientFrame | ServerFrame]] = {
     "CONNECT": ConnectFrame,

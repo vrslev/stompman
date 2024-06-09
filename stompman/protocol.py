@@ -6,9 +6,10 @@ from typing import Any, cast
 
 from stompman.frames import (
     COMMANDS_TO_FRAME_TYPES,
+    SERVER_FRAMES_TO_COMMANDS,
     AnyFrame,
-    BaseFrame,
     HeartbeatFrame,
+    ServerFrame,
     UnknownFrame,
 )
 
@@ -37,11 +38,11 @@ def dump_header(key: str, value: str) -> bytes:
     return f"{escaped_key}:{escaped_value}\n".encode()
 
 
-def dump_frame(frame: BaseFrame[Any]) -> bytes:
+def dump_frame(frame: ServerFrame) -> bytes:
     lines = (
-        frame.command.encode(),
+        SERVER_FRAMES_TO_COMMANDS[type(frame)],
         NEWLINE,
-        *(dump_header(key, value) for key, value in sorted(frame.headers.items())),
+        *(dump_header(key, cast(str, value)) for key, value in sorted(frame.headers.items())),
         NEWLINE,
         frame.body,
         NULL,
@@ -101,7 +102,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
 
     if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
         return known_frame_type(headers=cast(Any, headers), body=body)
-    return UnknownFrame(command=command, headers=headers, body=body)
+    return UnknownFrame(headers=headers, body=body)
 
 
 @dataclass
