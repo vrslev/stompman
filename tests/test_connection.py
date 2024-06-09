@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from collections.abc import Awaitable
+from functools import partial
 from typing import Any
 from unittest import mock
 
@@ -26,27 +26,6 @@ def connection() -> Connection:
         read_timeout=2,
         read_max_chunk_size=2,
     )
-
-
-@asynccontextmanager
-async def create_server(
-    handle_connected: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]],
-) -> AsyncGenerator[tuple[str, int], None]:
-    async def handle_connected_full(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        await handle_connected(reader, writer)
-
-        async def shutdown() -> None:
-            await writer.drain()
-            writer.close()
-            await writer.wait_closed()
-
-        task_group.create_task(shutdown())
-
-    host, port = "localhost", 61637
-
-    async with asyncio.TaskGroup() as task_group:  # noqa: SIM117
-        async with await asyncio.start_server(handle_connected_full, host, port):
-            yield host, port
 
 
 def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,10 +112,11 @@ async def test_connection_error(monkeypatch: pytest.MonkeyPatch, connection: Con
 
 
 async def test_read_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
-    async with create_server(mock.AsyncMock()) as (host, port):
-        connection.connection_parameters.host = host
-        connection.connection_parameters.port = port
-        await connection.connect()
-        mock_wait_for(monkeypatch)
-        with pytest.raises(ReadTimeoutError):
-            [frame async for frame in connection.read_frames()]
+    monkeypatch.setattr(
+        "asyncio.open_connection",
+        mock.AsyncMock(return_value=(mock.AsyncMock(read=partial(asyncio.sleep, 5)), mock.AsyncMock())),
+    )
+    await connection.connect()
+    mock_wait_for(monkeypatch)
+    with pytest.raises(ReadTimeoutError):
+        [frame async for frame in connection.read_frames()]
