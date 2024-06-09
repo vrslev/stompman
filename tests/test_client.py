@@ -329,8 +329,8 @@ async def test_ack_nack() -> None:
     message_frame = MessageFrame(
         headers={"subscription": subscription, "message-id": message_id, "destination": "whatever"}, body=b"hello"
     )
-    nack_frame = NackFrame(headers={"subscription": subscription, "message-id": message_id})
-    ack_frame = AckFrame(headers={"subscription": subscription, "message-id": message_id})
+    nack_frame = NackFrame(headers={"id": message_id, "subscription": subscription})
+    ack_frame = AckFrame(headers={"id": message_id, "subscription": subscription})
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
     async with EnrichedClient(connection_class=connection_class) as client:
@@ -371,7 +371,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
         [
             BeginFrame(headers={"transaction": transaction}),
             SendFrame(
-                headers={ # type: ignore[typeddict-unknown-key]
+                headers={  # type: ignore[typeddict-unknown-key]
                     "content-length": str(len(body)),
                     "content-type": content_type,
                     "destination": destination,
