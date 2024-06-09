@@ -86,25 +86,27 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
     return b"".join(lines)
 
 
-def _build_frame_from_buffer(buffer: deque[bytes]) -> AnyFrame:
-    command = parse_one_line(buffer).decode()
+def _build_frame_from_buffer(command_and_headers_buffer: deque[bytes], body_buffer: deque[bytes]) -> AnyFrame:
+    command = parse_one_line(command_and_headers_buffer).decode()
     headers: Any = {}
 
-    while len(line := parse_one_line(buffer)) > 1:
+    while len(line := parse_one_line(command_and_headers_buffer)) > 1:
         key, value = line.split(b":", 1)
         decoded_key = key.decode()
 
         if decoded_key not in headers:
             headers[decoded_key] = unescape_header(value).decode()
 
-    body = b"".join(buffer)
+    body = b"".join(body_buffer)
     if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
         return known_frame_type(headers=headers, body=body)
     return UnknownFrame(command=command, headers=headers, body=body)
 
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
-    buffer = deque[bytes]()
+    command_buffer = deque[bytes]()
+    command_and_headers_buffer = deque[bytes]()
+    body_buffer = deque[bytes]()
     previous_byte = None
     has_processed_headers = False
 
@@ -112,21 +114,22 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
         # parse body until EOF is reached
         if has_processed_headers:
             if byte == EOF_MARKER:
-                yield _build_frame_from_buffer(buffer)
-                buffer.clear()
+                yield _build_frame_from_buffer(command_and_headers_buffer, body_buffer)
+                command_and_headers_buffer.clear()
+                body_buffer.clear()
                 has_processed_headers = False
             else:
-                buffer.append(byte)
+                body_buffer.append(byte)
         # heartbeat sent
-        elif byte == HEARTBEAT_MARKER and not buffer:
+        elif byte == HEARTBEAT_MARKER and not command_and_headers_buffer:
             yield HeartbeatFrame(headers={})
             continue
         # parse command and headers
         else:
-            buffer.append(byte)
+            command_and_headers_buffer.append(byte)
 
             # command and headers parsed, time to start parsing body
-            if byte == b"\n" and (previous_byte == b"\n" or ends_with_crlf(buffer)):
+            if byte == b"\n" and (previous_byte == b"\n" or ends_with_crlf(command_and_headers_buffer)):
                 has_processed_headers = True
 
         previous_byte = byte
