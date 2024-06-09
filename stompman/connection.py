@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ConnectError, ReadTimeoutError
-from stompman.frames import ClientFrame, ServerFrame, UnknownFrame
+from stompman.frames import AnyRealFrame, ClientFrame, ServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame, separate_complete_and_incomplete_packet_parts
 
 
@@ -16,7 +16,7 @@ class ConnectionParameters:
     passcode: str = field(repr=False)
 
 
-ServerFrameT = TypeVar("ServerFrameT", bound=ServerFrame | UnknownFrame)
+FrameT = TypeVar("FrameT", bound=AnyRealFrame)
 
 
 @dataclass
@@ -29,10 +29,10 @@ class AbstractConnection(Protocol):
     async def connect(self) -> None: ...
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
-    async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None: ...
-    def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]: ...
+    async def write_frame(self, frame: ClientFrame) -> None: ...
+    def read_frames(self) -> AsyncGenerator[ServerFrame, None]: ...
 
-    async def read_frame_of_type(self, type_: type[ServerFrameT]) -> ServerFrameT:
+    async def read_frame_of_type(self, type_: type[FrameT]) -> FrameT:
         while True:
             async for frame in self.read_frames():
                 if isinstance(frame, type_):
@@ -64,7 +64,7 @@ class Connection(AbstractConnection):
     def write_heartbeat(self) -> None:
         return self.writer.write(NEWLINE)
 
-    async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None:
+    async def write_frame(self, frame: ClientFrame) -> None:
         self.writer.write(dump_frame(frame))
         await self.writer.drain()
 
@@ -75,7 +75,7 @@ class Connection(AbstractConnection):
             await asyncio.sleep(0)
         return chunk
 
-    async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
+    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:
         incomplete_bytes = b""
         parser = Parser()
 
@@ -88,5 +88,5 @@ class Connection(AbstractConnection):
             complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
                 incomplete_bytes + received_bytes
             )
-            for frame in cast(Iterable[ServerFrame | UnknownFrame], parser.load_frames(received_bytes)):
+            for frame in cast(Iterable[ServerFrame], parser.load_frames(received_bytes)):
                 yield frame

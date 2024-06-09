@@ -8,7 +8,7 @@ from stompman.frames import (
     COMMANDS_TO_FRAME_TYPES,
     FRAMES_TO_COMMANDS,
     AnyFrame,
-    ClientFrame,
+    AnyRealFrame,
     HeartbeatFrame,
     UnknownFrame,
 )
@@ -38,7 +38,7 @@ def dump_header(key: str, value: str) -> bytes:
     return f"{escaped_key}:{escaped_value}\n".encode()
 
 
-def dump_frame(frame: ClientFrame) -> bytes:
+def dump_frame(frame: AnyRealFrame) -> bytes:
     lines = (
         FRAMES_TO_COMMANDS[type(frame)],
         NEWLINE,

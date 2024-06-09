@@ -227,6 +227,7 @@ COMMANDS_TO_FRAMES: dict[
         | DisconnectFrame
         | ConnectFrame
         | StompFrame
+        # ...
         | ConnectedFrame
         | MessageFrame
         | ReceiptFrame
@@ -253,10 +254,8 @@ COMMANDS_TO_FRAMES: dict[
 }
 FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
 
-
 ClientFrame = (
-    ConnectFrame
-    | SendFrame
+    SendFrame
     | SubscribeFrame
     | UnsubscribeFrame
     | BeginFrame
@@ -265,10 +264,12 @@ ClientFrame = (
     | AckFrame
     | NackFrame
     | DisconnectFrame
+    | ConnectFrame
+    | StompFrame
 )
-
 ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
-AnyFrame = ClientFrame | ServerFrame | UnknownFrame | HeartbeatFrame
+AnyRealFrame = ClientFrame | ServerFrame
+AnyFrame = AnyRealFrame | UnknownFrame | HeartbeatFrame
 
 COMMANDS_TO_FRAME_TYPES: dict[str, type[ClientFrame | ServerFrame]] = {
     "CONNECT": ConnectFrame,
