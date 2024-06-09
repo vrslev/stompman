@@ -191,17 +191,19 @@ class Client:
         else:
             await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
-    async def send(
+    async def send(  # noqa: PLR0913
         self,
         body: bytes,
         destination: str,
         transaction: str | None = None,
+        content_type: str | None = None,
         headers: dict[str, str] | None = None,
-        
     ) -> None:
         full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
         full_headers["destination"] = destination
         full_headers["content-length"] = str(len(body))
+        if content_type is not None:
+            full_headers["content-type"] = content_type
         if transaction is not None:
             full_headers["transaction"] = transaction
         await self._connection.write_frame(SendFrame(headers=full_headers, body=body))

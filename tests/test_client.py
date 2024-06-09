@@ -350,6 +350,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     destination = "/queue/test"
     expires = "whatever"
     transaction = "myid"
+    content_type = "my-content-type"
     monkeypatch.setattr(stompman.client, "uuid4", lambda: transaction)
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
@@ -357,15 +358,22 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
         EnrichedClient(connection_class=connection_class) as client,
         client.enter_transaction() as transaction,
     ):
-        await client.send(body=body, destination=destination, transaction=transaction, headers={"expires": expires})
+        await client.send(
+            body=body,
+            destination=destination,
+            transaction=transaction,
+            content_type=content_type,
+            headers={"expires": expires},
+        )
 
     assert_frames_between_lifespan_match(
         collected_frames,
         [
             BeginFrame(headers={"transaction": transaction}),
             SendFrame(
-                headers={
+                headers={ # type: ignore[typeddict-unknown-key]
                     "content-length": str(len(body)),
+                    "content-type": content_type,
                     "destination": destination,
                     "transaction": transaction,
                     "expires": expires,
