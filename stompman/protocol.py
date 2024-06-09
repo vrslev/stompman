@@ -80,26 +80,45 @@ def parse_command(raw_frame: deque[bytes]) -> str:
     return b"".join(parse()).decode()
 
 
-def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
-    headers: dict[str, str] = {}
-    one_header_buffer: list[bytes] = []
+def parse_header(raw_frame: deque[bytes]) -> Iterator[bytes | None]:
     four_last_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
 
     while True:
+        if not raw_frame:
+            yield None
+
         byte = raw_frame.popleft()
         four_last_bytes = (four_last_bytes[1], four_last_bytes[2], four_last_bytes[3], byte)
         if byte not in (b"\n", b"\r"):
-            one_header_buffer.append(byte)
+            yield byte
             continue
-
-        if one_header_buffer:
-            key, value = b"".join(one_header_buffer).split(b":", 1)
-            if (decoded_key := key.decode()) not in headers:
-                headers[decoded_key] = unescape_header(value).decode()
-            one_header_buffer.clear()
-
         if (four_last_bytes[-1], four_last_bytes[-2]) == (b"\n", b"\n") or four_last_bytes == CRLFCRLR_MARKER:
-            break
+            yield None
+        else:
+            return
+
+
+def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
+    headers: dict[str, str] = {}
+
+    while True:
+        key_buffer: list[bytes] = []
+        key_parsed = False
+        value_buffer: list[bytes] = []
+
+        for byte in parse_header(raw_frame):
+            if byte is None:
+                return headers
+
+            if key_parsed:
+                value_buffer.append(byte)
+            elif not key_parsed and byte == b":":
+                key_parsed = True
+            else:
+                key_buffer.append(byte)
+
+        if key_buffer and value_buffer and (key := b"".join(key_buffer).decode()) not in headers:
+            headers[key] = unescape_header(b"".join(value_buffer)).decode()
 
     return headers
 
@@ -126,6 +145,7 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             if not raw_frames_deque:
                 return
             headers = parse_headers(raw_frames_deque)
+            print(raw_frames_deque)
             if not raw_frames_deque:
                 return
             body = parse_body(raw_frames_deque)
