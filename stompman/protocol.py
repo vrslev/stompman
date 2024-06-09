@@ -94,14 +94,14 @@ def parse_command(raw_frame: deque[bytes]) -> str:
 
 def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     headers: dict[str, str] = {}
-    four_last_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
+    last_four_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
     key_buffer: list[bytes] = []
     key_parsed = False
     value_buffer: list[bytes] = []
 
     while True:
         byte = raw_frame.popleft()
-        four_last_bytes = (four_last_bytes[1], four_last_bytes[2], four_last_bytes[3], byte)
+        last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
         if byte not in (b"\n", b"\r"):
             if key_parsed:
@@ -118,7 +118,7 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
             key_parsed = False
             value_buffer.clear()
 
-        if (four_last_bytes[-1], four_last_bytes[-2]) == (b"\n", b"\n") or four_last_bytes == CRLFCRLR_MARKER:
+        if (last_four_bytes[-1], last_four_bytes[-2]) == (b"\n", b"\n") or last_four_bytes == CRLFCRLR_MARKER:
             return headers
 
 
