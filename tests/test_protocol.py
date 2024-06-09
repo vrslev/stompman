@@ -1,9 +1,6 @@
-from typing import Any
-
 import pytest
 
 from stompman import (
-    BaseFrame,
     ConnectedFrame,
     ConnectFrame,
     ErrorFrame,
@@ -11,6 +8,7 @@ from stompman import (
     MessageFrame,
     UnknownFrame,
 )
+from stompman.frames import AckFrame, ClientFrame, ServerFrame
 from stompman.protocol import Parser, dump_frame
 
 
@@ -18,28 +16,32 @@ from stompman.protocol import Parser, dump_frame
     ("frame", "dumped_frame"),
     [
         (
-            BaseFrame(
-                command="ACK",
-                headers={"from": "me", "to": "you"},
+            AckFrame(
+                headers={"subscription": "1", "message-id": "1"},
                 body=b"I Am The Walrus",
             ),
-            (b"ACK\n" b"from:me\n" b"to:you\n\n" b"I Am The Walrus" b"\x00"),
+            (b"ACK\n" b"subscription:1\n" b"message-id:1\n\n" b"I Am The Walrus" b"\x00"),
         ),
         (
-            BaseFrame(command="CONNECTED", headers={"from": "1", "to": "2"}),
-            (b"CONNECTED\n" b"from:1\n" b"to:2\n\n" b"\x00"),
+            ConnectedFrame(headers={"heart-beat": "1,1", "version": "1"}),
+            (b"CONNECTED\n" b"heart-beat:1,1\nversion:1\n\n" b"\x00"),
         ),
         (
-            BaseFrame(
-                command="MESSAGE",
-                headers={"destination": "me:123", "extra": "you\nmore\rextra\\here"},
+            MessageFrame(
+                headers={"destination": "me:123", "message-id": "you\nmore\rextra\\here", "subscription": "hi"},
                 body=b"I Am The Walrus",
             ),
-            (b"MESSAGE\n" b"destination:me\\c123\n" b"extra:you\\nmore\\rextra\\\\here\n\n" b"I Am The Walrus" b"\x00"),
+            (
+                b"MESSAGE\n"
+                b"destination:me\\c123\n"
+                b"message-id:you\\nmore\\rextra\\\\here\nsubscription:hi\n\n"
+                b"I Am The Walrus"
+                b"\x00"
+            ),
         ),
     ],
 )
-def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
+def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
     assert dump_frame(frame) == dumped_frame
 
 
@@ -198,26 +200,22 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
             b"CONNECTED\naccept-version:1.0\naccept-version:1.1\n\n\x00",
             [ConnectedFrame(headers={"accept-version": "1.0"})],
         ),
-        (
-            b"SOME_COMMAND\nheader:1.0\n\n\x00",
-            [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})],
-        ),
         # no end of line after command
         (b"SOME_COMMAND", []),
         (b"SOME_COMMAND\n", []),
         (b"SOME_COMMAND\x00", []),
         # \r\n after command
-        (b"SOME_COMMAND\r\n\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={}, body=b"\n")]),
-        (b"SOME_COMMAND\r\nheader:1.0\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})]),
+        (b"SOME_COMMAND\r\n\n\n\x00", [UnknownFrame(headers={}, body=b"\n")]),
+        (b"SOME_COMMAND\r\nheader:1.0\n\n\x00", [UnknownFrame(headers={"header": "1.0"})]),
         # header without :
-        (b"SOME_COMMAND\nhead\nheader:1.1\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.1"})]),
+        (b"SOME_COMMAND\nhead\nheader:1.1\n\n\x00", [UnknownFrame(headers={"header": "1.1"})]),
         # empty header :
         (
             b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00",
-            [UnknownFrame(command="SOME_COMMAND", headers={"head": "", "header": "1.1"})],
+            [UnknownFrame(headers={"head": "", "header": "1.1"})],
         ),
         # header value with :
-        (b"SOME_COMMAND\nheader:what:?\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={})]),
+        (b"SOME_COMMAND\nheader:what:?\n\n\x00", [UnknownFrame(headers={})]),
         # no NULL
         (b"SOME_COMMAND\nheader:what:?\n\nhello", []),
         # header never end
@@ -227,7 +225,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
         (b"SOME_COMMAND\nn", []),
     ],
 )
-def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
+def test_load_frames(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> None:
     assert list(Parser().load_frames(raw_frames)) == loaded_frames
 
 
@@ -236,9 +234,9 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> 
     [
         (
             b"SOME_COMMAND\nheader:1.0\n\n\x00",
-            [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})],
+            [UnknownFrame(headers={"header": "1.0"})],
         ),
     ],
 )
-def test_load_frames_again(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
+def test_load_frames_again(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> None:
     assert list(Parser().load_frames(raw_frames)) == loaded_frames

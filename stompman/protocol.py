@@ -5,11 +5,11 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from stompman.frames import (
+    CLIENT_FRAMES_TO_COMMANDS,
     COMMANDS_TO_FRAME_TYPES,
-    SERVER_FRAMES_TO_COMMANDS,
     AnyFrame,
+    ClientFrame,
     HeartbeatFrame,
-    ServerFrame,
     UnknownFrame,
 )
 
@@ -38,9 +38,9 @@ def dump_header(key: str, value: str) -> bytes:
     return f"{escaped_key}:{escaped_value}\n".encode()
 
 
-def dump_frame(frame: ServerFrame) -> bytes:
+def dump_frame(frame: ClientFrame) -> bytes:
     lines = (
-        SERVER_FRAMES_TO_COMMANDS[type(frame)],
+        CLIENT_FRAMES_TO_COMMANDS[type(frame)],
         NEWLINE,
         *(dump_header(key, cast(str, value)) for key, value in sorted(frame.headers.items())),
         NEWLINE,
