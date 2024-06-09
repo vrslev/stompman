@@ -226,10 +226,3 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> None:
     assert list(Parser().load_frames(raw_frames)) == loaded_frames
-
-
-@pytest.mark.parametrize(
-    ("raw_frames", "loaded_frames"), [(b"CONNECTED\nheader:1.0\n\n\x00", [ConnectedFrame(headers={"header": "1.0"})])]
-)
-def test_load_frames_again(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> None:
-    assert list(Parser().load_frames(raw_frames)) == loaded_frames

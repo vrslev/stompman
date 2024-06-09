@@ -90,7 +90,7 @@ def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
 
 
 def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame | None:
-    command: Any = b"".join(lines.popleft()).decode()
+    command = b"".join(lines.popleft())
     headers = {}
 
     while line := lines.popleft():

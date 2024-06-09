@@ -170,10 +170,7 @@ class ReceiptFrame:
 
 MessageHeaders = TypedDict(
     "MessageHeaders",
-    # TODO: ack??
-    # TODO: content-length, content-type
-    # TODO: STOMP frame
-    # TODO: Heartbeat and Unknown are not real frames
+
     {
         "destination": str,
         "message-id": str,
