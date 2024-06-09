@@ -35,8 +35,6 @@ from stompman import (
     SendFrame,
     ServerFrame,
     SubscribeFrame,
-    UnknownEvent,
-    UnknownFrame,
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
@@ -53,21 +51,21 @@ class BaseMockConnection(AbstractConnection):
     async def connect(self) -> None: ...
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
-    async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None: ...
-    async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:  # pragma: no cover
+    async def write_frame(self, frame: ClientFrame) -> None: ...
+    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
 
 
 def create_spying_connection(
-    read_frames_yields: list[list[ServerFrame | UnknownFrame]],
+    read_frames_yields: list[list[ServerFrame]],
 ) -> tuple[type[AbstractConnection], list[AnyFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
-        async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None:
+        async def write_frame(self, frame: ClientFrame) -> None:
             collected_frames.append(frame)
 
-        async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
+        async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
@@ -77,9 +75,7 @@ def create_spying_connection(
     return BaseCollectingConnection, collected_frames
 
 
-def get_read_frames_with_lifespan(
-    read_frames: list[list[ServerFrame | UnknownFrame]],
-) -> list[list[ServerFrame | UnknownFrame]]:
+def get_read_frames_with_lifespan(read_frames: list[list[ServerFrame]]) -> list[list[ServerFrame]]:
     return [
         [ConnectedFrame(headers={"version": PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
@@ -292,10 +288,17 @@ async def test_client_listen_to_events_ok() -> None:
     message_frame = MessageFrame(headers={}, body=b"hello")
     error_frame = ErrorFrame(headers={"message": "short description"})
     heartbeat_frame = HeartbeatFrame()
-    unknown_frame = UnknownFrame(command="WHATEVER", headers={}, body=b"other")
 
     connection_class, _ = create_spying_connection(
-        get_read_frames_with_lifespan([[message_frame, error_frame, heartbeat_frame, unknown_frame]])
+        get_read_frames_with_lifespan(
+            [
+                [
+                    message_frame,
+                    error_frame,
+                    heartbeat_frame,  # type: ignore[list-item]
+                ]
+            ]
+        )
     )
     async with EnrichedClient(connection_class=connection_class) as client:
         events = [event async for event in client.listen_to_events()]
@@ -304,7 +307,6 @@ async def test_client_listen_to_events_ok() -> None:
         MessageEvent(_client=client, _frame=message_frame),
         ErrorEvent(_client=client, _frame=error_frame),
         HeartbeatEvent(_client=client, _frame=heartbeat_frame),
-        UnknownEvent(_client=client, _frame=unknown_frame),
     ]
     assert events[0].body == message_frame.body  # type: ignore[union-attr]
     assert events[1].message_header == error_frame.headers["message"]  # type: ignore[union-attr]

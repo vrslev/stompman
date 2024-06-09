@@ -207,12 +207,6 @@ class ErrorFrame:
 class HeartbeatFrame: ...
 
 
-@dataclass
-class UnknownFrame:
-    headers: dict[str, str]
-    body: bytes = b""
-
-
 COMMANDS_TO_FRAMES: dict[
     bytes,
     type[
@@ -269,4 +263,4 @@ ClientFrame = (
 )
 ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
 AnyRealFrame = ClientFrame | ServerFrame
-AnyFrame = AnyRealFrame | UnknownFrame | HeartbeatFrame
+AnyFrame = AnyRealFrame | HeartbeatFrame

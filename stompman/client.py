@@ -25,10 +25,11 @@ from stompman.frames import (
     MessageFrame,
     ReceiptFrame,
     SendFrame,
+    SendHeaders,
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
+from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent
 from stompman.protocol import PROTOCOL_VERSION
 
 
@@ -176,8 +177,6 @@ class Client:
                     yield HeartbeatEvent(_client=self, _frame=frame)
                 case ConnectedFrame() | ReceiptFrame():
                     raise AssertionError("Should be unreachable! Report the issue.", frame)
-                case _:
-                    yield UnknownEvent(_client=self, _frame=frame)
 
     @asynccontextmanager
     async def enter_transaction(self) -> AsyncGenerator[str, None]:
@@ -199,7 +198,7 @@ class Client:
         transaction: str | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
-        full_headers = headers or {}
+        full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
         full_headers["destination"] = destination
         full_headers["content-length"] = str(len(body))
         if transaction is not None:

@@ -15,8 +15,8 @@ from stompman import (
     HeartbeatFrame,
     ReadTimeoutError,
     ServerFrame,
-    UnknownFrame,
 )
+from stompman.frames import CommitFrame
 
 
 @pytest.fixture()
@@ -79,9 +79,9 @@ async def test_connection_lifespan(connection: Connection) -> None:
             await connection.connect()
 
             connection.write_heartbeat()
-            await connection.write_frame(UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"}))
+            await connection.write_frame(CommitFrame(headers={"transaction": "transaction"}))
 
-            async def take_frames(count: int) -> list[ServerFrame | UnknownFrame]:
+            async def take_frames(count: int) -> list[ServerFrame]:
                 frames = []
                 async for frame in connection.read_frames():
                     frames.append(frame)

@@ -10,7 +10,6 @@ from stompman.frames import (
     AnyFrame,
     AnyRealFrame,
     HeartbeatFrame,
-    UnknownFrame,
 )
 
 PROTOCOL_VERSION = "1.1"  # https://stomp.github.io/stomp-specification-1.1.html
@@ -90,7 +89,7 @@ def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
     return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
 
 
-def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
+def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame | None:
     command: Any = b"".join(lines.popleft()).decode()
     headers = {}
 
@@ -102,7 +101,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
 
     if known_frame_type := COMMANDS_TO_FRAMES.get(command):
         return known_frame_type(headers=cast(Any, headers), body=body)
-    return UnknownFrame(headers=headers, body=body)
+    return None
 
 
 @dataclass
@@ -122,7 +121,8 @@ class Parser:
 
             if headers_processed and byte == NULL:
                 lines.append(current_line)
-                yield parse_lines_into_frame(lines)
+                if parsed_frame := parse_lines_into_frame(lines):
+                    yield parsed_frame
                 headers_processed = False
                 lines.clear()
                 current_line = []

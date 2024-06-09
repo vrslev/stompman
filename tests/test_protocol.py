@@ -6,7 +6,6 @@ from stompman import (
     ErrorFrame,
     HeartbeatFrame,
     MessageFrame,
-    UnknownFrame,
 )
 from stompman.frames import AckFrame, ClientFrame, ServerFrame
 from stompman.protocol import Parser, dump_frame
@@ -205,17 +204,17 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
         (b"SOME_COMMAND\n", []),
         (b"SOME_COMMAND\x00", []),
         # \r\n after command
-        (b"SOME_COMMAND\r\n\n\n\x00", [UnknownFrame(headers={}, body=b"\n")]),
-        (b"SOME_COMMAND\r\nheader:1.0\n\n\x00", [UnknownFrame(headers={"header": "1.0"})]),
+        (b"CONNECTED\r\n\n\n\x00", [ConnectedFrame(headers={}, body=b"\n")]),
+        (b"CONNECTED\r\nheader:1.0\n\n\x00", [ConnectedFrame(headers={"header": "1.0"})]),
         # header without :
-        (b"SOME_COMMAND\nhead\nheader:1.1\n\n\x00", [UnknownFrame(headers={"header": "1.1"})]),
+        (b"CONNECTED\nhead\nheader:1.1\n\n\x00", [ConnectedFrame(headers={"header": "1.1"})]),
         # empty header :
         (
-            b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00",
-            [UnknownFrame(headers={"head": "", "header": "1.1"})],
+            b"CONNECTED\nhead:\nheader:1.1\n\n\x00",
+            [ConnectedFrame(headers={"head": "", "header": "1.1"})],
         ),
         # header value with :
-        (b"SOME_COMMAND\nheader:what:?\n\n\x00", [UnknownFrame(headers={})]),
+        (b"CONNECTED\nheader:what:?\n\n\x00", [ConnectedFrame(headers={})]),
         # no NULL
         (b"SOME_COMMAND\nheader:what:?\n\nhello", []),
         # header never end
@@ -230,13 +229,7 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> Non
 
 
 @pytest.mark.parametrize(
-    ("raw_frames", "loaded_frames"),
-    [
-        (
-            b"SOME_COMMAND\nheader:1.0\n\n\x00",
-            [UnknownFrame(headers={"header": "1.0"})],
-        ),
-    ],
+    ("raw_frames", "loaded_frames"), [(b"CONNECTED\nheader:1.0\n\n\x00", [ConnectedFrame(headers={"header": "1.0"})])]
 )
 def test_load_frames_again(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> None:
     assert list(Parser().load_frames(raw_frames)) == loaded_frames
