@@ -1,6 +1,4 @@
-import itertools
 import struct
-from collections import deque
 from collections.abc import Iterator
 from typing import Any, cast
 
@@ -27,8 +25,7 @@ REVERSE_ESCAPE_CHARS = {
 }
 EOF_MARKER = b"\x00"
 HEARTBEAT_MARKER = b"\n"
-CRLFCRLR_MARKER = (b"\r", b"\n", b"\r", b"\n")
-CRLFCRLR_MARKER_LIST = [b"\r", b"\n", b"\r", b"\n"]
+CRLFCRLR_MARKER = [b"\r", b"\n", b"\r", b"\n"]
 
 
 def escape_header_value(header: str) -> str:
@@ -54,20 +51,6 @@ def unescape_header(header: bytes) -> bytes:
     return bytes(unescape())
 
 
-def parse_one_line(buffer: deque[bytes]) -> bytes:
-    def parse() -> Iterator[int]:
-        while (byte := buffer.popleft()) != b"\n":
-            yield byte[0]
-
-    return bytes(parse())
-
-
-def ends_with_crlf(buffer: deque[bytes]) -> bool:
-    size = len(buffer)
-    four_last_bytes = tuple(itertools.islice(buffer, max(0, size - 4), size))
-    return four_last_bytes == CRLFCRLR_MARKER
-
-
 def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
     if raw_frames.endswith(EOF_MARKER) or raw_frames.replace(b"\n", b"") == b"":
         return (raw_frames, b"")
@@ -88,19 +71,9 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
 
 
 def _build_frame_from_buffer(
-    command_buffer: deque[bytes], headers: dict[str, str], body_buffer: deque[bytes]
+    command_buffer: list[bytes], headers: dict[str, str], body_buffer: list[bytes]
 ) -> AnyFrame:
     command = b"".join(command_buffer).decode()
-    # headers: Any = {}
-
-    # if False:
-    #     while len(line := parse_one_line(headers)) > 1:
-    #         key, value = line.split(b":", 1)
-    #         decoded_key = key.decode()
-
-    #         if decoded_key not in headers:
-    #             headers[decoded_key] = unescape_header(value).decode()
-
     body = b"".join(body_buffer)
     if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
         return known_frame_type(headers=cast(Any, headers), body=body)
@@ -108,10 +81,10 @@ def _build_frame_from_buffer(
 
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
-    command_buffer = deque[bytes]()
+    command_buffer = list[bytes]()
     one_header_buffer = list[bytes]()
     headers: dict[str, str] = {}
-    body_buffer = deque[bytes]()
+    body_buffer = list[bytes]()
     previous_byte = None
     has_processed_command = False
     has_processed_headers = False
@@ -134,7 +107,7 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             if byte_is_newline:
                 if previous_byte == b"\n":
                     has_processed_headers = True
-                elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER_LIST:
+                elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER:
                     has_processed_headers = True
                     one_header_buffer.pop()
                     one_header_buffer.pop()
