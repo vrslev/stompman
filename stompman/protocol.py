@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from stompman.frames import (
-    CLIENT_FRAMES_TO_COMMANDS,
     COMMANDS_TO_FRAME_TYPES,
+    FRAMES_TO_COMMANDS,
     AnyFrame,
     ClientFrame,
     HeartbeatFrame,
@@ -40,7 +40,7 @@ def dump_header(key: str, value: str) -> bytes:
 
 def dump_frame(frame: ClientFrame) -> bytes:
     lines = (
-        CLIENT_FRAMES_TO_COMMANDS[type(frame)],
+        FRAMES_TO_COMMANDS[type(frame)],
         NEWLINE,
         *(dump_header(key, cast(str, value)) for key, value in sorted(frame.headers.items())),
         NEWLINE,

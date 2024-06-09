@@ -20,7 +20,7 @@ from stompman.protocol import Parser, dump_frame
                 headers={"subscription": "1", "message-id": "1"},
                 body=b"I Am The Walrus",
             ),
-            (b"ACK\n" b"subscription:1\n" b"message-id:1\n\n" b"I Am The Walrus" b"\x00"),
+            (b"ACK\nmessage-id:1\nsubscription:1\n\nI Am The Walrus\x00"),
         ),
         (
             ConnectedFrame(headers={"heart-beat": "1,1", "version": "1"}),
