@@ -28,7 +28,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.listen_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
+from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
 from stompman.protocol import PROTOCOL_VERSION
 
 

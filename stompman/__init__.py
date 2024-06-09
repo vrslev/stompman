@@ -29,7 +29,7 @@ from stompman.frames import (
     UnknownFrame,
     UnsubscribeFrame,
 )
-from stompman.listen_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
+from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
 
 __all__ = [
     "AbortFrame",

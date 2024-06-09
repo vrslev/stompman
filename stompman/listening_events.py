@@ -7,7 +7,6 @@ from stompman.frames import (
     HeartbeatFrame,
     MessageFrame,
     NackFrame,
-    UnknownFrame,
 )
 
 if TYPE_CHECKING:
@@ -62,10 +61,4 @@ class HeartbeatEvent:
     _client: "Client" = field(repr=False)
 
 
-@dataclass
-class UnknownEvent:
-    _frame: UnknownFrame
-    _client: "Client" = field(repr=False)
-
-
-AnyListeningEvent = MessageEvent | ErrorEvent | HeartbeatEvent | UnknownEvent
+AnyListeningEvent = MessageEvent | ErrorEvent | HeartbeatEvent
