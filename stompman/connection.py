@@ -5,7 +5,7 @@ from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ConnectError, ReadTimeoutError
 from stompman.frames import ClientFrame, ServerFrame, UnknownFrame
-from stompman.protocol import NEWLINE, dump_frame, load_frames, separate_complete_and_incomplete_packet_parts
+from stompman.protocol import NEWLINE, Parser, dump_frame, separate_complete_and_incomplete_packet_parts
 
 
 @dataclass
@@ -77,6 +77,7 @@ class Connection(AbstractConnection):
 
     async def read_frames(self) -> AsyncGenerator[ServerFrame | UnknownFrame, None]:
         incomplete_bytes = b""
+        parser = Parser()
 
         while True:
             try:
@@ -87,5 +88,5 @@ class Connection(AbstractConnection):
             complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
                 incomplete_bytes + received_bytes
             )
-            for frame in cast(Iterable[ServerFrame | UnknownFrame], load_frames(complete_bytes)):
+            for frame in cast(Iterable[ServerFrame | UnknownFrame], parser.load_frames(received_bytes)):
                 yield frame

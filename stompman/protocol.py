@@ -1,6 +1,7 @@
 import struct
 from collections import deque
 from collections.abc import Iterator
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 from stompman.frames import (
@@ -53,6 +54,9 @@ def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[by
     if raw_frames.replace(b"\n", b"") == b"":
         return (raw_frames, b"")
     parts = raw_frames.rpartition(NULL)
+    if parts[2].replace(b"\n", b"") == b"":
+        return (raw_frames, b"")
+
     return parts[0] + parts[1], parts[2]
 
 
@@ -175,3 +179,15 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             yield known_frame_type(headers=cast(Any, headers), body=body)
         else:
             yield UnknownFrame(command=command, headers=headers, body=body)
+
+
+@dataclass
+class Parser:
+    _remainder_from_last_packet: bytes = field(default=b"", init=False)
+
+    def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
+        complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
+            self._remainder_from_last_packet + raw_frames
+        )
+        yield from load_frames(complete_bytes)
+        self._remainder_from_last_packet = incomplete_bytes

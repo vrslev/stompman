@@ -11,7 +11,7 @@ from stompman import (
     MessageFrame,
     UnknownFrame,
 )
-from stompman.protocol import dump_frame, load_frames
+from stompman.protocol import Parser, dump_frame
 
 
 @pytest.mark.parametrize(
@@ -166,7 +166,6 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
                     },
                     body=b"88.88.888.88",
                 ),
-                HeartbeatFrame(headers={}),
             ],
         ),
         # Partial packet #2
@@ -243,7 +242,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
-    assert list(load_frames(raw_frames)) == loaded_frames
+    assert list(Parser().load_frames(raw_frames)) == loaded_frames
 
 
 @pytest.mark.parametrize(
@@ -253,7 +252,16 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> 
             b"SOME_COMMAND\nheader:1.0\n\n\x00",
             [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})],
         ),
+        (
+            b"CONNECTED\naccept-version:1.0\n\n\x00\nERROR\nheader:1.0\n\n\xc3\xa7\x00\n",
+            [
+                ConnectedFrame(headers={"accept-version": "1.0"}),
+                HeartbeatFrame(headers={}),
+                ErrorFrame(headers={"header": "1.0"}, body="ç".encode()),
+                HeartbeatFrame(headers={}),
+            ],
+        ),
     ],
 )
 def test_load_frames_again(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
-    assert list(load_frames(raw_frames)) == loaded_frames
+    assert list(Parser().load_frames(raw_frames)) == loaded_frames
