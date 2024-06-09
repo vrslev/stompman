@@ -5,7 +5,7 @@ from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ConnectError, ReadTimeoutError
 from stompman.frames import ClientFrame, ServerFrame, UnknownFrame
-from stompman.protocol import HEARTBEAT_MARKER, dump_frame, load_frames, separate_complete_and_incomplete_packet_parts
+from stompman.protocol import NEWLINE, dump_frame, load_frames, separate_complete_and_incomplete_packet_parts
 
 
 @dataclass
@@ -62,7 +62,7 @@ class Connection(AbstractConnection):
         await self.writer.wait_closed()
 
     def write_heartbeat(self) -> None:
-        return self.writer.write(HEARTBEAT_MARKER)
+        return self.writer.write(NEWLINE)
 
     async def write_frame(self, frame: ClientFrame | UnknownFrame) -> None:
         self.writer.write(dump_frame(frame))

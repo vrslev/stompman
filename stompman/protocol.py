@@ -19,16 +19,12 @@ ESCAPE_CHARS = {
     "\\": "\\\\",
     "\r": "\\r",
 }
-REVERSE_ESCAPE_CHARS = {
+UNESCAPE_CHARS = {
     b"n": b"\n",
     b"c": b":",
     b"\\": b"\\",
     b"r": b"\r",
 }
-EOF_MARKER = b"\x00"
-HEARTBEAT_MARKER = b"\n"
-
-
 NULL = b"\x00"
 NEWLINE = b"\n"
 CARRIAGE = b"\r"
@@ -46,15 +42,15 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
         *(f"{key}:{escape_header_value(value)}\n".encode() for key, value in sorted(frame.headers.items())),
         b"\n",
         frame.body,
-        EOF_MARKER,
+        NULL,
     )
     return b"".join(lines)
 
 
 def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
-    if raw_frames.endswith(EOF_MARKER) or raw_frames.replace(b"\n", b"") == b"":
+    if raw_frames.replace(b"\n", b"") == b"":
         return (raw_frames, b"")
-    parts = raw_frames.rpartition(EOF_MARKER)
+    parts = raw_frames.rpartition(NULL)
     return parts[0] + parts[1], parts[2]
 
 
@@ -83,7 +79,7 @@ def unescape_header(header_buffer: list[bytes]) -> bytes:
 
         for byte in header_buffer:
             if previous_byte == b"\\":
-                yield REVERSE_ESCAPE_CHARS.get(byte, byte)
+                yield UNESCAPE_CHARS.get(byte, byte)
             elif byte != b"\\":
                 yield byte
 
@@ -126,12 +122,11 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
 
 
 def parse_body(raw_frame: deque[bytes]) -> bytes:
-    buf: list[bytes] = []
-    while True:
-        byte = raw_frame.popleft()
-        if byte == EOF_MARKER:
-            return b"".join(buf)
-        buf.append(byte)
+    def parse() -> Iterator[bytes]:
+        while (byte := raw_frame.popleft()) != NULL:
+            yield byte
+
+    return b"".join(parse())
 
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
