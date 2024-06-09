@@ -104,19 +104,9 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
     return UnknownFrame(command=command, headers=headers, body=body)
 
 
-
-
 @dataclass
 class Parser:
     _remainder_from_last_packet: bytes = field(default=b"", init=False)
-
-    # def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
-    #     complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
-    #         self._remainder_from_last_packet + raw_frames
-    #     )
-    #     yield from load_frames(complete_bytes)
-    #     self._remainder_from_last_packet = incomplete_bytes
-
 
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
         all_bytes = self._remainder_from_last_packet + raw_frames
