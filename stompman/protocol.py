@@ -64,9 +64,7 @@ def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
         return None
 
     if previous_byte == b"\\":
-        if unescaped_byte := UNESCAPE_CHARS.get(byte):
-            return unescaped_byte
-        return None
+        return UNESCAPE_CHARS.get(byte, byte)
 
     return byte
 
