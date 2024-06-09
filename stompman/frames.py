@@ -29,6 +29,11 @@ class ConnectFrame(BaseFrame[ConnectHeaders]):
     command: Literal["CONNECT", "STOMP"] = "CONNECT"
 
 
+@dataclass(frozen=True, kw_only=True)
+class StompFrame(BaseFrame[ConnectHeaders]):
+    command: Literal["STOMP"]
+
+
 ConnectedHeaders = TypedDict(
     "ConnectedHeaders",
     {
