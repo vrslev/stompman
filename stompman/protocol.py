@@ -1,5 +1,4 @@
 import struct
-import typing
 from collections import deque
 from collections.abc import Iterator
 from typing import Any, cast
@@ -27,20 +26,23 @@ UNESCAPE_CHARS = {
 }
 NULL = b"\x00"
 NEWLINE = b"\n"
+HEADER_SEPARATOR = b":"
 CARRIAGE = b"\r"
 CARRIAGE_NEWLINE_CARRIAGE_NEWLINE = (b"\r", b"\n", b"\r", b"\n")
 
 
-def escape_header_value(header: str) -> str:
-    return "".join(ESCAPE_CHARS.get(char, char) for char in header)
+def dump_header(key: str, value: str) -> bytes:
+    escaped_key = "".join(ESCAPE_CHARS.get(char, char) for char in key)
+    escaped_value = "".join(ESCAPE_CHARS.get(char, char) for char in value)
+    return f"{escaped_key}:{escaped_value}\n".encode()
 
 
 def dump_frame(frame: BaseFrame[Any]) -> bytes:
     lines = (
         frame.command.encode(),
-        b"\n",
-        *(f"{key}:{escape_header_value(value)}\n".encode() for key, value in sorted(frame.headers.items())),
-        b"\n",
+        NEWLINE,
+        *(dump_header(key, value) for key, value in sorted(frame.headers.items())),
+        NEWLINE,
         frame.body,
         NULL,
     )
@@ -71,7 +73,7 @@ def parse_command(buffer: Iterator[bytes]) -> str:
     return b"".join(parse()).decode()
 
 
-def unescape_header(header_buffer: list[bytes]) -> bytes:
+def unescape_header_value(header_buffer: list[bytes]) -> str:
     def unescape() -> Iterator[bytes]:
         previous_byte = None
 
@@ -83,12 +85,12 @@ def unescape_header(header_buffer: list[bytes]) -> bytes:
 
             previous_byte = byte
 
-    return b"".join(unescape())
+    return b"".join(unescape()).decode()
 
 
 def parse_headers(buffer: Iterator[bytes]) -> dict[str, str]:
     headers: dict[str, str] = {}
-    last_four_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
+    last_four_bytes: tuple[bytes | None, bytes | None, bytes | None, bytes | None] = (None, None, None, None)
     key_buffer: list[bytes] = []
     key_parsed = False
     value_buffer: list[bytes] = []
@@ -105,9 +107,8 @@ def parse_headers(buffer: Iterator[bytes]) -> dict[str, str]:
         if byte == CARRIAGE:
             reset()
         elif byte == NEWLINE:
-            if key_parsed and (key := b"".join(key_buffer).decode()) and key not in headers:
-                headers[key] = unescape_header(value_buffer).decode()
-
+            if key_parsed and (key := unescape_header_value(key_buffer)) and key not in headers:
+                headers[key] = unescape_header_value(value_buffer)
             reset()
 
             if last_four_bytes[-2] == NEWLINE or last_four_bytes == CARRIAGE_NEWLINE_CARRIAGE_NEWLINE:
