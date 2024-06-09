@@ -46,10 +46,6 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
     return b"".join(lines)
 
 
-def iter_bytes(value: bytes) -> Iterator[bytes]:
-    yield from cast(tuple[bytes, ...], struct.unpack(f"{len(value)!s}c", value))
-
-
 def unescape_header(header_buffer: list[bytes]) -> bytes:
     def unescape() -> Iterator[bytes]:
         previous_byte = None
@@ -120,7 +116,7 @@ def parse_body(raw_frame: deque[bytes]) -> bytes:
 
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
-    raw_frames_deque = deque(iter_bytes(raw_frames))
+    raw_frames_deque = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
 
     while raw_frames_deque:
         first_byte = raw_frames_deque.popleft()
