@@ -70,8 +70,20 @@ def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[by
 
 def parse_command(raw_frame: deque[bytes]) -> str:
     def parse() -> Iterator[bytes]:
-        while raw_frame and (byte := raw_frame.popleft()) != b"\n":
-            yield byte
+        previous_byte = None
+
+        while raw_frame:
+            byte = raw_frame.popleft()
+
+            if byte == b"\n":
+                if previous_byte and previous_byte != b"\r":
+                    yield previous_byte
+                break
+
+            if previous_byte:
+                yield previous_byte
+
+            previous_byte = byte
 
     return b"".join(parse()).decode()
 
