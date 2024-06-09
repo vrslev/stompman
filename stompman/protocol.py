@@ -95,28 +95,33 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     key_parsed = False
     value_buffer: list[bytes] = []
 
+    def reset() -> None:
+        key_buffer.clear()
+        nonlocal key_parsed
+        key_parsed = False
+        value_buffer.clear()
+
     while True:
         byte = raw_frame.popleft()
         last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
         if byte == CARRIAGE:
-            key_buffer.clear()
-            key_parsed = False
-            value_buffer.clear()
+            reset()
         elif byte == NEWLINE:
             if key_parsed and (key := b"".join(key_buffer).decode()) and key not in headers:
                 headers[key] = unescape_header(value_buffer).decode()
 
-            key_buffer.clear()
-            key_parsed = False
-            value_buffer.clear()
+            reset()
 
             if last_four_bytes[-2] == NEWLINE or last_four_bytes == CARRIAGE_NEWLINE_CARRIAGE_NEWLINE:
                 return headers
+        elif byte == b":":
+            if key_parsed:
+                reset()
+            else:
+                key_parsed = True
         elif key_parsed:
             value_buffer.append(byte)
-        elif byte == b":":
-            key_parsed = True
         else:
             key_buffer.append(byte)
 

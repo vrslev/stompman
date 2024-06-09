@@ -231,6 +231,11 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
             b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00",
             [UnknownFrame(command="SOME_COMMAND", headers={"head": "", "header": "1.1"})],
         ),
+        # header value with :
+        (
+            b"SOME_COMMAND\nheader:what:?\n\n\x00",
+            [UnknownFrame(command="SOME_COMMAND", headers={})],
+        ),
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
