@@ -117,9 +117,7 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     has_processed_headers = False
 
     for byte in iter_bytes(raw_frames):
-        byte_is_newline = byte == b"\n"
-
-        if byte_is_newline and not (command_buffer or one_header_buffer or headers):
+        if (byte_is_newline := byte == b"\n") and not (command_buffer or one_header_buffer or headers):
             yield HeartbeatFrame(headers={})
 
         elif has_processed_headers:
@@ -133,26 +131,22 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             else:
                 body_buffer.append(byte)
         elif has_processed_command:
-            one_header_buffer.append(byte)
             if byte_is_newline:
-                one_header_buffer.pop()
                 if previous_byte == b"\n":
                     has_processed_headers = True
-                elif one_header_buffer[-4:] == CRLFCRLR_MARKER_LIST:
+                elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER_LIST:
                     has_processed_headers = True
-                    one_header_buffer.pop()
                     one_header_buffer.pop()
                     one_header_buffer.pop()
                     one_header_buffer.pop()
 
                 if one_header_buffer:
                     key, value = b"".join(one_header_buffer).split(b":", 1)
-                    decoded_key = key.decode()
-
-                    if decoded_key not in headers:
+                    if (decoded_key := key.decode()) not in headers:
                         headers[decoded_key] = unescape_header(value).decode()
                     one_header_buffer.clear()
-
+            else:
+                one_header_buffer.append(byte)
         else:  # noqa: PLR5501
             if byte_is_newline:
                 has_processed_command = True
