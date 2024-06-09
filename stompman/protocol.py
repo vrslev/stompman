@@ -73,11 +73,34 @@ def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[by
     return parts[0] + parts[1], parts[2]
 
 
+def split_lines(buffer: deque[bytes]) -> Iterator[deque[bytes]]:
+    def parse_one_line() -> Iterator[bytes]:
+        previous_byte = None
+
+        while buffer:
+            byte = buffer.popleft()
+
+            if byte == NEWLINE:
+                if previous_byte and previous_byte != CARRIAGE:
+                    yield previous_byte
+                break
+
+            if previous_byte:
+                yield previous_byte
+            previous_byte = byte
+
+    while True:
+        current_line = deque[bytes]()
+        for byte in parse_one_line():
+            current_line.append(byte)
+        yield current_line
+
+
 def parse_command(raw_frame: deque[bytes]) -> str:
     def parse() -> Iterator[bytes]:
         previous_byte = None
 
-        while raw_frame:
+        while True:
             byte = raw_frame.popleft()
 
             if byte == NEWLINE:
@@ -99,29 +122,26 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     key_parsed = False
     value_buffer: list[bytes] = []
 
-    while raw_frame:
+    while True:
         byte = raw_frame.popleft()
         last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
-        if byte not in (CARRIAGE, NEWLINE):
+        if byte in (CARRIAGE, NEWLINE):
+            if key_buffer and (key := b"".join(key_buffer).decode()) not in headers:
+                headers[key] = unescape_header(value_buffer).decode()
+                key_buffer.clear()
+                key_parsed = False
+                value_buffer.clear()
+
+            if (last_four_bytes[-1], last_four_bytes[-2]) == (NEWLINE, NEWLINE) or last_four_bytes == CRLFCRLR_MARKER:
+                return headers
+        else:  # noqa: PLR5501
             if key_parsed:
                 value_buffer.append(byte)
             elif byte == b":":
                 key_parsed = True
             else:
                 key_buffer.append(byte)
-            continue
-
-        if key_buffer and (key := b"".join(key_buffer).decode()) not in headers:
-            headers[key] = unescape_header(value_buffer).decode()
-            key_buffer.clear()
-            key_parsed = False
-            value_buffer.clear()
-
-        if (last_four_bytes[-1], last_four_bytes[-2]) == (NEWLINE, NEWLINE) or last_four_bytes == CRLFCRLR_MARKER:
-            return headers
-
-    return {}
 
 
 def parse_body(raw_frame: deque[bytes]) -> bytes:
@@ -142,13 +162,26 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             yield HeartbeatFrame(headers={})
         else:
             raw_frames_deque.appendleft(first_byte)
-            command = parse_command(raw_frames_deque)
+
+            try:
+                command = parse_command(raw_frames_deque)
+            except IndexError:
+                return
             if not raw_frames_deque:
                 return
-            headers = parse_headers(raw_frames_deque)
+
+            try:
+                headers = parse_headers(raw_frames_deque)
+            except IndexError:
+                return
             if not raw_frames_deque:
                 return
-            body = parse_body(raw_frames_deque)
+
+            try:
+                body = parse_body(raw_frames_deque)
+            except IndexError:
+                return
+
             if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
                 yield known_frame_type(headers=cast(Any, headers), body=body)
             else:
