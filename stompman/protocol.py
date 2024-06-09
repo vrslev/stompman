@@ -129,11 +129,11 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             else:
                 body_buffer.append(byte)
         elif has_processed_command:
-            if byte == b"\n" and (previous_byte == b"\n" or ends_with_crlf(headers_buffer)):
+            if byte_is_newline and (previous_byte == b"\n" or ends_with_crlf(headers_buffer)):
                 has_processed_headers = True
             headers_buffer.append(byte)
         else:  # noqa: PLR5501
-            if byte == b"\n":
+            if byte_is_newline:
                 has_processed_command = True
             else:
                 command_buffer.append(byte)
