@@ -126,8 +126,18 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
         byte = raw_frame.popleft()
         last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
-        if byte in (CARRIAGE, NEWLINE):
-            if key_buffer and (key := b"".join(key_buffer).decode()) not in headers:
+        if byte == CARRIAGE:
+            continue
+
+        if byte != NEWLINE:
+            if key_parsed:
+                value_buffer.append(byte)
+            elif byte == b":":
+                key_parsed = True
+            else:
+                key_buffer.append(byte)
+        else:
+            if (key := b"".join(key_buffer).decode()) and key not in headers:
                 headers[key] = unescape_header(value_buffer).decode()
                 key_buffer.clear()
                 key_parsed = False
@@ -135,13 +145,6 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
 
             if (last_four_bytes[-1], last_four_bytes[-2]) == (NEWLINE, NEWLINE) or last_four_bytes == CRLFCRLR_MARKER:
                 return headers
-        else:  # noqa: PLR5501
-            if key_parsed:
-                value_buffer.append(byte)
-            elif byte == b":":
-                key_parsed = True
-            else:
-                key_buffer.append(byte)
 
 
 def parse_body(raw_frame: deque[bytes]) -> bytes:
