@@ -54,13 +54,11 @@ def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[by
     return parts[0] + parts[1], parts[2]
 
 
-def parse_command(buffer: deque[bytes]) -> str:
+def parse_command(buffer: Iterator[bytes]) -> str:
     def parse() -> Iterator[bytes]:
         previous_byte = None
 
-        while True:
-            byte = buffer.popleft()
-
+        for byte in buffer:
             if byte == NEWLINE:
                 if previous_byte and previous_byte != CARRIAGE:
                     yield previous_byte
@@ -88,7 +86,7 @@ def unescape_header(header_buffer: list[bytes]) -> bytes:
     return b"".join(unescape())
 
 
-def parse_headers(buffer: deque[bytes]) -> dict[str, str]:
+def parse_headers(buffer: Iterator[bytes]) -> dict[str, str]:
     headers: dict[str, str] = {}
     last_four_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
     key_buffer: list[bytes] = []
@@ -101,8 +99,7 @@ def parse_headers(buffer: deque[bytes]) -> dict[str, str]:
         key_parsed = False
         value_buffer.clear()
 
-    while True:
-        byte = buffer.popleft()
+    for byte in buffer:
         last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
         if byte == CARRIAGE:
@@ -114,7 +111,7 @@ def parse_headers(buffer: deque[bytes]) -> dict[str, str]:
             reset()
 
             if last_four_bytes[-2] == NEWLINE or last_four_bytes == CARRIAGE_NEWLINE_CARRIAGE_NEWLINE:
-                return headers
+                break
         elif byte == b":":
             if key_parsed:
                 reset()
@@ -124,18 +121,36 @@ def parse_headers(buffer: deque[bytes]) -> dict[str, str]:
             value_buffer.append(byte)
         else:
             key_buffer.append(byte)
+    return headers
 
 
-def parse_body(raw_frame: deque[bytes]) -> bytes:
+def parse_body(raw_frame: Iterator[bytes]) -> bytes | None:
+    received_null = False
+
     def parse() -> Iterator[bytes]:
-        while (byte := raw_frame.popleft()) != NULL:
+        for byte in raw_frame:
+            if byte == NULL:
+                nonlocal received_null
+                received_null = True
+                break
             yield byte
 
-    return b"".join(parse())
+    result = b"".join(parse())
+    return result if received_null else None
 
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
+    remainder = []
+
+    def iterate_buffer() -> Iterator[bytes]:
+        buf = []
+        while buffer:
+            byte = buffer.popleft()
+            buf.append(byte)
+            yield byte
+        nonlocal remainder
+        remainder = buf
 
     while buffer:
         if (first_byte := buffer.popleft()) == NEWLINE:
@@ -143,21 +158,16 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             continue
         buffer.appendleft(first_byte)
 
-        try:
-            command = parse_command(buffer)
-        except IndexError:
-            return
+        command = parse_command(iterate_buffer())
         if not buffer:
             return
 
-        try:
-            headers = parse_headers(buffer)
-        except IndexError:
+        headers = parse_headers(iterate_buffer())
+        if not buffer:
             return
 
-        try:
-            body = parse_body(buffer)
-        except IndexError:
+        body = parse_body(iterate_buffer())
+        if body is None:
             return
 
         if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
