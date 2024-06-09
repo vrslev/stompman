@@ -106,49 +106,54 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
     return UnknownFrame(command=command, headers=headers, body=body)
 
 
-def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
-    buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
-    lines = deque[list[bytes]]()
-    current_line: list[bytes] = []
-    previous_byte = None
-    headers_processed = False
-
-    while buffer:
-        byte = buffer.popleft()
-
-        if headers_processed and byte == NULL:
-            lines.append(current_line)
-            yield parse_lines_into_frame(lines)
-            headers_processed = False
-            lines.clear()
-            current_line = []
-
-        elif not headers_processed and byte == NEWLINE:
-            if current_line or lines:
-                if not current_line:  # extra empty line after headers
-                    headers_processed = True
-
-                if previous_byte == b"\r":
-                    current_line.pop()
-
-                lines.append(current_line)
-                current_line = []
-            else:
-                yield HeartbeatFrame(headers={})
-
-        else:
-            current_line.append(byte)
-
-        previous_byte = byte
 
 
 @dataclass
 class Parser:
     _remainder_from_last_packet: bytes = field(default=b"", init=False)
 
+    # def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
+    #     complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
+    #         self._remainder_from_last_packet + raw_frames
+    #     )
+    #     yield from load_frames(complete_bytes)
+    #     self._remainder_from_last_packet = incomplete_bytes
+
+
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
-        complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
-            self._remainder_from_last_packet + raw_frames
-        )
-        yield from load_frames(complete_bytes)
-        self._remainder_from_last_packet = incomplete_bytes
+        all_bytes = self._remainder_from_last_packet + raw_frames
+        buffer = deque(struct.unpack(f"{len(all_bytes)!s}c", all_bytes))
+        lines = deque[list[bytes]]()
+        current_line: list[bytes] = []
+        previous_byte = None
+        headers_processed = False
+
+        while buffer:
+            byte = buffer.popleft()
+
+            if headers_processed and byte == NULL:
+                lines.append(current_line)
+                yield parse_lines_into_frame(lines)
+                headers_processed = False
+                lines.clear()
+                current_line = []
+
+            elif not headers_processed and byte == NEWLINE:
+                if current_line or lines:
+                    if not current_line:  # extra empty line after headers
+                        headers_processed = True
+
+                    if previous_byte == b"\r":
+                        current_line.pop()
+
+                    lines.append(current_line)
+                    current_line = []
+                else:
+                    yield HeartbeatFrame(headers={})
+
+            else:
+                current_line.append(byte)
+
+            previous_byte = byte
+
+        self._remainder_from_last_packet = b"".join(current_line)

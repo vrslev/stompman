@@ -166,6 +166,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
                     },
                     body=b"88.88.888.88",
                 ),
+                HeartbeatFrame(headers={}),
             ],
         ),
         # Partial packet #2
