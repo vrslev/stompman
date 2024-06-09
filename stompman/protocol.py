@@ -165,20 +165,102 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
 
         command = parse_command(iterate_buffer())
         if not buffer:
-            return
+            continue
 
         headers = parse_headers(iterate_buffer())
         if not buffer:
-            return
+            continue
 
         body = parse_body(iterate_buffer())
         if body is None:
-            return
+            continue
 
         if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
             yield known_frame_type(headers=cast(Any, headers), body=body)
         else:
             yield UnknownFrame(command=command, headers=headers, body=body)
+
+
+def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
+    if byte == b"\\":
+        return None
+
+    if previous_byte == b"\\":
+        if unescaped_byte := UNESCAPE_CHARS.get(byte):
+            return unescaped_byte
+        return None
+
+    return byte
+
+
+def new_parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
+    key_buffer: list[bytes] = []
+    key_parsed = False
+    value_buffer: list[bytes] = []
+
+    previous_byte = None
+    for byte in buffer:
+        if byte == b":":
+            if key_parsed:
+                return None
+            key_parsed = True
+
+        elif (unescaped_byte := unescape_byte(byte, previous_byte)) is not None:
+            (value_buffer if key_parsed else key_buffer).append(unescaped_byte)
+
+        previous_byte = byte
+
+    return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
+
+
+def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
+    buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
+    lines = deque[list[bytes]]()
+    one_line_buffer: list[bytes] = []
+    previous_byte = None
+    headers_processed = False
+
+    while buffer:
+        byte = buffer.popleft()
+
+        if headers_processed:
+            if byte == NULL:
+                lines.append(one_line_buffer.copy())
+                command = b"".join(lines.popleft()).decode()
+                headers = {}
+                while line := lines.popleft():
+                    header = new_parse_headers(line)
+                    if header and header[0] not in headers:
+                        headers[header[0]] = header[1]
+                body = b"".join(lines.popleft()) if lines else b""
+                if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
+                    yield known_frame_type(headers=cast(Any, headers), body=body)
+                else:
+                    yield UnknownFrame(command=command, headers=headers, body=body)
+
+                headers_processed = False
+                lines.clear()
+                one_line_buffer.clear()
+            elif byte != b"\n":
+                one_line_buffer.append(byte)
+        elif byte == b"\n":
+            if not (one_line_buffer or lines):
+                yield HeartbeatFrame(headers={})
+            else:
+                if not one_line_buffer:
+                    headers_processed = True
+
+                if previous_byte == b"\r":
+                    one_line_buffer.pop()
+                    lines.append(one_line_buffer.copy())
+                else:
+                    lines.append(one_line_buffer.copy())
+
+                one_line_buffer.clear()
+        else:
+            one_line_buffer.append(byte)
+
+        previous_byte = byte
 
 
 @dataclass
