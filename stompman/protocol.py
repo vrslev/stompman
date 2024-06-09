@@ -93,43 +93,14 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
             one_header_buffer.append(byte)
             continue
 
-        if (four_last_bytes[-1], four_last_bytes[-2]) == (b"\n", b"\n") or four_last_bytes == CRLFCRLR_MARKER:
-            should_stop = True
-        else:
-            should_stop = False
-
-        # yield do_work(one_header_buffer)
-
         if one_header_buffer:
             key, value = b"".join(one_header_buffer).split(b":", 1)
             if (decoded_key := key.decode()) not in headers:
                 headers[decoded_key] = unescape_header(value).decode()
             one_header_buffer.clear()
 
-        if should_stop:
+        if (four_last_bytes[-1], four_last_bytes[-2]) == (b"\n", b"\n") or four_last_bytes == CRLFCRLR_MARKER:
             break
-
-        # if byte == b"\n":
-        #     if four_last_bytes[-1] == b"\n":
-        #         should_stop = True
-        #     elif [four_last_bytes, byte] == CRLFCRLR_MARKER:
-        #         should_stop = True
-        #         one_header_buffer.pop()
-        #         one_header_buffer.pop()
-        #         one_header_buffer.pop()
-        #     else:
-        #         should_stop = False
-
-        #     if one_header_buffer:
-        #         key, value = b"".join(one_header_buffer).split(b":", 1)
-        #         if (decoded_key := key.decode()) not in headers:
-        #             headers[decoded_key] = unescape_header(value).decode()
-        #         one_header_buffer.clear()
-
-        #     if should_stop:
-        #         break
-        # else:
-        #     one_header_buffer.append(byte)
 
     return headers
 
