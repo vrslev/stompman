@@ -88,7 +88,6 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     while True:
         byte = raw_frame.popleft()
         four_last_bytes = (four_last_bytes[1], four_last_bytes[2], four_last_bytes[3], byte)
-
         if byte not in (b"\n", b"\r"):
             one_header_buffer.append(byte)
             continue
