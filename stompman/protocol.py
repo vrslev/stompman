@@ -20,10 +20,10 @@ ESCAPE_CHARS = {
     "\r": "\\r",
 }
 REVERSE_ESCAPE_CHARS = {
-    b"n": b"\n"[0],
-    b"c": b":"[0],
-    b"\\": b"\\"[0],
-    b"r": b"\r"[0],
+    b"n": b"\n",
+    b"c": b":",
+    b"\\": b"\\",
+    b"r": b"\r",
 }
 EOF_MARKER = b"\x00"
 HEARTBEAT_MARKER = b"\n"
@@ -38,19 +38,19 @@ def iter_bytes(value: bytes) -> Iterator[bytes]:
     yield from cast(tuple[bytes, ...], struct.unpack(f"{len(value)!s}c", value))
 
 
-def unescape_header(header: bytes) -> bytes:
-    def unescape() -> Iterator[int]:
+def unescape_header(header_buffer: list[bytes]) -> bytes:
+    def unescape() -> Iterator[bytes]:
         previous_byte = None
 
-        for byte in iter_bytes(header):
+        for byte in header_buffer:
             if previous_byte == b"\\":
-                yield REVERSE_ESCAPE_CHARS.get(byte, byte[0])
+                yield REVERSE_ESCAPE_CHARS.get(byte, byte)
             elif byte != b"\\":
-                yield byte[0]
+                yield byte
 
             previous_byte = byte
 
-    return bytes(unescape())
+    return b"".join(unescape())
 
 
 def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
@@ -101,7 +101,7 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
             continue
 
         if key_buffer and value_buffer and (key := b"".join(key_buffer).decode()) not in headers:
-            headers[key] = unescape_header(b"".join(value_buffer)).decode()
+            headers[key] = unescape_header(value_buffer).decode()
             key_buffer.clear()
             key_parsed = False
             value_buffer.clear()
