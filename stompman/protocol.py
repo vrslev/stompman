@@ -123,12 +123,12 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
                 headers_processed = False
                 lines.clear()
                 current_line = []
-            elif byte != NEWLINE:
+            else:
                 current_line.append(byte)
 
         elif byte == NEWLINE:
             if current_line or lines:
-                if not current_line:
+                if not current_line:  # empty line
                     headers_processed = True
 
                 if previous_byte == b"\r":
