@@ -170,7 +170,6 @@ class ReceiptFrame:
 
 MessageHeaders = TypedDict(
     "MessageHeaders",
-
     {
         "destination": str,
         "message-id": str,
