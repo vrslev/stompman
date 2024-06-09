@@ -86,11 +86,13 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
     return b"".join(lines)
 
 
-def _build_frame_from_buffer(command_and_headers_buffer: deque[bytes], body_buffer: deque[bytes]) -> AnyFrame:
-    command = parse_one_line(command_and_headers_buffer).decode()
+def _build_frame_from_buffer(
+    command_buffer: deque[bytes], headers_buffer: deque[bytes], body_buffer: deque[bytes]
+) -> AnyFrame:
+    command = b"".join(command_buffer).decode()
     headers: Any = {}
 
-    while len(line := parse_one_line(command_and_headers_buffer)) > 1:
+    while len(line := parse_one_line(headers_buffer)) > 1:
         key, value = line.split(b":", 1)
         decoded_key = key.decode()
 
@@ -105,31 +107,33 @@ def _build_frame_from_buffer(command_and_headers_buffer: deque[bytes], body_buff
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     command_buffer = deque[bytes]()
-    command_and_headers_buffer = deque[bytes]()
+    headers_buffer = deque[bytes]()
     body_buffer = deque[bytes]()
     previous_byte = None
+    has_processed_command = False
     has_processed_headers = False
 
     for byte in iter_bytes(raw_frames):
-        # parse body until EOF is reached
         if has_processed_headers:
             if byte == EOF_MARKER:
-                yield _build_frame_from_buffer(command_and_headers_buffer, body_buffer)
-                command_and_headers_buffer.clear()
+                yield _build_frame_from_buffer(command_buffer, headers_buffer, body_buffer)
+                command_buffer.clear()
+                headers_buffer.clear()
                 body_buffer.clear()
+                has_processed_command = False
                 has_processed_headers = False
             else:
                 body_buffer.append(byte)
-        # heartbeat sent
-        elif byte == HEARTBEAT_MARKER and not command_and_headers_buffer:
-            yield HeartbeatFrame(headers={})
-            continue
-        # parse command and headers
-        else:
-            command_and_headers_buffer.append(byte)
-
-            # command and headers parsed, time to start parsing body
-            if byte == b"\n" and (previous_byte == b"\n" or ends_with_crlf(command_and_headers_buffer)):
+        elif has_processed_command:
+            if byte == b"\n" and (previous_byte == b"\n" or ends_with_crlf(headers_buffer)):
                 has_processed_headers = True
+            headers_buffer.append(byte)
+        elif byte == b"\n" and not command_buffer and not headers_buffer:
+            yield HeartbeatFrame(headers={})
+        else:  # noqa: PLR5501
+            if byte == b"\n":
+                has_processed_command = True
+            else:
+                command_buffer.append(byte)
 
         previous_byte = byte
