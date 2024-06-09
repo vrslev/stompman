@@ -19,6 +19,7 @@ ConnectHeaders = TypedDict(
         "login": NotRequired[str],
         "passcode": NotRequired[str],
         "heart-beat": NotRequired[str],
+        "content-length": NotRequired[str],
     },
 )
 
@@ -30,7 +31,12 @@ class ConnectFrame(BaseFrame[ConnectHeaders]):
 
 ConnectedHeaders = TypedDict(
     "ConnectedHeaders",
-    {"version": str, "server": NotRequired[str], "heart-beat": NotRequired[str]},
+    {
+        "version": str,
+        "server": NotRequired[str],
+        "heart-beat": NotRequired[str],
+        "content-length": NotRequired[str],
+    },
 )
 
 
@@ -55,10 +61,15 @@ class SendFrame(BaseFrame[SendHeaders | dict[str, str]]):
     command: Literal["SEND"] = "SEND"
 
 
-class SubscribeHeaders(TypedDict):
-    id: str
-    destination: str
-    ack: NotRequired[Literal["client", "client-individual", "auto"]]
+SubscribeHeaders = TypedDict(
+    "SubscribeHeaders",
+    {
+        "id": str,
+        "destination": str,
+        "ack": NotRequired[Literal["client", "client-individual", "auto"]],
+        "content-length": NotRequired[str],
+    },
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -66,8 +77,7 @@ class SubscribeFrame(BaseFrame[SubscribeHeaders]):
     command: Literal["SUBSCRIBE"] = "SUBSCRIBE"
 
 
-class UnsubscribeHeaders(TypedDict):
-    id: str
+UnsubscribeHeaders = TypedDict("UnsubscribeHeaders", {"id": str, "content-length": NotRequired[str]})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -77,7 +87,12 @@ class UnsubscribeFrame(BaseFrame[UnsubscribeHeaders]):
 
 AckHeaders = TypedDict(
     "AckHeaders",
-    {"subscription": str, "message-id": str, "transaction": NotRequired[str]},
+    {
+        "subscription": str,
+        "message-id": str,
+        "transaction": NotRequired[str],
+        "content-length": NotRequired[str],
+    },
 )
 
 
@@ -88,7 +103,12 @@ class AckFrame(BaseFrame[AckHeaders]):
 
 NackHeaders = TypedDict(
     "NackHeaders",
-    {"subscription": str, "message-id": str, "transaction": NotRequired[str]},
+    {
+        "subscription": str,
+        "message-id": str,
+        "transaction": NotRequired[str],
+        "content-length": NotRequired[str],
+    },
 )
 
 
@@ -97,8 +117,7 @@ class NackFrame(BaseFrame[NackHeaders]):
     command: Literal["NACK"] = "NACK"
 
 
-class BeginHeaders(TypedDict):
-    transaction: str
+BeginHeaders = TypedDict("BeginHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -106,8 +125,7 @@ class BeginFrame(BaseFrame[BeginHeaders]):
     command: Literal["BEGIN"] = "BEGIN"
 
 
-class CommitHeaders(TypedDict):
-    transaction: str
+CommitHeaders = TypedDict("CommitHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -115,8 +133,7 @@ class CommitFrame(BaseFrame[CommitHeaders]):
     command: Literal["COMMIT"] = "COMMIT"
 
 
-class AbortHeaders(TypedDict):
-    transaction: str
+AbortHeaders = TypedDict("AbortHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -124,8 +141,7 @@ class AbortFrame(BaseFrame[AbortHeaders]):
     command: Literal["ABORT"] = "ABORT"
 
 
-class DisconnectHeaders(TypedDict):
-    receipt: NotRequired[str]
+DisconnectHeaders = TypedDict("DisconnectHeaders", {"receipt": NotRequired[str], "content-length": NotRequired[str]})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -133,7 +149,7 @@ class DisconnectFrame(BaseFrame[DisconnectHeaders]):
     command: Literal["DISCONNECT"] = "DISCONNECT"
 
 
-ReceiptHeaders = TypedDict("ReceiptHeaders", {"receipt-id": str})
+ReceiptHeaders = TypedDict("ReceiptHeaders", {"receipt-id": str, "content-length": NotRequired[str]})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -144,7 +160,17 @@ class ReceiptFrame(BaseFrame[ReceiptHeaders]):
 MessageHeaders = TypedDict(
     "MessageHeaders",
     # TODO: ack??
-    {"destination": str, "message-id": str, "subscription": str, "ack": NotRequired[str], "content-type": str},
+    # TODO: content-length, content-type
+    # TODO: STOMP frame
+    # TODO: Heartbeat and Unknown are not real frames
+    {
+        "destination": str,
+        "message-id": str,
+        "subscription": str,
+        "ack": NotRequired[str],
+        "content-type": str,
+        "content-length": str,
+    },
 )
 
 
@@ -153,8 +179,10 @@ class MessageFrame(BaseFrame[MessageHeaders]):
     command: Literal["MESSAGE"] = "MESSAGE"
 
 
-class ErrorHeaders(TypedDict):
-    message: NotRequired[str]
+ErrorHeaders = TypedDict(
+    "ErrorHeaders",
+    {"message": NotRequired[str], "content-length": str},
+)
 
 
 @dataclass(frozen=True, kw_only=True)
