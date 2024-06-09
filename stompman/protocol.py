@@ -106,13 +106,14 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame | None:
 
 @dataclass
 class Parser:
-    _remainder_from_last_packet: bytes = field(default=b"", init=False)
+    _remainder_from_last_packet_lines: deque[list[bytes]] = field(default_factory=deque, init=False)
+    _remainder_from_last_packet_current_line: list[bytes] = field(default_factory=list, init=False)
 
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
-        all_bytes = self._remainder_from_last_packet + raw_frames
+        all_bytes = raw_frames
         buffer = deque(struct.unpack(f"{len(all_bytes)!s}c", all_bytes))
-        lines = deque[list[bytes]]()
-        current_line: list[bytes] = []
+        lines = self._remainder_from_last_packet_lines
+        current_line = self._remainder_from_last_packet_current_line
         previous_byte = None
         headers_processed = False
 
@@ -145,4 +146,5 @@ class Parser:
 
             previous_byte = byte
 
-        self._remainder_from_last_packet = b"".join(current_line)
+        self._remainder_from_last_packet_lines = lines
+        self._remainder_from_last_packet_current_line = current_line

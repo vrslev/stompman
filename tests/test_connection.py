@@ -1,5 +1,4 @@
 import asyncio
-import platform
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
@@ -65,14 +64,34 @@ async def test_connection_lifespan(connection: Connection, monkeypatch: pytest.M
         write = mock.Mock()
         drain = mock.AsyncMock()
 
+    read_bytes = [
+        b"\n\n",
+        b"\nC",
+        b"ON",
+        b"NE",
+        b"CT",
+        b"ED",
+        b"\n",
+        b"he",
+        b"ar",
+        b"t-",
+        b"be",
+        b"at",
+        b":0",
+        b",0",
+        b"\nse",
+        b"rv",
+        b"er:",
+        b"som",
+        b"e server\nversion:1.2\n\n\x00",
+    ]
+
     class MockReader:
-        # TODO split in halfs
-        read = mock.AsyncMock(return_value=b"\n\n\nCONNECTED\nheart-beat:0,0\nserver:some server\nversion:1.2\n\n\x00")
+        read = mock.AsyncMock(side_effect=read_bytes)
 
     monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(return_value=(MockReader(), MockWriter())))
 
     await connection.connect()
-
     connection.write_heartbeat()
     await connection.write_frame(CommitFrame(headers={"transaction": "transaction"}))
 
@@ -97,7 +116,7 @@ async def test_connection_lifespan(connection: Connection, monkeypatch: pytest.M
     MockWriter.close.assert_called_once_with()
     MockWriter.wait_closed.assert_called_once_with()
     MockWriter.drain.assert_called_once_with()
-    MockReader.read.assert_called_once_with(connection.read_timeout)
+    MockReader.read.mock_calls = [mock.call(connection.read_timeout)] * len(read_bytes)  # type: ignore[assignment]
     assert MockWriter.write.mock_calls == [mock.call(b"\n"), mock.call(b"COMMIT\ntransaction:transaction\n\n\x00")]
 
 
