@@ -48,8 +48,8 @@ class ConnectedFrame(BaseFrame[ConnectedHeaders]):
 SendHeaders = TypedDict(
     "SendHeaders",
     {
-        "content-length": str,
-        "content-type": str,
+        "content-length": NotRequired[str],
+        "content-type": NotRequired[str],
         "destination": str,
         "transaction": NotRequired[str],
     },
@@ -168,8 +168,8 @@ MessageHeaders = TypedDict(
         "message-id": str,
         "subscription": str,
         "ack": NotRequired[str],
-        "content-type": str,
-        "content-length": str,
+        "content-type": NotRequired[str],
+        "content-length": NotRequired[str],
     },
 )
 
@@ -181,7 +181,7 @@ class MessageFrame(BaseFrame[MessageHeaders]):
 
 ErrorHeaders = TypedDict(
     "ErrorHeaders",
-    {"message": NotRequired[str], "content-length": str},
+    {"message": NotRequired[str], "content-length": NotRequired[str], "content-type": NotRequired[str]},
 )
 
 
