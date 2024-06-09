@@ -114,7 +114,11 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     has_processed_headers = False
 
     for byte in iter_bytes(raw_frames):
-        if has_processed_headers:
+        byte_is_newline = byte == b"\n"
+
+        if byte_is_newline and not command_buffer and not headers_buffer:
+            yield HeartbeatFrame(headers={})
+        elif has_processed_headers:
             if byte == EOF_MARKER:
                 yield _build_frame_from_buffer(command_buffer, headers_buffer, body_buffer)
                 command_buffer.clear()
@@ -128,8 +132,6 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
             if byte == b"\n" and (previous_byte == b"\n" or ends_with_crlf(headers_buffer)):
                 has_processed_headers = True
             headers_buffer.append(byte)
-        elif byte == b"\n" and not command_buffer and not headers_buffer:
-            yield HeartbeatFrame(headers={})
         else:  # noqa: PLR5501
             if byte == b"\n":
                 has_processed_command = True
