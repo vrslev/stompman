@@ -1,7 +1,6 @@
 import asyncio
-import platform
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from collections.abc import Awaitable
+from functools import partial
 from typing import Any
 from unittest import mock
 
@@ -29,27 +28,6 @@ def connection() -> Connection:
     )
 
 
-@asynccontextmanager
-async def create_server(
-    handle_connected: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]],
-) -> AsyncGenerator[tuple[str, int], None]:
-    async def handle_connected_full(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        await handle_connected(reader, writer)
-
-        async def shutdown() -> None:
-            await writer.drain()
-            writer.close()
-            await writer.wait_closed()
-
-        task_group.create_task(shutdown())
-
-    host, port = "localhost", 61637
-
-    async with asyncio.TaskGroup() as task_group:  # noqa: SIM117
-        async with await asyncio.start_server(handle_connected_full, host, port):
-            yield host, port
-
-
 def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
     async def mock_impl(future: Awaitable[Any], timeout: int) -> Any:  # noqa: ANN401, ARG001
         return await original_wait_for(future, timeout=0)
@@ -58,46 +36,67 @@ def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("asyncio.wait_for", mock_impl)
 
 
-@pytest.mark.skipif(platform.system() != "Darwin", reason='reader.read() reads b"" on linux')
-async def test_connection_lifespan(connection: Connection) -> None:
-    async def handle_connected(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        async def validate_content() -> None:
-            await asyncio.sleep(0)
-            assert await reader.read() == b"\nSOME_COMMAND\nheader:1.0\n\n\x00"
+async def test_connection_lifespan(connection: Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    class MockWriter:
+        close = mock.Mock()
+        wait_closed = mock.AsyncMock()
+        write = mock.Mock()
+        drain = mock.AsyncMock()
 
-        task_group.create_task(validate_content())
+    read_bytes = [
+        b"\n\n",
+        b"\nC",
+        b"ON",
+        b"NE",
+        b"CT",
+        b"ED",
+        b"\n",
+        b"he",
+        b"ar",
+        b"t-",
+        b"be",
+        b"at",
+        b":0",
+        b",0",
+        b"\nse",
+        b"rv",
+        b"er:",
+        b"som",
+        b"e server\nversion:1.2\n\n\x00",
+    ]
 
-        writer.write(b"\n")
-        writer.write(b"\n")
-        writer.write(b"\n")
-        writer.write(b"CONNECTED\nheart-beat:0,0\nserver:some server\nversion:1.2\n\n\x00")
+    class MockReader:
+        read = mock.AsyncMock(side_effect=read_bytes)
 
-    async with asyncio.TaskGroup() as task_group:  # noqa: SIM117
-        async with create_server(handle_connected) as (host, port):
-            connection.connection_parameters.host = host
-            connection.connection_parameters.port = port
-            await connection.connect()
+    monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(return_value=(MockReader(), MockWriter())))
 
-            connection.write_heartbeat()
-            await connection.write_frame(CommitFrame(headers={"transaction": "transaction"}))
+    await connection.connect()
+    connection.write_heartbeat()
+    await connection.write_frame(CommitFrame(headers={"transaction": "transaction"}))
 
-            async def take_frames(count: int) -> list[ServerFrame]:
-                frames = []
-                async for frame in connection.read_frames():
-                    frames.append(frame)
-                    if len(frames) == count:
-                        break
+    async def take_frames(count: int) -> list[ServerFrame]:
+        frames = []
+        async for frame in connection.read_frames():
+            frames.append(frame)
+            if len(frames) == count:
+                break
 
-                return frames
+        return frames
 
-            expected_frames = [
-                HeartbeatFrame(),
-                HeartbeatFrame(),
-                HeartbeatFrame(),
-                ConnectedFrame(headers={"heart-beat": "0,0", "version": "1.2", "server": "some server"}),
-            ]
-            assert await take_frames(len(expected_frames)) == expected_frames
-            await connection.close()
+    expected_frames = [
+        HeartbeatFrame(),
+        HeartbeatFrame(),
+        HeartbeatFrame(),
+        ConnectedFrame(headers={"heart-beat": "0,0", "version": "1.2", "server": "some server"}),
+    ]
+    assert await take_frames(len(expected_frames)) == expected_frames
+    await connection.close()
+
+    MockWriter.close.assert_called_once_with()
+    MockWriter.wait_closed.assert_called_once_with()
+    MockWriter.drain.assert_called_once_with()
+    MockReader.read.mock_calls = [mock.call(connection.read_timeout)] * len(read_bytes)  # type: ignore[assignment]
+    assert MockWriter.write.mock_calls == [mock.call(b"\n"), mock.call(b"COMMIT\ntransaction:transaction\n\n\x00")]
 
 
 async def test_connection_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
@@ -113,10 +112,11 @@ async def test_connection_error(monkeypatch: pytest.MonkeyPatch, connection: Con
 
 
 async def test_read_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
-    async with create_server(mock.AsyncMock()) as (host, port):
-        connection.connection_parameters.host = host
-        connection.connection_parameters.port = port
-        await connection.connect()
-        mock_wait_for(monkeypatch)
-        with pytest.raises(ReadTimeoutError):
-            [frame async for frame in connection.read_frames()]
+    monkeypatch.setattr(
+        "asyncio.open_connection",
+        mock.AsyncMock(return_value=(mock.AsyncMock(read=partial(asyncio.sleep, 5)), mock.AsyncMock())),
+    )
+    await connection.connect()
+    mock_wait_for(monkeypatch)
+    with pytest.raises(ReadTimeoutError):
+        [frame async for frame in connection.read_frames()]

@@ -1,11 +1,11 @@
 import asyncio
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ConnectError, ReadTimeoutError
 from stompman.frames import AnyRealFrame, ClientFrame, ServerFrame
-from stompman.protocol import NEWLINE, Parser, dump_frame, separate_complete_and_incomplete_packet_parts
+from stompman.protocol import NEWLINE, Parser, dump_frame
 
 
 @dataclass
@@ -76,17 +76,13 @@ class Connection(AbstractConnection):
         return chunk
 
     async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:
-        incomplete_bytes = b""
         parser = Parser()
 
         while True:
             try:
-                received_bytes = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
+                raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
             except TimeoutError as exception:
-                raise ReadTimeoutError(timeout=self.read_timeout) from exception
+                raise ReadTimeoutError(self.read_timeout) from exception
 
-            complete_bytes, incomplete_bytes = separate_complete_and_incomplete_packet_parts(
-                incomplete_bytes + received_bytes
-            )
-            for frame in cast(Iterable[ServerFrame], parser.load_frames(received_bytes)):
+            for frame in cast(Iterator[ServerFrame], parser.load_frames(raw_frames)):
                 yield frame

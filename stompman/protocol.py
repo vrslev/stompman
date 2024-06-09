@@ -49,16 +49,6 @@ def dump_frame(frame: AnyRealFrame) -> bytes:
     return b"".join(lines)
 
 
-def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
-    if raw_frames.replace(NEWLINE, b"") == b"":
-        return (raw_frames, b"")
-    parts = raw_frames.rpartition(NULL)
-    if parts[2].replace(NEWLINE, b"") == b"":
-        return (raw_frames, b"")
-
-    return parts[0] + parts[1], parts[2]
-
-
 def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
     if byte == b"\\":
         return None
@@ -106,43 +96,38 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame | None:
 
 @dataclass
 class Parser:
-    _remainder_from_last_packet: bytes = field(default=b"", init=False)
+    _lines: deque[list[bytes]] = field(default_factory=deque, init=False)
+    _current_line: list[bytes] = field(default_factory=list, init=False)
+    _previous_byte: bytes = field(default=b"", init=False)
+    _headers_processed: bool = field(default=False, init=False)
 
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
-        all_bytes = self._remainder_from_last_packet + raw_frames
-        buffer = deque(struct.unpack(f"{len(all_bytes)!s}c", all_bytes))
-        lines = deque[list[bytes]]()
-        current_line: list[bytes] = []
-        previous_byte = None
-        headers_processed = False
-
+        buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
         while buffer:
             byte = buffer.popleft()
 
-            if headers_processed and byte == NULL:
-                lines.append(current_line)
-                if parsed_frame := parse_lines_into_frame(lines):
+            if self._headers_processed and byte == NULL:
+                self._lines.append(self._current_line)
+                if parsed_frame := parse_lines_into_frame(self._lines):
                     yield parsed_frame
-                headers_processed = False
-                lines.clear()
-                current_line = []
+                self._headers_processed = False
+                self._lines.clear()
+                self._current_line = []
 
-            elif not headers_processed and byte == NEWLINE:
-                if current_line or lines:
-                    if not current_line:  # extra empty line after headers
-                        headers_processed = True
+            elif not self._headers_processed and byte == NEWLINE:
+                if self._current_line or self._lines:
+                    if not self._current_line:  # extra empty line after headers
+                        self._headers_processed = True
 
-                    if previous_byte == b"\r":
-                        current_line.pop()
+                    if self._previous_byte == b"\r":
+                        self._current_line.pop()
 
-                    lines.append(current_line)
-                    current_line = []
+                    self._lines.append(self._current_line)
+                    self._current_line = []
                 else:
                     yield HeartbeatFrame()
 
             else:
-                current_line.append(byte)
+                self._current_line.append(byte)
 
-            previous_byte = byte
-
-        self._remainder_from_last_packet = b"".join(current_line)
+            self._previous_byte = byte
