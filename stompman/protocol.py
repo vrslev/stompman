@@ -30,6 +30,11 @@ HEARTBEAT_MARKER = b"\n"
 CRLFCRLR_MARKER = (b"\r", b"\n", b"\r", b"\n")
 
 
+NULL = b"\x00"
+NEWLINE = b"\n"
+CARRIAGE = b"\r"
+
+
 def escape_header_value(header: str) -> str:
     return "".join(ESCAPE_CHARS.get(char, char) for char in header)
 
@@ -75,14 +80,13 @@ def parse_command(raw_frame: deque[bytes]) -> str:
         while raw_frame:
             byte = raw_frame.popleft()
 
-            if byte == b"\n":
-                if previous_byte and previous_byte != b"\r":
+            if byte == NEWLINE:
+                if previous_byte and previous_byte != CARRIAGE:
                     yield previous_byte
                 break
 
             if previous_byte:
                 yield previous_byte
-
             previous_byte = byte
 
     return b"".join(parse()).decode()
