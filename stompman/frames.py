@@ -1,14 +1,7 @@
 from dataclasses import dataclass
-from typing import Generic, Literal, NotRequired, TypedDict, TypeVar
+from typing import Literal, NotRequired, TypedDict, TypeVar
 
 HeadersType = TypeVar("HeadersType")
-
-
-@dataclass(frozen=True, kw_only=True)
-class BaseFrame(Generic[HeadersType]):
-    command: str
-    headers: HeadersType
-    body: bytes = b""
 
 
 ConnectHeaders = TypedDict(
@@ -24,14 +17,16 @@ ConnectHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class ConnectFrame(BaseFrame[ConnectHeaders]):
-    command: Literal["CONNECT", "STOMP"] = "CONNECT"
+@dataclass
+class ConnectFrame:
+    headers: ConnectHeaders
+    body: bytes = b""
 
 
-@dataclass(frozen=True, kw_only=True)
-class StompFrame(BaseFrame[ConnectHeaders]):
-    command: Literal["STOMP"]
+@dataclass
+class StompFrame:
+    headers: ConnectHeaders
+    body: bytes = b""
 
 
 ConnectedHeaders = TypedDict(
@@ -45,9 +40,10 @@ ConnectedHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class ConnectedFrame(BaseFrame[ConnectedHeaders]):
-    command: Literal["CONNECTED"] = "CONNECTED"
+@dataclass
+class ConnectedFrame:
+    headers: ConnectedHeaders
+    body: bytes = b""
 
 
 SendHeaders = TypedDict(
@@ -61,9 +57,10 @@ SendHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class SendFrame(BaseFrame[SendHeaders | dict[str, str]]):
-    command: Literal["SEND"] = "SEND"
+@dataclass
+class SendFrame:
+    headers: SendHeaders
+    body: bytes = b""
 
 
 SubscribeHeaders = TypedDict(
@@ -77,17 +74,19 @@ SubscribeHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class SubscribeFrame(BaseFrame[SubscribeHeaders]):
-    command: Literal["SUBSCRIBE"] = "SUBSCRIBE"
+@dataclass
+class SubscribeFrame:
+    headers: SubscribeHeaders
+    body: bytes = b""
 
 
 UnsubscribeHeaders = TypedDict("UnsubscribeHeaders", {"id": str, "content-length": NotRequired[str]})
 
 
-@dataclass(frozen=True, kw_only=True)
-class UnsubscribeFrame(BaseFrame[UnsubscribeHeaders]):
-    command: Literal["UNSUBSCRIBE"] = "UNSUBSCRIBE"
+@dataclass
+class UnsubscribeFrame:
+    headers: UnsubscribeHeaders
+    body: bytes = b""
 
 
 AckHeaders = TypedDict(
@@ -101,9 +100,10 @@ AckHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class AckFrame(BaseFrame[AckHeaders]):
-    command: Literal["ACK"] = "ACK"
+@dataclass
+class AckFrame:
+    headers: AckHeaders
+    body: bytes = b""
 
 
 NackHeaders = TypedDict(
@@ -117,49 +117,55 @@ NackHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class NackFrame(BaseFrame[NackHeaders]):
-    command: Literal["NACK"] = "NACK"
+@dataclass
+class NackFrame:
+    headers: NackHeaders
+    body: bytes = b""
 
 
 BeginHeaders = TypedDict("BeginHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
 
 
-@dataclass(frozen=True, kw_only=True)
-class BeginFrame(BaseFrame[BeginHeaders]):
-    command: Literal["BEGIN"] = "BEGIN"
+@dataclass
+class BeginFrame:
+    headers: BeginHeaders
+    body: bytes = b""
 
 
 CommitHeaders = TypedDict("CommitHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
 
 
-@dataclass(frozen=True, kw_only=True)
-class CommitFrame(BaseFrame[CommitHeaders]):
-    command: Literal["COMMIT"] = "COMMIT"
+@dataclass
+class CommitFrame:
+    headers: CommitHeaders
+    body: bytes = b""
 
 
 AbortHeaders = TypedDict("AbortHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
 
 
-@dataclass(frozen=True, kw_only=True)
-class AbortFrame(BaseFrame[AbortHeaders]):
-    command: Literal["ABORT"] = "ABORT"
+@dataclass
+class AbortFrame:
+    headers: AbortHeaders
+    body: bytes = b""
 
 
 DisconnectHeaders = TypedDict("DisconnectHeaders", {"receipt": NotRequired[str], "content-length": NotRequired[str]})
 
 
-@dataclass(frozen=True, kw_only=True)
-class DisconnectFrame(BaseFrame[DisconnectHeaders]):
-    command: Literal["DISCONNECT"] = "DISCONNECT"
+@dataclass
+class DisconnectFrame:
+    headers: DisconnectHeaders
+    body: bytes = b""
 
 
 ReceiptHeaders = TypedDict("ReceiptHeaders", {"receipt-id": str, "content-length": NotRequired[str]})
 
 
-@dataclass(frozen=True, kw_only=True)
-class ReceiptFrame(BaseFrame[ReceiptHeaders]):
-    command: Literal["RECEIPT"] = "RECEIPT"
+@dataclass
+class ReceiptFrame:
+    headers: ReceiptHeaders
+    body: bytes = b""
 
 
 MessageHeaders = TypedDict(
@@ -179,9 +185,10 @@ MessageHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class MessageFrame(BaseFrame[MessageHeaders]):
-    command: Literal["MESSAGE"] = "MESSAGE"
+@dataclass
+class MessageFrame:
+    headers: MessageHeaders
+    body: bytes = b""
 
 
 ErrorHeaders = TypedDict(
@@ -190,18 +197,22 @@ ErrorHeaders = TypedDict(
 )
 
 
-@dataclass(frozen=True, kw_only=True)
-class ErrorFrame(BaseFrame[ErrorHeaders]):
-    command: Literal["ERROR"] = "ERROR"
+@dataclass
+class ErrorFrame:
+    headers: ErrorHeaders
+    body: bytes = b""
 
 
-@dataclass(frozen=True, kw_only=True)
-class HeartbeatFrame(BaseFrame[dict[str, str]]):
-    command: Literal["HEARTBEAT"] = "HEARTBEAT"
+@dataclass
+class HeartbeatFrame:
+    headers: dict[str, str]
+    body: bytes = b""
 
 
-@dataclass(frozen=True, kw_only=True)
-class UnknownFrame(BaseFrame[dict[str, str]]): ...
+@dataclass
+class UnknownFrame:
+    headers: dict[str, str]
+    body: bytes = b""
 
 
 CLIENT_FRAMES = {
