@@ -1,45 +1,43 @@
-from typing import Any
-
 import pytest
 
 from stompman import (
-    BaseFrame,
     ConnectedFrame,
     ConnectFrame,
     ErrorFrame,
     HeartbeatFrame,
     MessageFrame,
-    UnknownFrame,
 )
-from stompman.protocol import dump_frame, load_frames
+from stompman.frames import AckFrame, ClientFrame, ServerFrame
+from stompman.protocol import Parser, dump_frame
 
 
 @pytest.mark.parametrize(
     ("frame", "dumped_frame"),
     [
         (
-            BaseFrame(
-                command="ACK",
-                headers={"from": "me", "to": "you"},
-                body=b"I Am The Walrus",
-            ),
-            (b"ACK\n" b"from:me\n" b"to:you\n\n" b"I Am The Walrus" b"\x00"),
+            AckFrame(headers={"subscription": "1", "id": "1"}, body=b"I Am The Walrus"),
+            (b"ACK\nid:1\nsubscription:1\n\nI Am The Walrus\x00"),
         ),
         (
-            BaseFrame(command="CONNECTED", headers={"from": "1", "to": "2"}),
-            (b"CONNECTED\n" b"from:1\n" b"to:2\n\n" b"\x00"),
+            ConnectedFrame(headers={"heart-beat": "1,1", "version": "1"}),
+            (b"CONNECTED\n" b"heart-beat:1,1\nversion:1\n\n" b"\x00"),
         ),
         (
-            BaseFrame(
-                command="MESSAGE",
-                headers={"destination": "me:123", "extra": "you\nmore\rextra\\here"},
+            MessageFrame(
+                headers={"destination": "me:123", "message-id": "you\nmore\rextra\\here", "subscription": "hi"},
                 body=b"I Am The Walrus",
             ),
-            (b"MESSAGE\n" b"destination:me\\c123\n" b"extra:you\\nmore\\rextra\\\\here\n\n" b"I Am The Walrus" b"\x00"),
+            (
+                b"MESSAGE\n"
+                b"destination:me\\c123\n"
+                b"message-id:you\\nmore\\rextra\\\\here\nsubscription:hi\n\n"
+                b"I Am The Walrus"
+                b"\x00"
+            ),
         ),
     ],
 )
-def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
+def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
     assert dump_frame(frame) == dumped_frame
 
 
@@ -106,7 +104,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
                     },
                     body=b"222.222.22.222",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "12",
@@ -121,7 +119,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
                     },
                     body=b"88.88.888.88",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "11",
@@ -136,7 +134,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
                     },
                     body=b"111.11.1.11",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "14",
@@ -151,7 +149,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
                     },
                     body=b"222.222.22.222",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 MessageFrame(
                     headers={
                         "content-length": "12",
@@ -166,7 +164,7 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
                     },
                     body=b"88.88.888.88",
                 ),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
             ],
         ),
         # Partial packet #2
@@ -174,9 +172,9 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
             b"CONNECT\naccept-version:1.0\n\n\x00\nCONNECTED\nversion:1.0\n\n\x00\n",
             [
                 ConnectFrame(headers={"accept-version": "1.0"}),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 ConnectedFrame(headers={"version": "1.0"}),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
             ],
         ),
         # Utf-8
@@ -184,25 +182,46 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
             b"CONNECTED\naccept-version:1.0\n\n\x00\nERROR\nheader:1.0\n\n\xc3\xa7\x00\n",
             [
                 ConnectedFrame(headers={"accept-version": "1.0"}),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
                 ErrorFrame(headers={"header": "1.0"}, body="ç".encode()),
-                HeartbeatFrame(headers={}),
+                HeartbeatFrame(),
             ],
         ),
         (
             b"\n",
-            [HeartbeatFrame(headers={})],
+            [HeartbeatFrame()],
         ),
         # Two headers: only first should be accepted
         (
             b"CONNECTED\naccept-version:1.0\naccept-version:1.1\n\n\x00",
             [ConnectedFrame(headers={"accept-version": "1.0"})],
         ),
+        # no end of line after command
+        (b"SOME_COMMAND", []),
+        (b"SOME_COMMAND\n", []),
+        (b"SOME_COMMAND\x00", []),
+        # \r\n after command
+        (b"CONNECTED\r\n\n\n\x00", [ConnectedFrame(headers={}, body=b"\n")]),
+        (b"CONNECTED\r\nheader:1.0\n\n\x00", [ConnectedFrame(headers={"header": "1.0"})]),
+        # header without :
+        (b"CONNECTED\nhead\nheader:1.1\n\n\x00", [ConnectedFrame(headers={"header": "1.1"})]),
+        # empty header :
         (
-            b"SOME_COMMAND\nheader:1.0\n\n\x00",
-            [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})],
+            b"CONNECTED\nhead:\nheader:1.1\n\n\x00",
+            [ConnectedFrame(headers={"head": "", "header": "1.1"})],
         ),
+        # header value with :
+        (b"CONNECTED\nheader:what:?\n\n\x00", [ConnectedFrame(headers={})]),
+        # no NULL
+        (b"SOME_COMMAND\nheader:what:?\n\nhello", []),
+        # header never end
+        (b"SOME_COMMAND\nheader:hello", []),
+        (b"SOME_COMMAND\nheader:hello\n", []),
+        (b"SOME_COMMAND\nheader:hello\n\x00", []),
+        (b"SOME_COMMAND\nn", []),
+        # unknown command
+        (b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00", []),
     ],
 )
-def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
-    assert list(load_frames(raw_frames)) == loaded_frames
+def test_load_frames(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> None:
+    assert list(Parser().load_frames(raw_frames)) == loaded_frames

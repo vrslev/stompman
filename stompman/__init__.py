@@ -12,7 +12,6 @@ from stompman.frames import (
     AbortFrame,
     AckFrame,
     AnyFrame,
-    BaseFrame,
     BeginFrame,
     ClientFrame,
     CommitFrame,
@@ -27,10 +26,9 @@ from stompman.frames import (
     SendFrame,
     ServerFrame,
     SubscribeFrame,
-    UnknownFrame,
     UnsubscribeFrame,
 )
-from stompman.listen_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
+from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent
 
 __all__ = [
     "AbortFrame",
@@ -39,7 +37,6 @@ __all__ = [
     "FailedAllConnectAttemptsError",
     "AnyFrame",
     "AnyListeningEvent",
-    "BaseFrame",
     "BaseListenEvent",
     "BeginFrame",
     "ClientFrame",
@@ -66,8 +63,6 @@ __all__ = [
     "Connection",
     "Error",
     "SubscribeFrame",
-    "UnknownEvent",
-    "UnknownFrame",
     "UnsubscribeFrame",
     "UnsupportedProtocolVersionError",
 ]

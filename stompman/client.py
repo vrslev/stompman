@@ -25,10 +25,11 @@ from stompman.frames import (
     MessageFrame,
     ReceiptFrame,
     SendFrame,
+    SendHeaders,
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.listen_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent, UnknownEvent
+from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent
 from stompman.protocol import PROTOCOL_VERSION
 
 
@@ -117,6 +118,7 @@ class Client:
                 headers={
                     "accept-version": PROTOCOL_VERSION,
                     "heart-beat": self.heartbeat.to_header(),
+                    "host": self._connection.connection_parameters.host,
                     "login": self._connection.connection_parameters.login,
                     "passcode": self._connection.connection_parameters.passcode,
                 },
@@ -176,8 +178,6 @@ class Client:
                     yield HeartbeatEvent(_client=self, _frame=frame)
                 case ConnectedFrame() | ReceiptFrame():
                     raise AssertionError("Should be unreachable! Report the issue.", frame)
-                case _:
-                    yield UnknownEvent(_client=self, _frame=frame)
 
     @asynccontextmanager
     async def enter_transaction(self) -> AsyncGenerator[str, None]:
@@ -192,16 +192,19 @@ class Client:
         else:
             await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
-    async def send(
+    async def send(  # noqa: PLR0913
         self,
         body: bytes,
         destination: str,
         transaction: str | None = None,
+        content_type: str | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
-        full_headers = headers or {}
+        full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
         full_headers["destination"] = destination
         full_headers["content-length"] = str(len(body))
+        if content_type is not None:
+            full_headers["content-type"] = content_type
         if transaction is not None:
             full_headers["transaction"] = transaction
         await self._connection.write_frame(SendFrame(headers=full_headers, body=body))
