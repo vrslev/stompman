@@ -108,29 +108,28 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame | None:
 class Parser:
     _lines: deque[list[bytes]] = field(default_factory=deque, init=False)
     _current_line: list[bytes] = field(default_factory=list, init=False)
+    _previous_byte: bytes = field(default=b"", init=False)
+    _headers_processed: bool = field(default=False, init=False)
 
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
         buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
-        previous_byte = None
-        headers_processed = False
-
         while buffer:
             byte = buffer.popleft()
 
-            if headers_processed and byte == NULL:
+            if self._headers_processed and byte == NULL:
                 self._lines.append(self._current_line)
                 if parsed_frame := parse_lines_into_frame(self._lines):
                     yield parsed_frame
-                headers_processed = False
+                self._headers_processed = False
                 self._lines.clear()
                 self._current_line = []
 
-            elif not headers_processed and byte == NEWLINE:
+            elif not self._headers_processed and byte == NEWLINE:
                 if self._current_line or self._lines:
                     if not self._current_line:  # extra empty line after headers
-                        headers_processed = True
+                        self._headers_processed = True
 
-                    if previous_byte == b"\r":
+                    if self._previous_byte == b"\r":
                         self._current_line.pop()
 
                     self._lines.append(self._current_line)
@@ -141,4 +140,4 @@ class Parser:
             else:
                 self._current_line.append(byte)
 
-            previous_byte = byte
+            self._previous_byte = byte
