@@ -71,16 +71,6 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
     return b"".join(lines)
 
 
-def _build_frame_from_buffer(
-    command_buffer: list[bytes], headers: dict[str, str], body_buffer: list[bytes]
-) -> AnyFrame:
-    command = b"".join(command_buffer).decode()
-    body = b"".join(body_buffer)
-    if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
-        return known_frame_type(headers=cast(Any, headers), body=body)
-    return UnknownFrame(command=command, headers=headers, body=body)
-
-
 def parse_command(raw_frame: deque[bytes]) -> str:
     def parse() -> Iterator[bytes]:
         while raw_frame and (byte := raw_frame.popleft()) != b"\n":
@@ -131,6 +121,7 @@ def parse_body(raw_frame: deque[bytes]) -> bytes:
 
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     raw_frames_deque = deque(iter_bytes(raw_frames))
+
     while raw_frames_deque:
         first_byte = raw_frames_deque.popleft()
         if first_byte == b"\n":
@@ -148,50 +139,3 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
                 yield known_frame_type(headers=cast(Any, headers), body=body)
             else:
                 yield UnknownFrame(command=command, headers=headers, body=body)
-
-    # command_buffer = list[bytes]()
-    # one_header_buffer = list[bytes]()
-    # headers: dict[str, str] = {}
-    # body_buffer = list[bytes]()
-    # previous_byte = None
-    # has_processed_command = False
-    # has_processed_headers = False
-
-    # for byte in iter_bytes(raw_frames):
-    #     if (byte_is_newline := byte == b"\n") and not (command_buffer or one_header_buffer or headers):
-    #         yield HeartbeatFrame(headers={})
-
-    #     elif has_processed_headers:
-    #         if byte == EOF_MARKER:
-    #             yield _build_frame_from_buffer(command_buffer, headers, body_buffer)
-    #             command_buffer.clear()
-    #             body_buffer.clear()
-    #             headers = {}
-    #             has_processed_command = False
-    #             has_processed_headers = False
-    #         else:
-    #             body_buffer.append(byte)
-    #     elif has_processed_command:
-    #         if byte_is_newline:
-    #             if previous_byte == b"\n":
-    #                 has_processed_headers = True
-    #             elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER:
-    #                 has_processed_headers = True
-    #                 one_header_buffer.pop()
-    #                 one_header_buffer.pop()
-    #                 one_header_buffer.pop()
-
-    #             if one_header_buffer:
-    #                 key, value = b"".join(one_header_buffer).split(b":", 1)
-    #                 if (decoded_key := key.decode()) not in headers:
-    #                     headers[decoded_key] = unescape_header(value).decode()
-    #                 one_header_buffer.clear()
-    #         else:
-    #             one_header_buffer.append(byte)
-    #     else:
-    #         if byte_is_newline:
-    #             has_processed_command = True
-    #         else:
-    #             command_buffer.append(byte)
-
-    #     previous_byte = byte
