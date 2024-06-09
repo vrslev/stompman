@@ -54,12 +54,12 @@ def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[by
     return parts[0] + parts[1], parts[2]
 
 
-def parse_command(raw_frame: deque[bytes]) -> str:
+def parse_command(buffer: deque[bytes]) -> str:
     def parse() -> Iterator[bytes]:
         previous_byte = None
 
         while True:
-            byte = raw_frame.popleft()
+            byte = buffer.popleft()
 
             if byte == NEWLINE:
                 if previous_byte and previous_byte != CARRIAGE:
@@ -88,7 +88,7 @@ def unescape_header(header_buffer: list[bytes]) -> bytes:
     return b"".join(unescape())
 
 
-def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
+def parse_headers(buffer: deque[bytes]) -> dict[str, str]:
     headers: dict[str, str] = {}
     last_four_bytes: tuple[typing.Any, typing.Any, typing.Any, typing.Any] = (None, None, None, None)
     key_buffer: list[bytes] = []
@@ -102,7 +102,7 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
         value_buffer.clear()
 
     while True:
-        byte = raw_frame.popleft()
+        byte = buffer.popleft()
         last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
         if byte == CARRIAGE:
