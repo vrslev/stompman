@@ -127,24 +127,25 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
         last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
 
         if byte == CARRIAGE:
-            continue
-
-        if byte != NEWLINE:
-            if key_parsed:
-                value_buffer.append(byte)
-            elif byte == b":":
-                key_parsed = True
-            else:
-                key_buffer.append(byte)
-        else:
-            if (key := b"".join(key_buffer).decode()) and key not in headers:
+            key_buffer.clear()
+            key_parsed = False
+            value_buffer.clear()
+        elif byte == NEWLINE:
+            if key_parsed and (key := b"".join(key_buffer).decode()) and key not in headers:
                 headers[key] = unescape_header(value_buffer).decode()
-                key_buffer.clear()
-                key_parsed = False
-                value_buffer.clear()
+
+            key_buffer.clear()
+            key_parsed = False
+            value_buffer.clear()
 
             if last_four_bytes[-2] == NEWLINE or last_four_bytes == CARRIAGE_NEWLINE_CARRIAGE_NEWLINE:
                 return headers
+        elif key_parsed:
+            value_buffer.append(byte)
+        elif byte == b":":
+            key_parsed = True
+        else:
+            key_buffer.append(byte)
 
 
 def parse_body(raw_frame: deque[bytes]) -> bytes:

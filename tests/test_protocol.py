@@ -211,7 +211,26 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
         (b"SOME_COMMAND\r\nheader:1.0\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})]),
         # HEADERS
         # \r or \n in header
-        # (b"SOME_COMMAND\nhead\rer:1.0\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})]),
+        (b"SOME_COMMAND\nhead\rer:1.0\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"er": "1.0"})]),
+        (
+            b"SOME_COMMAND\nhead\rer:1.0\nheader:1.1\n\n\x00",
+            [UnknownFrame(command="SOME_COMMAND", headers={"er": "1.0", "header": "1.1"})],
+        ),
+        (
+            b"SOME_COMMAND\nhead\ner:1.0\nheader:1.1\n\n\x00",
+            [UnknownFrame(command="SOME_COMMAND", headers={"er": "1.0", "header": "1.1"})],
+        ),
+        (
+            b"SOME_COMMAND\nhead\r\ner:1.0\nheader:1.1\n\n\x00",
+            [UnknownFrame(command="SOME_COMMAND", headers={"er": "1.0", "header": "1.1"})],
+        ),
+        # header without :
+        (b"SOME_COMMAND\nhead\nheader:1.1\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.1"})]),
+        # empty header :
+        (
+            b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00",
+            [UnknownFrame(command="SOME_COMMAND", headers={"head": "", "header": "1.1"})],
+        ),
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
