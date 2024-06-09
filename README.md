@@ -103,8 +103,6 @@ async with asyncio.TaskGroup() as task_group:
                 )
             case stompman.HeartbeatEvent():
                 task_group.create_task(update_healthcheck_status())
-            case stompman.UnknownEvent():
-                logger.error("Received unknown event from server", event=event)
 ```
 
 ### Cleaning Up
