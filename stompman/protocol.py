@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from stompman.frames import (
-    COMMANDS_TO_FRAME_TYPES,
+    COMMANDS_TO_FRAMES,
     FRAMES_TO_COMMANDS,
     AnyFrame,
     AnyRealFrame,
@@ -91,7 +91,7 @@ def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
 
 
 def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
-    command = b"".join(lines.popleft()).decode()
+    command: Any = b"".join(lines.popleft()).decode()
     headers = {}
 
     while line := lines.popleft():
@@ -100,7 +100,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
             headers[header[0]] = header[1]
     body = b"".join(lines.popleft()) if lines else b""
 
-    if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
+    if known_frame_type := COMMANDS_TO_FRAMES.get(command):
         return known_frame_type(headers=cast(Any, headers), body=body)
     return UnknownFrame(headers=headers, body=body)
 

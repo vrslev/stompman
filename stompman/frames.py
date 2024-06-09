@@ -270,22 +270,3 @@ ClientFrame = (
 ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
 AnyRealFrame = ClientFrame | ServerFrame
 AnyFrame = AnyRealFrame | UnknownFrame | HeartbeatFrame
-
-COMMANDS_TO_FRAME_TYPES: dict[str, type[ClientFrame | ServerFrame]] = {
-    "CONNECT": ConnectFrame,
-    "STOMP": ConnectFrame,
-    "SEND": SendFrame,
-    "SUBSCRIBE": SubscribeFrame,
-    "UNSUBSCRIBE": UnsubscribeFrame,
-    "BEGIN": BeginFrame,
-    "COMMIT": CommitFrame,
-    "ABORT": AbortFrame,
-    "ACK": AckFrame,
-    "NACK": NackFrame,
-    "DISCONNECT": DisconnectFrame,
-    "HEARTBEAT": HeartbeatFrame,
-    "CONNECTED": ConnectedFrame,
-    "MESSAGE": MessageFrame,
-    "RECEIPT": ReceiptFrame,
-    "ERROR": ErrorFrame,
-}
