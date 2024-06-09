@@ -49,16 +49,6 @@ def dump_frame(frame: AnyRealFrame) -> bytes:
     return b"".join(lines)
 
 
-def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
-    if raw_frames.replace(NEWLINE, b"") == b"":
-        return (raw_frames, b"")
-    parts = raw_frames.rpartition(NULL)
-    if parts[2].replace(NEWLINE, b"") == b"":
-        return (raw_frames, b"")
-
-    return parts[0] + parts[1], parts[2]
-
-
 def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
     if byte == b"\\":
         return None
