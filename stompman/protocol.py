@@ -1,4 +1,5 @@
 import struct
+import typing
 from collections import deque
 from collections.abc import Iterator
 from typing import Any, cast
@@ -80,15 +81,16 @@ def parse_command(raw_frame: deque[bytes]) -> str:
 
 
 def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
-    previous_byte = None
-    one_header_buffer: list[bytes] = []
     headers: dict[str, str] = {}
+    one_header_buffer: list[bytes] = []
+    three_previous_bytes: tuple[typing.Any, typing.Any, typing.Any] = (None, None, None)
+
     while True:
         byte = raw_frame.popleft()
         if byte == b"\n":
-            if previous_byte == b"\n":
+            if three_previous_bytes[-1] == b"\n":
                 should_stop = True
-            elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER:
+            elif [three_previous_bytes, byte] == CRLFCRLR_MARKER:
                 should_stop = True
                 one_header_buffer.pop()
                 one_header_buffer.pop()
@@ -101,12 +103,13 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
                 if (decoded_key := key.decode()) not in headers:
                     headers[decoded_key] = unescape_header(value).decode()
                 one_header_buffer.clear()
+
             if should_stop:
                 break
         else:
             one_header_buffer.append(byte)
 
-        previous_byte = byte
+        three_previous_bytes = (three_previous_bytes[1], three_previous_bytes[2], byte)
     return headers
 
 
