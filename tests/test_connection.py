@@ -70,7 +70,7 @@ async def test_connection_lifespan(connection: Connection) -> None:
         writer.write(b"\n")
         writer.write(b"\n")
         writer.write(b"\n")
-        writer.write(b"CONNECTED\nheart-beat:0,0\nserver:some server\nversion:1.1\n\n\x00")
+        writer.write(b"CONNECTED\nheart-beat:0,0\nserver:some server\nversion:1.2\n\n\x00")
 
     async with asyncio.TaskGroup() as task_group:  # noqa: SIM117
         async with create_server(handle_connected) as (host, port):
@@ -94,7 +94,7 @@ async def test_connection_lifespan(connection: Connection) -> None:
                 HeartbeatFrame(),
                 HeartbeatFrame(),
                 HeartbeatFrame(),
-                ConnectedFrame(headers={"heart-beat": "0,0", "version": "1.1", "server": "some server"}),
+                ConnectedFrame(headers={"heart-beat": "0,0", "version": "1.2", "server": "some server"}),
             ]
             assert await take_frames(len(expected_frames)) == expected_frames
             await connection.close()

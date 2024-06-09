@@ -197,6 +197,7 @@ class Client:
         destination: str,
         transaction: str | None = None,
         headers: dict[str, str] | None = None,
+        
     ) -> None:
         full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
         full_headers["destination"] = destination

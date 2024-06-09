@@ -118,7 +118,7 @@ stompman takes care of cleaning up resources automatically. When you leave the c
 ### ...and caveats
 
 - stompman only runs on Python 3.11 and newer.
-- It only implements [STOMP 1.1](https://stomp.github.io/stomp-specification-1.1.html). I'm open to implementing [STOMP 1.2](https://stomp.github.io/stomp-specification-1.1.html).
+- It implements [STOMP 1.2](https://stomp.github.io/stomp-specification-1.2.html) — the latest version of the protocol.
 - The client-individual ack mode is used, which means that server requires `ack` or `nack`. In contrast, with `client` ack mode server assumes you don't care about messages that occured before you connected. And, with `auto` ack mode server assumes client successfully received the message.
 - Heartbeats are required, and sent automatically on `listen_to_events()` (defaults to 1 second).
 

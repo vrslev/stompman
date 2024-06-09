@@ -12,7 +12,7 @@ from stompman.frames import (
     HeartbeatFrame,
 )
 
-PROTOCOL_VERSION = "1.1"  # https://stomp.github.io/stomp-specification-1.1.html
+PROTOCOL_VERSION = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
 ESCAPE_CHARS = {
     "\n": "\\n",
     ":": "\\c",
