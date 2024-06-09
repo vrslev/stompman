@@ -27,9 +27,8 @@ UNESCAPE_CHARS = {
 }
 NULL = b"\x00"
 NEWLINE = b"\n"
-HEADER_SEPARATOR = b":"
 CARRIAGE = b"\r"
-CARRIAGE_NEWLINE_CARRIAGE_NEWLINE = (b"\r", b"\n", b"\r", b"\n")
+CARRIAGE_NEWLINE_CARRIAGE_NEWLINE = (CARRIAGE, NEWLINE, CARRIAGE, NEWLINE)
 
 
 def dump_header(key: str, value: str) -> bytes:
@@ -51,134 +50,13 @@ def dump_frame(frame: BaseFrame[Any]) -> bytes:
 
 
 def separate_complete_and_incomplete_packet_parts(raw_frames: bytes) -> tuple[bytes, bytes]:
-    if raw_frames.replace(b"\n", b"") == b"":
+    if raw_frames.replace(NEWLINE, b"") == b"":
         return (raw_frames, b"")
     parts = raw_frames.rpartition(NULL)
-    if parts[2].replace(b"\n", b"") == b"":
+    if parts[2].replace(NEWLINE, b"") == b"":
         return (raw_frames, b"")
 
     return parts[0] + parts[1], parts[2]
-
-
-def parse_command(buffer: Iterator[bytes]) -> str:
-    def parse() -> Iterator[bytes]:
-        previous_byte = None
-
-        for byte in buffer:
-            if byte == NEWLINE:
-                if previous_byte and previous_byte != CARRIAGE:
-                    yield previous_byte
-                break
-
-            if previous_byte:
-                yield previous_byte
-            previous_byte = byte
-
-    return b"".join(parse()).decode()
-
-
-def unescape_header_value(header_buffer: list[bytes]) -> str:
-    def unescape() -> Iterator[bytes]:
-        previous_byte = None
-
-        for byte in header_buffer:
-            if previous_byte == b"\\":
-                yield UNESCAPE_CHARS.get(byte, byte)
-            elif byte != b"\\":
-                yield byte
-
-            previous_byte = byte
-
-    return b"".join(unescape()).decode()
-
-
-def parse_headers(buffer: Iterator[bytes]) -> dict[str, str]:
-    headers: dict[str, str] = {}
-    last_four_bytes: tuple[bytes | None, bytes | None, bytes | None, bytes | None] = (None, None, None, None)
-    key_buffer: list[bytes] = []
-    key_parsed = False
-    value_buffer: list[bytes] = []
-
-    def reset() -> None:
-        key_buffer.clear()
-        nonlocal key_parsed
-        key_parsed = False
-        value_buffer.clear()
-
-    for byte in buffer:
-        last_four_bytes = (last_four_bytes[1], last_four_bytes[2], last_four_bytes[3], byte)
-
-        if byte == CARRIAGE:
-            reset()
-        elif byte == NEWLINE:
-            if key_parsed and (key := unescape_header_value(key_buffer)) and key not in headers:
-                headers[key] = unescape_header_value(value_buffer)
-            reset()
-
-            if last_four_bytes[-2] == NEWLINE or last_four_bytes == CARRIAGE_NEWLINE_CARRIAGE_NEWLINE:
-                break
-        elif byte == b":":
-            if key_parsed:
-                reset()
-            else:
-                key_parsed = True
-        elif key_parsed:
-            value_buffer.append(byte)
-        else:
-            key_buffer.append(byte)
-    return headers
-
-
-def parse_body(raw_frame: Iterator[bytes]) -> bytes | None:
-    received_null = False
-
-    def parse() -> Iterator[bytes]:
-        for byte in raw_frame:
-            if byte == NULL:
-                nonlocal received_null
-                received_null = True
-                break
-            yield byte
-
-    result = b"".join(parse())
-    return result if received_null else None
-
-
-def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
-    buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
-    remainder = []
-
-    def iterate_buffer() -> Iterator[bytes]:
-        buf = []
-        while buffer:
-            byte = buffer.popleft()
-            buf.append(byte)
-            yield byte
-        nonlocal remainder
-        remainder = buf
-
-    while buffer:
-        if (first_byte := buffer.popleft()) == NEWLINE:
-            yield HeartbeatFrame(headers={})
-            continue
-        buffer.appendleft(first_byte)
-
-        command = parse_command(iterate_buffer())
-        if not buffer:
-            continue
-
-        headers = parse_headers(iterate_buffer())
-        if not buffer:
-            continue
-
-        body = parse_body(iterate_buffer())
-        if body is None:
-            continue
-
-        if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
-            yield known_frame_type(headers=cast(Any, headers), body=body)
-        else:
-            yield UnknownFrame(command=command, headers=headers, body=body)
 
 
 def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
@@ -193,7 +71,7 @@ def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
     return byte
 
 
-def new_parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
+def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
     key_buffer: list[bytes] = []
     key_parsed = False
     value_buffer: list[bytes] = []
@@ -213,10 +91,25 @@ def new_parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
     return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
 
 
+def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame:
+    command = b"".join(lines.popleft()).decode()
+    headers = {}
+
+    while line := lines.popleft():
+        header = parse_headers(line)
+        if header and header[0] not in headers:
+            headers[header[0]] = header[1]
+    body = b"".join(lines.popleft()) if lines else b""
+
+    if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
+        return known_frame_type(headers=cast(Any, headers), body=body)
+    return UnknownFrame(command=command, headers=headers, body=body)
+
+
 def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
     buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
     lines = deque[list[bytes]]()
-    one_line_buffer: list[bytes] = []
+    current_line: list[bytes] = []
     previous_byte = None
     headers_processed = False
 
@@ -225,40 +118,31 @@ def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
 
         if headers_processed:
             if byte == NULL:
-                lines.append(one_line_buffer.copy())
-                command = b"".join(lines.popleft()).decode()
-                headers = {}
-                while line := lines.popleft():
-                    header = new_parse_headers(line)
-                    if header and header[0] not in headers:
-                        headers[header[0]] = header[1]
-                body = b"".join(lines.popleft()) if lines else b""
-                if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
-                    yield known_frame_type(headers=cast(Any, headers), body=body)
-                else:
-                    yield UnknownFrame(command=command, headers=headers, body=body)
-
+                lines.append(current_line)
+                yield parse_lines_into_frame(lines)
                 headers_processed = False
                 lines.clear()
-                one_line_buffer.clear()
-            elif byte != b"\n":
-                one_line_buffer.append(byte)
-        elif byte == b"\n":
-            if not (one_line_buffer or lines):
-                yield HeartbeatFrame(headers={})
-            else:
-                if not one_line_buffer:
+                current_line = []
+            elif byte != NEWLINE:
+                current_line.append(byte)
+
+        elif byte == NEWLINE:
+            if current_line or lines:
+                if not current_line:
                     headers_processed = True
 
                 if previous_byte == b"\r":
-                    one_line_buffer.pop()
-                    lines.append(one_line_buffer.copy())
+                    current_line.pop()
+                    lines.append(current_line)
                 else:
-                    lines.append(one_line_buffer.copy())
+                    lines.append(current_line)
 
-                one_line_buffer.clear()
+                current_line = []
+            else:
+                yield HeartbeatFrame(headers={})
+
         else:
-            one_line_buffer.append(byte)
+            current_line.append(byte)
 
         previous_byte = byte
 
