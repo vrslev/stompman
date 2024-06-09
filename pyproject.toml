@@ -7,6 +7,13 @@ authors = ["Lev Vereshchagin <mail@vrslev.com>"]
 readme = "README.md"
 repository = "https://github.com/vrslev/stompman"
 keywords = ["stomp", "artemis", "activemq", "messaging", "jms"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Natural Language :: English",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: System :: Networking",
+    "Typing :: Typed",
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
