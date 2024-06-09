@@ -202,8 +202,16 @@ def test_dump_frame(frame: BaseFrame[Any], dumped_frame: bytes) -> None:
             b"SOME_COMMAND\nheader:1.0\n\n\x00",
             [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})],
         ),
+        # PARSING COMMAND
+        # no end of line
+        (b"SOME_COMMAND", []),
+        (b"SOME_COMMAND\x00", []),
         # \r\n after command
+        (b"SOME_COMMAND\r\n\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={})]),
         (b"SOME_COMMAND\r\nheader:1.0\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})]),
+        # HEADERS
+        # \r or \n in header
+        # (b"SOME_COMMAND\nhead\rer:1.0\n\n\x00", [UnknownFrame(command="SOME_COMMAND", headers={"header": "1.0"})]),
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[BaseFrame[Any]]) -> None:
