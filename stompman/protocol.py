@@ -1,4 +1,5 @@
 import struct
+from collections import deque
 from collections.abc import Iterator
 from typing import Any, cast
 
@@ -80,50 +81,117 @@ def _build_frame_from_buffer(
     return UnknownFrame(command=command, headers=headers, body=body)
 
 
-def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
-    command_buffer = list[bytes]()
-    one_header_buffer = list[bytes]()
-    headers: dict[str, str] = {}
-    body_buffer = list[bytes]()
+def parse_command(raw_frame: deque[bytes]) -> str:
+    def parse() -> Iterator[bytes]:
+        while raw_frame and (byte := raw_frame.popleft()) != b"\n":
+            yield byte
+
+    return b"".join(parse()).decode()
+
+
+def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
     previous_byte = None
-    has_processed_command = False
-    has_processed_headers = False
-
-    for byte in iter_bytes(raw_frames):
-        if (byte_is_newline := byte == b"\n") and not (command_buffer or one_header_buffer or headers):
-            yield HeartbeatFrame(headers={})
-
-        elif has_processed_headers:
-            if byte == EOF_MARKER:
-                yield _build_frame_from_buffer(command_buffer, headers, body_buffer)
-                command_buffer.clear()
-                body_buffer.clear()
-                headers = {}
-                has_processed_command = False
-                has_processed_headers = False
+    one_header_buffer: list[bytes] = []
+    headers: dict[str, str] = {}
+    while True:
+        byte = raw_frame.popleft()
+        if byte == b"\n":
+            if previous_byte == b"\n":
+                should_stop = True
+            elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER:
+                should_stop = True
+                one_header_buffer.pop()
+                one_header_buffer.pop()
+                one_header_buffer.pop()
             else:
-                body_buffer.append(byte)
-        elif has_processed_command:
-            if byte_is_newline:
-                if previous_byte == b"\n":
-                    has_processed_headers = True
-                elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER:
-                    has_processed_headers = True
-                    one_header_buffer.pop()
-                    one_header_buffer.pop()
-                    one_header_buffer.pop()
+                should_stop = False
 
-                if one_header_buffer:
-                    key, value = b"".join(one_header_buffer).split(b":", 1)
-                    if (decoded_key := key.decode()) not in headers:
-                        headers[decoded_key] = unescape_header(value).decode()
-                    one_header_buffer.clear()
-            else:
-                one_header_buffer.append(byte)
-        else:  # noqa: PLR5501
-            if byte_is_newline:
-                has_processed_command = True
-            else:
-                command_buffer.append(byte)
+            if one_header_buffer:
+                key, value = b"".join(one_header_buffer).split(b":", 1)
+                if (decoded_key := key.decode()) not in headers:
+                    headers[decoded_key] = unescape_header(value).decode()
+                one_header_buffer.clear()
+            if should_stop:
+                break
+        else:
+            one_header_buffer.append(byte)
 
         previous_byte = byte
+    return headers
+
+
+def parse_body(raw_frame: deque[bytes]) -> bytes:
+    buf: list[bytes] = []
+    while True:
+        byte = raw_frame.popleft()
+        if byte == EOF_MARKER:
+            return b"".join(buf)
+        buf.append(byte)
+
+
+def load_frames(raw_frames: bytes) -> Iterator[AnyFrame]:
+    raw_frames_deque = deque(iter_bytes(raw_frames))
+    while raw_frames_deque:
+        first_byte = raw_frames_deque.popleft()
+        if first_byte == b"\n":
+            yield HeartbeatFrame(headers={})
+        else:
+            raw_frames_deque.appendleft(first_byte)
+            command = parse_command(raw_frames_deque)
+            if not raw_frames_deque:
+                return
+            headers = parse_headers(raw_frames_deque)
+            if not raw_frames_deque:
+                return
+            body = parse_body(raw_frames_deque)
+            if known_frame_type := COMMANDS_TO_FRAME_TYPES.get(command):
+                yield known_frame_type(headers=cast(Any, headers), body=body)
+            else:
+                yield UnknownFrame(command=command, headers=headers, body=body)
+
+    # command_buffer = list[bytes]()
+    # one_header_buffer = list[bytes]()
+    # headers: dict[str, str] = {}
+    # body_buffer = list[bytes]()
+    # previous_byte = None
+    # has_processed_command = False
+    # has_processed_headers = False
+
+    # for byte in iter_bytes(raw_frames):
+    #     if (byte_is_newline := byte == b"\n") and not (command_buffer or one_header_buffer or headers):
+    #         yield HeartbeatFrame(headers={})
+
+    #     elif has_processed_headers:
+    #         if byte == EOF_MARKER:
+    #             yield _build_frame_from_buffer(command_buffer, headers, body_buffer)
+    #             command_buffer.clear()
+    #             body_buffer.clear()
+    #             headers = {}
+    #             has_processed_command = False
+    #             has_processed_headers = False
+    #         else:
+    #             body_buffer.append(byte)
+    #     elif has_processed_command:
+    #         if byte_is_newline:
+    #             if previous_byte == b"\n":
+    #                 has_processed_headers = True
+    #             elif [one_header_buffer[-4:], byte] == CRLFCRLR_MARKER:
+    #                 has_processed_headers = True
+    #                 one_header_buffer.pop()
+    #                 one_header_buffer.pop()
+    #                 one_header_buffer.pop()
+
+    #             if one_header_buffer:
+    #                 key, value = b"".join(one_header_buffer).split(b":", 1)
+    #                 if (decoded_key := key.decode()) not in headers:
+    #                     headers[decoded_key] = unescape_header(value).decode()
+    #                 one_header_buffer.clear()
+    #         else:
+    #             one_header_buffer.append(byte)
+    #     else:
+    #         if byte_is_newline:
+    #             has_processed_command = True
+    #         else:
+    #             command_buffer.append(byte)
+
+    #     previous_byte = byte
