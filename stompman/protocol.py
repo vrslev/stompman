@@ -32,6 +32,7 @@ HEARTBEAT_MARKER = b"\n"
 NULL = b"\x00"
 NEWLINE = b"\n"
 CARRIAGE = b"\r"
+CARRIAGE_NEWLINE_CARRIAGE_NEWLINE = (b"\r", b"\n", b"\r", b"\n")
 
 
 def escape_header_value(header: str) -> str:
@@ -142,7 +143,7 @@ def parse_headers(raw_frame: deque[bytes]) -> dict[str, str]:
                 key_parsed = False
                 value_buffer.clear()
 
-            if last_four_bytes[-2] == NEWLINE:
+            if last_four_bytes[-2] == NEWLINE or last_four_bytes == CARRIAGE_NEWLINE_CARRIAGE_NEWLINE:
                 return headers
 
 
