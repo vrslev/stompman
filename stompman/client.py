@@ -8,7 +8,6 @@ from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection, ConnectionParameters
 from stompman.errors import (
-    ConnectError,
     ConnectionConfirmationTimeoutError,
     FailedAllConnectAttemptsError,
     UnsupportedProtocolVersionError,
@@ -80,12 +79,9 @@ class Client:
                 read_timeout=self.read_timeout,
                 read_max_chunk_size=self.read_max_chunk_size,
             )
-            try:
-                await connection.connect()
-            except ConnectError:
-                await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
-            else:
+            if await connection.connect():
                 return connection
+            await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
         return None
 
     async def _connect_to_any_server(self) -> AbstractConnection:
