@@ -10,7 +10,6 @@ from stompman.errors import (
 from stompman.frames import (
     AbortFrame,
     AckFrame,
-    AnyFrame,
     BeginFrame,
     ClientFrame,
     CommitFrame,
@@ -33,7 +32,6 @@ __all__ = [
     "AbortFrame",
     "AbstractConnection",
     "AckFrame",
-    "AnyFrame",
     "AnyListeningEvent",
     "BeginFrame",
     "Client",

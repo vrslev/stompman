@@ -12,7 +12,6 @@ from stompman import (
     AbortFrame,
     AbstractConnection,
     AckFrame,
-    AnyFrame,
     BeginFrame,
     Client,
     ClientFrame,
@@ -60,7 +59,7 @@ class BaseMockConnection(AbstractConnection):
 
 def create_spying_connection(
     read_frames_yields: list[list[ServerFrame]],
-) -> tuple[type[AbstractConnection], list[AnyFrame]]:
+) -> tuple[type[AbstractConnection], list[ClientFrame | ServerFrame | HeartbeatFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
         async def write_frame(self, frame: ClientFrame) -> None:  # noqa: PLR6301
@@ -72,7 +71,7 @@ def create_spying_connection(
                 yield frame
 
     read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[AnyFrame] = []
+    collected_frames: list[ClientFrame | ServerFrame | HeartbeatFrame] = []
     return BaseCollectingConnection, collected_frames
 
 
@@ -84,7 +83,10 @@ def get_read_frames_with_lifespan(read_frames: list[list[ServerFrame]]) -> list[
     ]
 
 
-def assert_frames_between_lifespan_match(collected_frames: list[AnyFrame], expected_frames: list[AnyFrame]) -> None:
+def assert_frames_between_lifespan_match(
+    collected_frames: list[ClientFrame | ServerFrame | HeartbeatFrame],
+    expected_frames: list[ClientFrame | ServerFrame | HeartbeatFrame],
+) -> None:
     assert collected_frames[2:-2] == expected_frames
 
 

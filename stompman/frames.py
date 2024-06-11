@@ -258,5 +258,3 @@ ClientFrame = (
     | StompFrame
 )
 ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
-AnyRealFrame = ClientFrame | ServerFrame
-AnyFrame = AnyRealFrame | HeartbeatFrame

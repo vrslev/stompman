@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ReadTimeoutError
-from stompman.frames import AnyRealFrame, ClientFrame, ServerFrame
+from stompman.frames import ClientFrame, ServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
 
 
@@ -16,7 +16,7 @@ class ConnectionParameters:
     passcode: str = field(repr=False)
 
 
-FrameT = TypeVar("FrameT", bound=AnyRealFrame)
+FrameT = TypeVar("FrameT", bound=ClientFrame | ServerFrame)
 
 
 @dataclass
