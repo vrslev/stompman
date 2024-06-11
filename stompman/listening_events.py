@@ -1,3 +1,4 @@
+from collections.abc import Awaitable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,21 @@ class MessageEvent:
                 headers={"id": self._frame.headers["message-id"], "subscription": self._frame.headers["subscription"]}
             )
         )
+
+    async def await_with_auto_ack(
+        self, awaitable: Awaitable[None], exception_types: tuple[type[Exception],] = (Exception,)
+    ) -> None:
+        called_nack = False
+
+        try:
+            await awaitable
+        except exception_types:
+            await self.nack()
+            called_nack = True
+            raise
+        finally:
+            if not called_nack:
+                await self.ack()
 
 
 @dataclass
