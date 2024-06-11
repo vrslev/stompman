@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ReadTimeoutError
-from stompman.frames import AnyServerFrame, ClientFrame
+from stompman.frames import AnyClientFrame, AnyServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
 
 
@@ -16,7 +16,7 @@ class ConnectionParameters:
     passcode: str = field(repr=False)
 
 
-FrameT = TypeVar("FrameT", bound=ClientFrame | AnyServerFrame)
+FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 
 
 @dataclass
@@ -29,7 +29,7 @@ class AbstractConnection(Protocol):
     async def connect(self) -> bool: ...
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
-    async def write_frame(self, frame: ClientFrame) -> None: ...
+    async def write_frame(self, frame: AnyClientFrame) -> None: ...
     def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]: ...
 
     async def read_frame_of_type(self, type_: type[FrameT]) -> FrameT:
@@ -65,7 +65,7 @@ class Connection(AbstractConnection):
     def write_heartbeat(self) -> None:
         return self.writer.write(NEWLINE)
 
-    async def write_frame(self, frame: ClientFrame) -> None:
+    async def write_frame(self, frame: AnyClientFrame) -> None:
         self.writer.write(dump_frame(frame))
         await self.writer.drain()
 

@@ -12,10 +12,10 @@ from stompman import (
     AbortFrame,
     AbstractConnection,
     AckFrame,
+    AnyClientFrame,
     AnyServerFrame,
     BeginFrame,
     Client,
-    ClientFrame,
     CommitFrame,
     ConnectedFrame,
     ConnectFrame,
@@ -51,7 +51,7 @@ class BaseMockConnection(AbstractConnection):
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
-    async def write_frame(self, frame: ClientFrame) -> None: ...
+    async def write_frame(self, frame: AnyClientFrame) -> None: ...
     async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover  # noqa: PLR6301
         await asyncio.Future()
         yield  # type: ignore[misc]
@@ -59,10 +59,10 @@ class BaseMockConnection(AbstractConnection):
 
 def create_spying_connection(
     read_frames_yields: list[list[AnyServerFrame]],
-) -> tuple[type[AbstractConnection], list[ClientFrame | AnyServerFrame | HeartbeatFrame]]:
+) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
-        async def write_frame(self, frame: ClientFrame) -> None:  # noqa: PLR6301
+        async def write_frame(self, frame: AnyClientFrame) -> None:  # noqa: PLR6301
             collected_frames.append(frame)
 
         async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # noqa: PLR6301
@@ -71,7 +71,7 @@ def create_spying_connection(
                 yield frame
 
     read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[ClientFrame | AnyServerFrame | HeartbeatFrame] = []
+    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
     return BaseCollectingConnection, collected_frames
 
 
@@ -84,8 +84,8 @@ def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> li
 
 
 def assert_frames_between_lifespan_match(
-    collected_frames: list[ClientFrame | AnyServerFrame | HeartbeatFrame],
-    expected_frames: list[ClientFrame | AnyServerFrame | HeartbeatFrame],
+    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
+    expected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
 ) -> None:
     assert collected_frames[2:-2] == expected_frames
 
