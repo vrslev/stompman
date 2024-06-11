@@ -10,6 +10,7 @@ from stompman.errors import (
 from stompman.frames import (
     AbortFrame,
     AckFrame,
+    AnyServerFrame,
     BeginFrame,
     ClientFrame,
     CommitFrame,
@@ -22,7 +23,6 @@ from stompman.frames import (
     NackFrame,
     ReceiptFrame,
     SendFrame,
-    ServerFrame,
     SubscribeFrame,
     UnsubscribeFrame,
 )
@@ -33,6 +33,7 @@ __all__ = [
     "AbstractConnection",
     "AckFrame",
     "AnyListeningEvent",
+    "AnyServerFrame",
     "BeginFrame",
     "Client",
     "ClientFrame",
@@ -56,7 +57,6 @@ __all__ = [
     "ReadTimeoutError",
     "ReceiptFrame",
     "SendFrame",
-    "ServerFrame",
     "SubscribeFrame",
     "UnsubscribeFrame",
     "UnsupportedProtocolVersionError",

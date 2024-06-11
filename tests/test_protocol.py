@@ -7,7 +7,7 @@ from stompman import (
     HeartbeatFrame,
     MessageFrame,
 )
-from stompman.frames import AckFrame, ClientFrame, ServerFrame
+from stompman.frames import AckFrame, AnyServerFrame, ClientFrame
 from stompman.protocol import Parser, dump_frame
 
 
@@ -223,5 +223,5 @@ def test_dump_frame(frame: ClientFrame, dumped_frame: bytes) -> None:
         (b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00", []),
     ],
 )
-def test_load_frames(raw_frames: bytes, loaded_frames: list[ServerFrame]) -> None:
+def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> None:
     assert list(Parser().load_frames(raw_frames)) == loaded_frames

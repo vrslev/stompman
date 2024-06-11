@@ -257,4 +257,4 @@ ClientFrame = (
     | ConnectFrame
     | StompFrame
 )
-ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
+AnyServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame

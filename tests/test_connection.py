@@ -7,12 +7,12 @@ from unittest import mock
 import pytest
 
 from stompman import (
+    AnyServerFrame,
     ConnectedFrame,
     Connection,
     ConnectionParameters,
     HeartbeatFrame,
     ReadTimeoutError,
-    ServerFrame,
 )
 from stompman.frames import CommitFrame
 
@@ -73,7 +73,7 @@ async def test_connection_lifespan(connection: Connection, monkeypatch: pytest.M
     connection.write_heartbeat()
     await connection.write_frame(CommitFrame(headers={"transaction": "transaction"}))
 
-    async def take_frames(count: int) -> list[ServerFrame]:
+    async def take_frames(count: int) -> list[AnyServerFrame]:
         frames = []
         async for frame in connection.read_frames():
             frames.append(frame)

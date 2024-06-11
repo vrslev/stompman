@@ -12,6 +12,7 @@ from stompman import (
     AbortFrame,
     AbstractConnection,
     AckFrame,
+    AnyServerFrame,
     BeginFrame,
     Client,
     ClientFrame,
@@ -31,7 +32,6 @@ from stompman import (
     NackFrame,
     ReceiptFrame,
     SendFrame,
-    ServerFrame,
     SubscribeFrame,
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
@@ -52,30 +52,30 @@ class BaseMockConnection(AbstractConnection):
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame) -> None: ...
-    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:  # pragma: no cover  # noqa: PLR6301
+    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover  # noqa: PLR6301
         await asyncio.Future()
         yield  # type: ignore[misc]
 
 
 def create_spying_connection(
-    read_frames_yields: list[list[ServerFrame]],
-) -> tuple[type[AbstractConnection], list[ClientFrame | ServerFrame | HeartbeatFrame]]:
+    read_frames_yields: list[list[AnyServerFrame]],
+) -> tuple[type[AbstractConnection], list[ClientFrame | AnyServerFrame | HeartbeatFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
         async def write_frame(self, frame: ClientFrame) -> None:  # noqa: PLR6301
             collected_frames.append(frame)
 
-        async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:  # noqa: PLR6301
+        async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # noqa: PLR6301
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
 
     read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[ClientFrame | ServerFrame | HeartbeatFrame] = []
+    collected_frames: list[ClientFrame | AnyServerFrame | HeartbeatFrame] = []
     return BaseCollectingConnection, collected_frames
 
 
-def get_read_frames_with_lifespan(read_frames: list[list[ServerFrame]]) -> list[list[ServerFrame]]:
+def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> list[list[AnyServerFrame]]:
     return [
         [ConnectedFrame(headers={"version": PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
@@ -84,8 +84,8 @@ def get_read_frames_with_lifespan(read_frames: list[list[ServerFrame]]) -> list[
 
 
 def assert_frames_between_lifespan_match(
-    collected_frames: list[ClientFrame | ServerFrame | HeartbeatFrame],
-    expected_frames: list[ClientFrame | ServerFrame | HeartbeatFrame],
+    collected_frames: list[ClientFrame | AnyServerFrame | HeartbeatFrame],
+    expected_frames: list[ClientFrame | AnyServerFrame | HeartbeatFrame],
 ) -> None:
     assert collected_frames[2:-2] == expected_frames
 

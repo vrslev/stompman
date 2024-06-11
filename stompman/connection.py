@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
 from stompman.errors import ReadTimeoutError
-from stompman.frames import ClientFrame, ServerFrame
+from stompman.frames import AnyServerFrame, ClientFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
 
 
@@ -16,7 +16,7 @@ class ConnectionParameters:
     passcode: str = field(repr=False)
 
 
-FrameT = TypeVar("FrameT", bound=ClientFrame | ServerFrame)
+FrameT = TypeVar("FrameT", bound=ClientFrame | AnyServerFrame)
 
 
 @dataclass
@@ -30,7 +30,7 @@ class AbstractConnection(Protocol):
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame) -> None: ...
-    def read_frames(self) -> AsyncGenerator[ServerFrame, None]: ...
+    def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]: ...
 
     async def read_frame_of_type(self, type_: type[FrameT]) -> FrameT:
         while True:
@@ -76,7 +76,7 @@ class Connection(AbstractConnection):
             await asyncio.sleep(0)
         return chunk
 
-    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:
+    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:
         parser = Parser()
 
         while True:
@@ -85,5 +85,5 @@ class Connection(AbstractConnection):
             except TimeoutError as exception:
                 raise ReadTimeoutError(self.read_timeout) from exception
 
-            for frame in cast(Iterator[ServerFrame], parser.load_frames(raw_frames)):
+            for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
                 yield frame
