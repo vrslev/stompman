@@ -132,7 +132,7 @@ async def test_client_connect_to_one_server_fails() -> None:
 async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         async def connect(self) -> bool:
-            return self.connection_parameters.port != successful_server.port
+            return self.connection_parameters.port == successful_server.port
 
     successful_server = ConnectionParameters("localhost", 10, "login", "pass")
     client = EnrichedClient(
