@@ -1,4 +1,4 @@
-default: install lint-format check-types test
+default: install lint check-types test
 
 install:
     poetry install --sync
@@ -6,7 +6,7 @@ install:
 test *args:
     poetry run pytest {{args}}
 
-lint-format:
+lint:
     poetry run ruff check .
     poetry run ruff format .
 
