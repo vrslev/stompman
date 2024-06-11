@@ -1,11 +1,18 @@
 import asyncio
 from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass, field
-from typing import Protocol, TypeVar, cast
+from typing import Protocol, Self, TypedDict, TypeVar, cast
 
 from stompman.errors import ConnectionLostError
 from stompman.frames import AnyClientFrame, AnyServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
+
+
+class _MultiHostHostLike(TypedDict):
+    username: str | None
+    password: str | None
+    host: str | None
+    port: int | None
 
 
 @dataclass
@@ -14,6 +21,41 @@ class ConnectionParameters:
     port: int
     login: str
     passcode: str = field(repr=False)
+
+    @classmethod
+    def from_pydantic_multihost_hosts(cls, hosts: list[_MultiHostHostLike]) -> list[Self]:
+        """Create connection parameters from a list of `MultiHostUrl` objects.
+
+        .. code-block:: python
+        import stompman.
+
+        ArtemisDsn = typing.Annotated[
+            pydantic_core.MultiHostUrl,
+            pydantic.UrlConstraints(
+                host_required=True,
+                allowed_schemes=["tcp"],
+            ),
+        ]
+
+        async with stompman.Client(
+            servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+                ArtemisDsn("tcp://lev:pass@host1:61616,host1:61617,host2:61616").hosts()
+            ),
+        ):
+            ...
+        """
+        servers: list[Self] = []
+        for host in hosts:
+            if host["host"] is None:
+                raise ValueError("host must be set")
+            if host["port"] is None:
+                raise ValueError("port must be set")
+            if host["username"] is None:
+                raise ValueError("username must be set")
+            if host["password"] is None:
+                raise ValueError("password must be set")
+            servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
+        return servers
 
 
 FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
