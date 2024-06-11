@@ -12,13 +12,12 @@ from stompman import (
     AbortFrame,
     AbstractConnection,
     AckFrame,
-    AnyFrame,
+    AnyClientFrame,
+    AnyServerFrame,
     BeginFrame,
     Client,
-    ClientFrame,
     CommitFrame,
     ConnectedFrame,
-    ConnectError,
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
     ConnectionParameters,
@@ -33,7 +32,6 @@ from stompman import (
     NackFrame,
     ReceiptFrame,
     SendFrame,
-    ServerFrame,
     SubscribeFrame,
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
@@ -48,34 +46,36 @@ class BaseMockConnection(AbstractConnection):
     read_timeout: int
     read_max_chunk_size: int
 
-    async def connect(self) -> None: ...
+    async def connect(self) -> bool:  # noqa: PLR6301
+        return True
+
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
-    async def write_frame(self, frame: ClientFrame) -> None: ...
-    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:  # pragma: no cover
+    async def write_frame(self, frame: AnyClientFrame) -> None: ...
+    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover  # noqa: PLR6301
         await asyncio.Future()
         yield  # type: ignore[misc]
 
 
 def create_spying_connection(
-    read_frames_yields: list[list[ServerFrame]],
-) -> tuple[type[AbstractConnection], list[AnyFrame]]:
+    read_frames_yields: list[list[AnyServerFrame]],
+) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
-        async def write_frame(self, frame: ClientFrame) -> None:
+        async def write_frame(self, frame: AnyClientFrame) -> None:  # noqa: PLR6301
             collected_frames.append(frame)
 
-        async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:
+        async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # noqa: PLR6301
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
 
     read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[AnyFrame] = []
+    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
     return BaseCollectingConnection, collected_frames
 
 
-def get_read_frames_with_lifespan(read_frames: list[list[ServerFrame]]) -> list[list[ServerFrame]]:
+def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> list[list[AnyServerFrame]]:
     return [
         [ConnectedFrame(headers={"version": PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
@@ -83,7 +83,10 @@ def get_read_frames_with_lifespan(read_frames: list[list[ServerFrame]]) -> list[
     ]
 
 
-def assert_frames_between_lifespan_match(collected_frames: list[AnyFrame], expected_frames: list[AnyFrame]) -> None:
+def assert_frames_between_lifespan_match(
+    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
+    expected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
+) -> None:
     assert collected_frames[2:-2] == expected_frames
 
 
@@ -104,13 +107,11 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
     attempts = 0
 
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
+        async def connect(self) -> bool:
             assert self.connection_parameters == client.servers[0]
-
             nonlocal attempts
             attempts += 1
-            if attempts != ok_on_attempt:
-                raise ConnectError(client.servers[0])
+            return attempts == ok_on_attempt
 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
@@ -122,8 +123,8 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_one_server_fails() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
-            raise ConnectError(client.servers[0])
+        async def connect(self) -> bool:  # noqa: PLR6301
+            return False
 
     client = EnrichedClient(connection_class=MockConnection)
     assert await client._connect_to_one_server(client.servers[0]) is None
@@ -132,9 +133,8 @@ async def test_client_connect_to_one_server_fails() -> None:
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
-            if self.connection_parameters.port != successful_server.port:
-                raise ConnectError(self.connection_parameters)
+        async def connect(self) -> bool:
+            return self.connection_parameters.port == successful_server.port
 
     successful_server = ConnectionParameters("localhost", 10, "login", "pass")
     client = EnrichedClient(
@@ -153,8 +153,8 @@ async def test_client_connect_to_any_server_ok() -> None:
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
-            raise ConnectError(client.servers[0])
+        async def connect(self) -> bool:  # noqa: PLR6301
+            return False
 
     client = EnrichedClient(
         servers=[
@@ -216,7 +216,7 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
 
     client = EnrichedClient(connection_class=BaseMockConnection)
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout)
 
@@ -229,7 +229,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
 
     client = EnrichedClient(connection_class=connection_class)
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == UnsupportedProtocolVersionError(
         given_version=given_version, supported_version=PROTOCOL_VERSION

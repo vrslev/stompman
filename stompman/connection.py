@@ -3,8 +3,8 @@ from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
-from stompman.errors import ConnectError, ReadTimeoutError
-from stompman.frames import AnyRealFrame, ClientFrame, ServerFrame
+from stompman.errors import ConnectionLostError
+from stompman.frames import AnyClientFrame, AnyServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
 
 
@@ -16,7 +16,7 @@ class ConnectionParameters:
     passcode: str = field(repr=False)
 
 
-FrameT = TypeVar("FrameT", bound=AnyRealFrame)
+FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 
 
 @dataclass
@@ -26,11 +26,11 @@ class AbstractConnection(Protocol):
     read_timeout: int
     read_max_chunk_size: int
 
-    async def connect(self) -> None: ...
+    async def connect(self) -> bool: ...
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
-    async def write_frame(self, frame: ClientFrame) -> None: ...
-    def read_frames(self) -> AsyncGenerator[ServerFrame, None]: ...
+    async def write_frame(self, frame: AnyClientFrame) -> None: ...
+    def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]: ...
 
     async def read_frame_of_type(self, type_: type[FrameT]) -> FrameT:
         while True:
@@ -48,14 +48,15 @@ class Connection(AbstractConnection):
     reader: asyncio.StreamReader = field(init=False)
     writer: asyncio.StreamWriter = field(init=False)
 
-    async def connect(self) -> None:
+    async def connect(self) -> bool:
         try:
             self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(self.connection_parameters.host, self.connection_parameters.port),
                 timeout=self.connect_timeout,
             )
-        except (TimeoutError, ConnectionError) as exception:
-            raise ConnectError(self.connection_parameters) from exception
+        except (TimeoutError, ConnectionError):
+            return False
+        return True
 
     async def close(self) -> None:
         self.writer.close()
@@ -64,7 +65,7 @@ class Connection(AbstractConnection):
     def write_heartbeat(self) -> None:
         return self.writer.write(NEWLINE)
 
-    async def write_frame(self, frame: ClientFrame) -> None:
+    async def write_frame(self, frame: AnyClientFrame) -> None:
         self.writer.write(dump_frame(frame))
         await self.writer.drain()
 
@@ -75,14 +76,14 @@ class Connection(AbstractConnection):
             await asyncio.sleep(0)
         return chunk
 
-    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:
+    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:
         parser = Parser()
 
         while True:
             try:
                 raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
             except TimeoutError as exception:
-                raise ReadTimeoutError(self.read_timeout) from exception
+                raise ConnectionLostError(self.read_timeout) from exception
 
-            for frame in cast(Iterator[ServerFrame], parser.load_frames(raw_frames)):
+            for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
                 yield frame

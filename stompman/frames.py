@@ -244,7 +244,7 @@ COMMANDS_TO_FRAMES: dict[
 }
 FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
 
-ClientFrame = (
+AnyClientFrame = (
     SendFrame
     | SubscribeFrame
     | UnsubscribeFrame
@@ -257,6 +257,4 @@ ClientFrame = (
     | ConnectFrame
     | StompFrame
 )
-ServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
-AnyRealFrame = ClientFrame | ServerFrame
-AnyFrame = AnyRealFrame | HeartbeatFrame
+AnyServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame

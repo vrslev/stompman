@@ -41,7 +41,9 @@ target-version = "py311"
 fix = true
 unsafe-fixes = true
 line-length = 120
+
 [tool.ruff.lint]
+preview = true
 select = ["ALL"]
 ignore = [
     "EM",
@@ -58,6 +60,7 @@ ignore = [
     "ISC001",
     "S101",
     "SLF001",
+    "CPY001",
 ]
 
 [tool.pytest.ini_options]

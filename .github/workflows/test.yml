@@ -32,7 +32,7 @@ jobs:
       - uses: extractions/setup-just@v2
       - run: just install check-types
 
-  lint-format:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +45,9 @@ jobs:
           path: |
             ~/.cache/pip
             ~/.cache/pypoetry
-          key: lint-format-${{ hashFiles('pyproject.toml') }}
+          key: lint-${{ hashFiles('pyproject.toml') }}
       - uses: extractions/setup-just@v2
-      - run: just install lint-format
+      - run: just install lint
 
   test:
     runs-on: ubuntu-latest

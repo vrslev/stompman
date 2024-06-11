@@ -7,8 +7,8 @@ from typing import Any, cast
 from stompman.frames import (
     COMMANDS_TO_FRAMES,
     FRAMES_TO_COMMANDS,
-    AnyFrame,
-    AnyRealFrame,
+    AnyClientFrame,
+    AnyServerFrame,
     HeartbeatFrame,
 )
 
@@ -37,7 +37,7 @@ def dump_header(key: str, value: str) -> bytes:
     return f"{escaped_key}:{escaped_value}\n".encode()
 
 
-def dump_frame(frame: AnyRealFrame) -> bytes:
+def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
     lines = (
         FRAMES_TO_COMMANDS[type(frame)],
         NEWLINE,
@@ -79,7 +79,7 @@ def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
     return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
 
 
-def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyFrame | None:
+def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnyServerFrame | None:
     command = b"".join(lines.popleft())
     headers = {}
 
@@ -101,7 +101,7 @@ class Parser:
     _previous_byte: bytes = field(default=b"", init=False)
     _headers_processed: bool = field(default=False, init=False)
 
-    def load_frames(self, raw_frames: bytes) -> Iterator[AnyFrame]:
+    def load_frames(self, raw_frames: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
         buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
         while buffer:
             byte = buffer.popleft()
