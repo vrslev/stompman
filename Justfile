@@ -1,4 +1,4 @@
-default: install lint check-types test
+default: install lint check-types test test-integration
 
 install:
     poetry install --sync
