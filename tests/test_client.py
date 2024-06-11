@@ -18,7 +18,6 @@ from stompman import (
     ClientFrame,
     CommitFrame,
     ConnectedFrame,
-    ConnectError,
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
     ConnectionParameters,
@@ -48,7 +47,9 @@ class BaseMockConnection(AbstractConnection):
     read_timeout: int
     read_max_chunk_size: int
 
-    async def connect(self) -> None: ...
+    async def connect(self) -> bool:  # noqa: PLR6301
+        return True
+
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame) -> None: ...
@@ -104,13 +105,11 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
     attempts = 0
 
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
+        async def connect(self) -> bool:
             assert self.connection_parameters == client.servers[0]
-
             nonlocal attempts
             attempts += 1
-            if attempts != ok_on_attempt:
-                raise ConnectError(client.servers[0])
+            return attempts == ok_on_attempt
 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
@@ -122,8 +121,8 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_one_server_fails() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
-            raise ConnectError(self.connection_parameters)
+        async def connect(self) -> bool:  # noqa: PLR6301
+            return False
 
     client = EnrichedClient(connection_class=MockConnection)
     assert await client._connect_to_one_server(client.servers[0]) is None
@@ -132,9 +131,8 @@ async def test_client_connect_to_one_server_fails() -> None:
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
-            if self.connection_parameters.port != successful_server.port:
-                raise ConnectError(self.connection_parameters)
+        async def connect(self) -> bool:
+            return self.connection_parameters.port != successful_server.port
 
     successful_server = ConnectionParameters("localhost", 10, "login", "pass")
     client = EnrichedClient(
@@ -153,8 +151,8 @@ async def test_client_connect_to_any_server_ok() -> None:
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> None:
-            raise ConnectError(self.connection_parameters)
+        async def connect(self) -> bool:  # noqa: PLR6301
+            return False
 
     client = EnrichedClient(
         servers=[
