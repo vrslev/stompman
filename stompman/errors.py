@@ -23,11 +23,6 @@ class UnsupportedProtocolVersionError(Error):
 
 
 @dataclass
-class ConnectError(Error):
-    connection_parameters: "ConnectionParameters"
-
-
-@dataclass
 class FailedAllConnectAttemptsError(Error):
     servers: list["ConnectionParameters"]
     retry_attempts: int

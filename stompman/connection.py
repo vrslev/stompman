@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
-from stompman.errors import ConnectError, ReadTimeoutError
+from stompman.errors import ReadTimeoutError
 from stompman.frames import AnyRealFrame, ClientFrame, ServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
 
@@ -48,14 +48,15 @@ class Connection(AbstractConnection):
     reader: asyncio.StreamReader = field(init=False)
     writer: asyncio.StreamWriter = field(init=False)
 
-    async def connect(self) -> None:
+    async def connect(self) -> bool:
         try:
             self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(self.connection_parameters.host, self.connection_parameters.port),
                 timeout=self.connect_timeout,
             )
-        except (TimeoutError, ConnectionError) as exception:
-            raise ConnectError(self.connection_parameters) from exception
+        except (TimeoutError, ConnectionError):
+            return False
+        return True
 
     async def close(self) -> None:
         self.writer.close()

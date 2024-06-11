@@ -8,7 +8,6 @@ import pytest
 
 from stompman import (
     ConnectedFrame,
-    ConnectError,
     Connection,
     ConnectionParameters,
     HeartbeatFrame,
@@ -101,14 +100,12 @@ async def test_connection_lifespan(connection: Connection, monkeypatch: pytest.M
 
 async def test_connection_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
     mock_wait_for(monkeypatch)
-    with pytest.raises(ConnectError):
-        await connection.connect()
+    assert not await connection.connect()
 
 
 async def test_connection_error(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
     monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(side_effect=ConnectionError))
-    with pytest.raises(ConnectError):
-        await connection.connect()
+    assert not await connection.connect()
 
 
 async def test_read_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
