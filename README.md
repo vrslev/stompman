@@ -81,29 +81,31 @@ async for event in client.listen_to_events():
             print(f"{short_description}:\n{body!s}")
 ```
 
-More complex example, that involves handling all possible events:
+More complex example, that involves handling all possible events, and auto-acknowledgement:
 
 ```python
 async with asyncio.TaskGroup() as task_group:
     async for event in client.listen_to_events():
         match event:
             case stompman.MessageEvent(body=body):
-                # Validate message ASAP and ack/nack, so that server won't assume we're not reliable
-                try:
-                    validated_message = MyMessageModel.model_validate_json(body)
-                except ValidationError:
-                    await event.nack()
-                    raise
-
-                await event.ack()
-                task_group.create_task(run_business_logic(validated_message))
+                task_group.create_task(event.await_with_auto_ack(handle_message(body)))
             case stompman.ErrorEvent(message_header=short_description, body=body):
                 logger.error(
                     "Received an error from server", short_description=short_description, body=body, event=event
                 )
             case stompman.HeartbeatEvent():
                 task_group.create_task(update_healthcheck_status())
+
+
+async def handle_message(body: bytes) -> None:
+    try:
+        validated_message = MyMessageModel.model_validate_json(body)
+        await run_business_logic(validated_message)
+    except Exception:
+        logger.exception("Failed to handle message", body=body)
 ```
+
+You can pass awaitable object (coroutine, for example) to `Message.await_with_auto_ack()`. In case of error, it will catch any exceptions, send NACK to server and propagate them to the caller. Otherwise, it will send ACK, acknowledging the message was processed successfully.
 
 ### Cleaning Up
 
