@@ -113,7 +113,7 @@ stompman takes care of cleaning up resources automatically. When you leave the c
 
 - If multiple servers are provided, stompman will attempt to connect to each one simultaneously and use the first that succeeds.
 - If all servers fail to connect, an `stompman.FailedAllConnectAttemptsError` will be raised. There're no need to handle it, if you should tune retry and timeout parameters to your needs.
-- If a connection is lost, a `stompman.ReadTimeoutError` will be raised. You'll need to implement reconnect logic manually. Implementing reconnect logic in the library would be too complex, since there're no global state and clean-ups are automatic (e.g. it won't be possible to re-subscribe to destination because client doesn't keep track of subscriptions).
+- If a connection is lost, a `stompman.ConnectionLostError` will be raised. You'll need to implement reconnect logic manually. Implementing reconnect logic in the library would be too complex, since there're no global state and clean-ups are automatic (e.g. it won't be possible to re-subscribe to destination because client doesn't keep track of subscriptions).
 
 ### ...and caveats
 

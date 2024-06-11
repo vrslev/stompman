@@ -31,5 +31,5 @@ class FailedAllConnectAttemptsError(Error):
 
 
 @dataclass
-class ReadTimeoutError(Error):
+class ConnectionLostError(Error):
     timeout: int

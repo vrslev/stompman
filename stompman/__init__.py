@@ -2,9 +2,9 @@ from stompman.client import Client, Heartbeat
 from stompman.connection import AbstractConnection, Connection, ConnectionParameters
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
+    ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
-    ReadTimeoutError,
     UnsupportedProtocolVersionError,
 )
 from stompman.frames import (
@@ -42,6 +42,7 @@ __all__ = [
     "ConnectedFrame",
     "Connection",
     "ConnectionConfirmationTimeoutError",
+    "ConnectionLostError",
     "ConnectionParameters",
     "DisconnectFrame",
     "Error",
@@ -54,7 +55,6 @@ __all__ = [
     "MessageEvent",
     "MessageFrame",
     "NackFrame",
-    "ReadTimeoutError",
     "ReceiptFrame",
     "SendFrame",
     "SubscribeFrame",

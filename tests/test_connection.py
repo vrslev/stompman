@@ -10,9 +10,9 @@ from stompman import (
     AnyServerFrame,
     ConnectedFrame,
     Connection,
+    ConnectionLostError,
     ConnectionParameters,
     HeartbeatFrame,
-    ReadTimeoutError,
 )
 from stompman.frames import CommitFrame
 
@@ -115,5 +115,5 @@ async def test_read_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connect
     )
     await connection.connect()
     mock_wait_for(monkeypatch)
-    with pytest.raises(ReadTimeoutError):
+    with pytest.raises(ConnectionLostError):
         [frame async for frame in connection.read_frames()]

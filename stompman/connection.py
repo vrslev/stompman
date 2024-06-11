@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass, field
 from typing import Protocol, TypeVar, cast
 
-from stompman.errors import ReadTimeoutError
+from stompman.errors import ConnectionLostError
 from stompman.frames import AnyClientFrame, AnyServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
 
@@ -83,7 +83,7 @@ class Connection(AbstractConnection):
             try:
                 raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
             except TimeoutError as exception:
-                raise ReadTimeoutError(self.read_timeout) from exception
+                raise ConnectionLostError(self.read_timeout) from exception
 
             for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
                 yield frame
