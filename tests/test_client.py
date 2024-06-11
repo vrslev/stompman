@@ -52,7 +52,7 @@ class BaseMockConnection(AbstractConnection):
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: ClientFrame) -> None: ...
-    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:  # pragma: no cover
+    async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:  # pragma: no cover  # noqa: PLR6301
         await asyncio.Future()
         yield  # type: ignore[misc]
 
@@ -62,10 +62,10 @@ def create_spying_connection(
 ) -> tuple[type[AbstractConnection], list[AnyFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
-        async def write_frame(self, frame: ClientFrame) -> None:
+        async def write_frame(self, frame: ClientFrame) -> None:  # noqa: PLR6301
             collected_frames.append(frame)
 
-        async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:
+        async def read_frames(self) -> AsyncGenerator[ServerFrame, None]:  # noqa: PLR6301
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
@@ -123,7 +123,7 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 async def test_client_connect_to_one_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         async def connect(self) -> None:
-            raise ConnectError(client.servers[0])
+            raise ConnectError(self.connection_parameters)
 
     client = EnrichedClient(connection_class=MockConnection)
     assert await client._connect_to_one_server(client.servers[0]) is None
@@ -154,7 +154,7 @@ async def test_client_connect_to_any_server_ok() -> None:
 async def test_client_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         async def connect(self) -> None:
-            raise ConnectError(client.servers[0])
+            raise ConnectError(self.connection_parameters)
 
     client = EnrichedClient(
         servers=[
@@ -216,7 +216,7 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
 
     client = EnrichedClient(connection_class=BaseMockConnection)
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout)
 
@@ -229,7 +229,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
 
     client = EnrichedClient(connection_class=connection_class)
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == UnsupportedProtocolVersionError(
         given_version=given_version, supported_version=PROTOCOL_VERSION
