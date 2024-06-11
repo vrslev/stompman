@@ -1,7 +1,6 @@
 from stompman.client import Client, Heartbeat
 from stompman.connection import AbstractConnection, Connection, ConnectionParameters
 from stompman.errors import (
-    ConnectError,
     ConnectionConfirmationTimeoutError,
     Error,
     FailedAllConnectAttemptsError,
@@ -40,7 +39,6 @@ __all__ = [
     "Client",
     "ClientFrame",
     "CommitFrame",
-    "ConnectError",
     "ConnectFrame",
     "ConnectedFrame",
     "Connection",
