@@ -88,7 +88,7 @@ async with asyncio.TaskGroup() as task_group:
     async for event in client.listen_to_events():
         match event:
             case stompman.MessageEvent(body=body):
-                task_group.create_task(event.await_with_auto_ack(handle_message(body)))
+                task_group.create_task(handle_message(body))
             case stompman.ErrorEvent(message_header=short_description, body=body):
                 logger.error(
                     "Received an error from server", short_description=short_description, body=body, event=event
@@ -97,15 +97,16 @@ async with asyncio.TaskGroup() as task_group:
                 task_group.create_task(update_healthcheck_status())
 
 
-async def handle_message(body: bytes) -> None:
+async def handle_message(event: stompman.MessageEvent) -> None:
     try:
-        validated_message = MyMessageModel.model_validate_json(body)
+        validated_message = MyMessageModel.model_validate_json(event.body)
         await run_business_logic(validated_message)
     except Exception:
-        logger.exception("Failed to handle message", body=body)
+        await event.nack()
+        logger.exception("Failed to handle message", event=event)
+    else:
+        await event.ack()
 ```
-
-You can pass awaitable object (coroutine, for example) to `Message.await_with_auto_ack()`. In case of error, it will catch any exceptions, send NACK to server and propagate them to the caller. Otherwise, it will send ACK, acknowledging the message was processed successfully.
 
 ### Cleaning Up
 

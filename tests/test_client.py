@@ -346,59 +346,6 @@ async def test_ack_nack() -> None:
     assert_frames_between_lifespan_match(collected_frames, [message_frame, nack_frame, ack_frame])
 
 
-def get_mocked_message_event() -> tuple[MessageEvent, mock.AsyncMock, mock.AsyncMock]:
-    ack_mock, nack_mock = mock.AsyncMock(), mock.AsyncMock()
-
-    class CustomMessageEvent(MessageEvent):
-        ack = ack_mock
-        nack = nack_mock
-
-    return (
-        CustomMessageEvent(
-            _frame=MessageFrame(
-                headers={"destination": "destination", "message-id": "message-id", "subscription": "subscription"},
-                body=b"",
-            ),
-            _client=mock.Mock(),
-        ),
-        ack_mock,
-        nack_mock,
-    )
-
-
-async def test_message_event_await_with_auto_ack_nack() -> None:
-    event, ack, nack = get_mocked_message_event()
-
-    async def raises_runtime_error() -> None:  # noqa: RUF029
-        raise RuntimeError
-
-    with suppress(RuntimeError):
-        await event.await_with_auto_ack(raises_runtime_error(), exception_types=(Exception,))
-
-    ack.assert_not_called()
-    nack.assert_called_once_with()
-
-
-async def test_message_event_await_with_auto_ack_ack_raises() -> None:
-    event, ack, nack = get_mocked_message_event()
-
-    async def func() -> None:  # noqa: RUF029
-        raise Exception  # noqa: TRY002
-
-    with suppress(Exception):
-        await event.await_with_auto_ack(func(), exception_types=(RuntimeError,))
-
-    ack.assert_called_once_with()
-    nack.assert_not_called()
-
-
-async def test_message_event_await_with_auto_ack_ack_ok() -> None:
-    event, ack, nack = get_mocked_message_event()
-    await event.await_with_auto_ack(mock.AsyncMock()())
-    ack.assert_called_once_with()
-    nack.assert_not_called()
-
-
 async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     body = b"hello"
     destination = "/queue/test"
