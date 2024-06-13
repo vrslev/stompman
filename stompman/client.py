@@ -163,7 +163,7 @@ class Client:
         finally:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
 
-    async def listen_to_events(self) -> AsyncIterator[AnyListeningEvent]:
+    async def listen(self) -> AsyncIterator[AnyListeningEvent]:
         async for frame in self._connection.read_frames():
             match frame:
                 case MessageFrame():

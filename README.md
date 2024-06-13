@@ -57,11 +57,11 @@ async with client.enter_transaction() as transaction:
 
 Now, let's subscribe to a queue and listen for messages.
 
-Notice that `listen_to_events()` is not bound to a destination: it will listen to all subscribed destinations. If you want separate subscribtions, create separate clients for that.
+Notice that `listen()` is not bound to a destination: it will listen to all subscribed destinations. If you want separate subscribtions, create separate clients for that.
 
 ```python
 async with client.subscribe("DLQ"):
-    async for event in client.listen_to_events():
+    async for event in client.listen():
         ...
 ```
 
@@ -72,7 +72,7 @@ Before learning how to processing messages from server, we need to understand ho
 I wanted to avoid them, and came up with an elegant solution: combining async generator and match statement. Here how it looks like:
 
 ```python
-async for event in client.listen_to_events():
+async for event in client.listen():
     match event:
         case stompman.MessageEvent(body=body):
             print(f"message: {body!s}")
@@ -85,7 +85,7 @@ More complex example, that involves handling all possible events, and auto-ackno
 
 ```python
 async with asyncio.TaskGroup() as task_group:
-    async for event in client.listen_to_events():
+    async for event in client.listen():
         match event:
             case stompman.MessageEvent(body=body):
                 task_group.create_task(handle_message(body))
@@ -132,7 +132,7 @@ stompman takes care of cleaning up resources automatically. When you leave the c
 - stompman only runs on Python 3.11 and newer.
 - It implements [STOMP 1.2](https://stomp.github.io/stomp-specification-1.2.html) — the latest version of the protocol.
 - The client-individual ack mode is used, which means that server requires `ack` or `nack`. In contrast, with `client` ack mode server assumes you don't care about messages that occured before you connected. And, with `auto` ack mode server assumes client successfully received the message.
-- Heartbeats are required, and sent automatically on `listen_to_events()` (defaults to 1 second).
+- Heartbeats are required, and sent automatically on `listen()` (defaults to 1 second).
 
 Also, I want to pointed out that:
 
