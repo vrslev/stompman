@@ -302,7 +302,7 @@ async def test_client_listen_to_events_ok() -> None:
         )
     )
     async with EnrichedClient(connection_class=connection_class) as client:
-        events = [event async for event in client.listen_to_events()]
+        events = [event async for event in client.listen()]
 
     assert events == [
         MessageEvent(_client=client, _frame=message_frame),
@@ -320,7 +320,7 @@ async def test_client_listen_to_events_unreachable(frame: ConnectedFrame | Recei
 
     async with EnrichedClient(connection_class=connection_class) as client:
         with pytest.raises(AssertionError, match="unreachable"):
-            [event async for event in client.listen_to_events()]
+            [event async for event in client.listen()]
 
 
 async def test_ack_nack() -> None:
@@ -335,7 +335,7 @@ async def test_ack_nack() -> None:
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
     async with EnrichedClient(connection_class=connection_class) as client:
-        events = [event async for event in client.listen_to_events()]
+        events = [event async for event in client.listen()]
 
         assert len(events) == 1
         event = events[0]
