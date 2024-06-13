@@ -59,7 +59,9 @@ class MessageEvent:
 @dataclass
 class ErrorEvent:
     message_header: str = field(init=False)
+    """Short description of the error."""
     body: bytes = field(init=False)
+    """Long description of the error."""
     _frame: ErrorFrame
     _client: "Client" = field(repr=False)
 
