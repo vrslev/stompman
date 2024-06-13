@@ -1,4 +1,5 @@
 import asyncio
+import socket
 from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass, field
 from typing import Protocol, Self, TypedDict, TypeVar, cast
@@ -96,7 +97,7 @@ class Connection(AbstractConnection):
                 asyncio.open_connection(self.connection_parameters.host, self.connection_parameters.port),
                 timeout=self.connect_timeout,
             )
-        except (TimeoutError, ConnectionError):
+        except (TimeoutError, ConnectionError, socket.gaierror):
             return False
         return True
 
