@@ -91,28 +91,20 @@ async with asyncio.TaskGroup() as task_group:
                 task_group.create_task(
                     event.with_auto_ack(
                         handle_message(body),
-                        on_suppressed_exception=lambda _exception, event: logger.exception(
-                            "Failed to process message", event=event
+                        on_suppressed_exception=lambda _exception, event: log.exception(
+                            "Failed to process message", stompman_event=event
                         ),
                     )
                 )
-            case stompman.ErrorEvent(message_header=short_description, body=body):
-                logger.error(
-                    "Received an error from server", short_description=short_description, body=body, event=event
-                )
+            case stompman.ErrorEvent():
+                log.error("Received an error from server", stompman_event=event)
             case stompman.HeartbeatEvent():
                 task_group.create_task(update_healthcheck_status())
 
 
 async def handle_message(event: stompman.MessageEvent) -> None:
-    try:
-        validated_message = MyMessageModel.model_validate_json(event.body)
-        await run_business_logic(validated_message)
-    except Exception:
-        await event.nack()
-        logger.exception("Failed to handle message", event=event)
-    else:
-        await event.ack()
+    validated_message = MyMessageModel.model_validate_json(event.body)
+    await run_business_logic(validated_message)
 ```
 
 ### Cleaning Up
