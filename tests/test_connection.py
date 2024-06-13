@@ -120,12 +120,24 @@ async def test_connection_error(monkeypatch: pytest.MonkeyPatch, connection: Con
     assert not await connection.connect()
 
 
-async def test_read_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
+async def test_read_frames_timeout_error(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
     monkeypatch.setattr(
         "asyncio.open_connection",
         mock.AsyncMock(return_value=(mock.AsyncMock(read=partial(asyncio.sleep, 5)), mock.AsyncMock())),
     )
     await connection.connect()
     mock_wait_for(monkeypatch)
+    with pytest.raises(ConnectionLostError):
+        [frame async for frame in connection.read_frames()]
+
+
+async def test_read_frames_connection_error(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
+    monkeypatch.setattr(
+        "asyncio.open_connection",
+        mock.AsyncMock(
+            return_value=(mock.AsyncMock(read=mock.AsyncMock(side_effect=BrokenPipeError)), mock.AsyncMock())
+        ),
+    )
+    await connection.connect()
     with pytest.raises(ConnectionLostError):
         [frame async for frame in connection.read_frames()]

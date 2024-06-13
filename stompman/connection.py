@@ -124,7 +124,7 @@ class Connection(AbstractConnection):
         while True:
             try:
                 raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
-            except TimeoutError as exception:
+            except (TimeoutError, ConnectionError) as exception:
                 raise ConnectionLostError(self.read_timeout) from exception
 
             for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
