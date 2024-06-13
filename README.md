@@ -88,7 +88,14 @@ async with asyncio.TaskGroup() as task_group:
     async for event in client.listen():
         match event:
             case stompman.MessageEvent(body=body):
-                task_group.create_task(handle_message(body))
+                task_group.create_task(
+                    event.with_auto_ack(
+                        handle_message(body),
+                        on_suppressed_exception=lambda _exception, event: logger.exception(
+                            "Failed to process message", event=event
+                        ),
+                    )
+                )
             case stompman.ErrorEvent(message_header=short_description, body=body):
                 logger.error(
                     "Received an error from server", short_description=short_description, body=body, event=event
