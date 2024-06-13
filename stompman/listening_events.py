@@ -1,5 +1,6 @@
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Self
 
 from stompman.frames import (
     AckFrame,
@@ -35,6 +36,24 @@ class MessageEvent:
                 headers={"id": self._frame.headers["message-id"], "subscription": self._frame.headers["subscription"]}
             )
         )
+
+    async def with_auto_ack(
+        self,
+        awaitable: Awaitable[None],
+        *,
+        on_suppressed_exception: Callable[[Exception, Self], Any],
+        supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
+    ) -> None:
+        called_nack = False
+        try:
+            await awaitable
+        except supressed_exception_classes as exception:
+            await self.nack()
+            called_nack = True
+            on_suppressed_exception(exception, self)
+        finally:
+            if not called_nack:
+                await self.ack()
 
 
 @dataclass
