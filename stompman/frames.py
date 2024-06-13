@@ -188,8 +188,7 @@ class MessageFrame:
 
 
 ErrorHeaders = TypedDict(
-    "ErrorHeaders",
-    {"message": NotRequired[str], "content-length": NotRequired[str], "content-type": NotRequired[str]},
+    "ErrorHeaders", {"message": str, "content-length": NotRequired[str], "content-type": NotRequired[str]}
 )
 
 
