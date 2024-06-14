@@ -15,9 +15,7 @@ jobs:
           python-version: "3.12"
       - uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/pip
-            ~/.cache/pypoetry
+          path: ~/.cache/uv
           key: publish-${{ hashFiles('pyproject.toml') }}
       - uses: extractions/setup-just@v2
       - run: curl -LsSf https://astral.sh/uv/install.sh | sh
