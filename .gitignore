@@ -1,4 +1,4 @@
 .coverage
 .venv
 dist
-poetry.lock
+uv.lock
