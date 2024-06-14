@@ -15,6 +15,7 @@ Before you start using stompman, make sure you have it installed:
 ```sh
 pip install stompman
 poetry add stompman
+uv add stompman
 ```
 
 Initialize a client:
