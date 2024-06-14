@@ -1,6 +1,5 @@
 [project]
 name = "stompman"
-version = "0"
 description = "Python STOMP client with pleasant API"
 authors = [{ name = "Lev Vereshchagin", email = "mail@vrslev.com" }]
 dependencies = []
@@ -15,6 +14,7 @@ classifiers = [
     "Topic :: System :: Networking",
     "Typing :: Typed",
 ]
+dynamic = ["version"]
 
 [project.urls]
 repository = "https://github.com/vrslev/stompman"

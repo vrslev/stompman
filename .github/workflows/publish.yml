@@ -19,8 +19,8 @@ jobs:
             ~/.cache/pip
             ~/.cache/pypoetry
           key: publish-${{ hashFiles('pyproject.toml') }}
-      - run: pip install -U poetry
       - uses: extractions/setup-just@v2
-      - run: just install
-      - run: poetry version ${{ github.event.release.tag_name }}
-      - run: poetry publish --build --username __token__ --password ${{ secrets.PYPI_TOKEN }}
+      - run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run: just publish
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}

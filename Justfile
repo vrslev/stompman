@@ -27,3 +27,9 @@ test-integration *args:
     #!/bin/bash
     trap 'echo; docker compose down --remove-orphans' EXIT
     docker compose run --build --rm app .venv/bin/pytest tests/integration.py --no-cov {{args}}
+
+publish:
+    rm -rf dist/*
+    uv tool run --from build python -- -m build --installer uv
+    uv tool run twine check dist/*
+    uv tool run twine upload dist/* --username __token__ --password $PYPI_TOKEN
