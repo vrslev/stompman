@@ -77,13 +77,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/bake-action@v4
-        with:
-          load: true
-          set: |
-            *.cache-from=type=gha,scope=cached-stage
-            *.cache-to=type=gha,scope=cached-stage,mode=max
       - run: just test-integration
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
