@@ -76,6 +76,10 @@ jobs:
           - "3.12"
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ github.job }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
       - uses: extractions/setup-just@v2
       - run: just test-integration
         env:
