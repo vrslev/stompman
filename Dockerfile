@@ -10,6 +10,6 @@ RUN uv lock
 
 COPY stompman/__init__.py stompman/__init__.py
 COPY README.md .
-RUN uv sync --no-dev
+RUN uv sync
 
 COPY . .
