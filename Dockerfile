@@ -5,11 +5,12 @@ FROM python:${PYTHON_VERSION}-slim-bullseye
 RUN --mount=type=cache,target=~/.cache/pip pip install uv
 
 WORKDIR /app
-COPY pyproject.toml  .
+
+ENV SETUPTOOLS_SCM_PRETEND_VERSION=0
+COPY pyproject.toml README.md ./
 RUN uv lock
 
 COPY stompman/__init__.py stompman/__init__.py
-COPY README.md .
 RUN --mount=type=cache,target=~/.cache/uv uv sync
 
 COPY . .
