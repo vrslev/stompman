@@ -83,6 +83,14 @@ class AbstractConnection(Protocol):
                     return frame
 
 
+@contextmanager
+def _reraise_connection_lost(*causes: type[Exception]) -> Generator[None, None, None]:
+    try:
+        yield
+    except causes as exception:
+        raise ConnectionLostError from exception
+
+
 @dataclass
 class Connection(AbstractConnection):
     connection_parameters: ConnectionParameters
@@ -102,16 +110,9 @@ class Connection(AbstractConnection):
             return False
         return True
 
-    @contextmanager
-    def _reraise_connection_lost(self, *causes: type[Exception]) -> Generator[None, None, None]:
-        try:
-            yield
-        except causes as exception:
-            raise ConnectionLostError(self.read_timeout) from exception
-
     async def close(self) -> None:
         self.writer.close()
-        with self._reraise_connection_lost(ConnectionError):
+        with _reraise_connection_lost(ConnectionError):
             await self.writer.wait_closed()
 
     def write_heartbeat(self) -> None:
@@ -119,7 +120,7 @@ class Connection(AbstractConnection):
 
     async def write_frame(self, frame: AnyClientFrame) -> None:
         self.writer.write(dump_frame(frame))
-        with self._reraise_connection_lost(ConnectionError):
+        with _reraise_connection_lost(ConnectionError):
             await self.writer.drain()
 
     async def _read_non_empty_bytes(self) -> bytes:
@@ -133,7 +134,7 @@ class Connection(AbstractConnection):
         parser = Parser()
 
         while True:
-            with self._reraise_connection_lost(ConnectionError, TimeoutError):
+            with _reraise_connection_lost(ConnectionError, TimeoutError):
                 raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
 
             for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
