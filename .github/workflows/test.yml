@@ -79,8 +79,6 @@ jobs:
       - uses: extractions/setup-just@v2
       - uses: docker/setup-buildx-action@v3
       - uses: docker/bake-action@v4
-        with:
-          pull: true
       - run: just test-integration
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
