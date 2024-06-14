@@ -26,4 +26,4 @@ run-producer:
 test-integration *args:
     #!/bin/bash
     trap 'echo; docker compose down --remove-orphans' EXIT
-    docker buildx bake && docker compose run --rm app .venv/bin/pytest tests/integration.py --no-cov {{args}}
+    docker compose run --build --rm app .venv/bin/pytest tests/integration.py --no-cov {{args}}
