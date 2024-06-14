@@ -15,7 +15,7 @@ from stompman import (
     ConnectionParameters,
     HeartbeatFrame,
 )
-from stompman.frames import CommitFrame
+from stompman.frames import BeginFrame, CommitFrame
 
 
 @pytest.fixture()
@@ -111,7 +111,28 @@ async def test_connection_lifespan(connection: Connection, monkeypatch: pytest.M
     assert MockWriter.write.mock_calls == [mock.call(b"\n"), mock.call(b"COMMIT\ntransaction:transaction\n\n\x00")]
 
 
-# async def test_connection_close_connection_error
+async def test_connection_close_connection_error(connection: Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    class MockWriter:
+        close = mock.Mock()
+        wait_closed = mock.AsyncMock(side_effect=ConnectionError)
+
+    monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(return_value=(mock.Mock(), MockWriter())))
+    await connection.connect()
+
+    with pytest.raises(ConnectionLostError):
+        await connection.close()
+
+
+async def test_connection_write_frame_connection_error(connection: Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    class MockWriter:
+        write = mock.Mock()
+        drain = mock.AsyncMock(side_effect=ConnectionError)
+
+    monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(return_value=(mock.Mock(), MockWriter())))
+    await connection.connect()
+
+    with pytest.raises(ConnectionLostError):
+        await connection.write_frame(BeginFrame(headers={"transaction": ""}))
 
 
 async def test_connection_timeout(monkeypatch: pytest.MonkeyPatch, connection: Connection) -> None:
