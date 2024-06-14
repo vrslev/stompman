@@ -81,6 +81,9 @@ jobs:
       - uses: docker/bake-action@v4
         with:
           load: true
+          set: |
+            *.cache-from=type=gha,scope=cached-stage
+            *.cache-to=type=gha,scope=cached-stage,mode=max
       - run: just test-integration
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
