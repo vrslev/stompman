@@ -123,7 +123,7 @@ class NackFrame:
     body: bytes = b""
 
 
-BeginHeaders = TypedDict("BeginHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
+BeginHeaders = TypedDict("BeginHeaders", {"transaction": str, "content-length": NotRequired[str]})
 
 
 @dataclass
@@ -132,7 +132,7 @@ class BeginFrame:
     body: bytes = b""
 
 
-CommitHeaders = TypedDict("CommitHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
+CommitHeaders = TypedDict("CommitHeaders", {"transaction": str, "content-length": NotRequired[str]})
 
 
 @dataclass
@@ -141,7 +141,7 @@ class CommitFrame:
     body: bytes = b""
 
 
-AbortHeaders = TypedDict("AbortHeaders", {"transaction": NotRequired[str], "content-length": NotRequired[str]})
+AbortHeaders = TypedDict("AbortHeaders", {"transaction": str, "content-length": NotRequired[str]})
 
 
 @dataclass

@@ -1,6 +1,7 @@
 import asyncio
 import socket
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Generator, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Protocol, Self, TypedDict, TypeVar, cast
 
@@ -9,7 +10,7 @@ from stompman.frames import AnyClientFrame, AnyServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
 
 
-class _MultiHostHostLike(TypedDict):
+class MultiHostHostLike(TypedDict):
     username: str | None
     password: str | None
     host: str | None
@@ -24,7 +25,7 @@ class ConnectionParameters:
     passcode: str = field(repr=False)
 
     @classmethod
-    def from_pydantic_multihost_hosts(cls, hosts: list[_MultiHostHostLike]) -> list[Self]:
+    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
         """Create connection parameters from a list of `MultiHostUrl` objects.
 
         .. code-block:: python
@@ -101,16 +102,25 @@ class Connection(AbstractConnection):
             return False
         return True
 
+    @contextmanager
+    def _reraise_connection_lost(self, *causes: type[Exception]) -> Generator[None, None, None]:
+        try:
+            yield
+        except causes as exception:
+            raise ConnectionLostError(self.read_timeout) from exception
+
     async def close(self) -> None:
         self.writer.close()
-        await self.writer.wait_closed()
+        with self._reraise_connection_lost(ConnectionError):
+            await self.writer.wait_closed()
 
     def write_heartbeat(self) -> None:
         return self.writer.write(NEWLINE)
 
     async def write_frame(self, frame: AnyClientFrame) -> None:
         self.writer.write(dump_frame(frame))
-        await self.writer.drain()
+        with self._reraise_connection_lost(ConnectionError):
+            await self.writer.drain()
 
     async def _read_non_empty_bytes(self) -> bytes:
         while (
@@ -123,10 +133,8 @@ class Connection(AbstractConnection):
         parser = Parser()
 
         while True:
-            try:
+            with self._reraise_connection_lost(ConnectionError, TimeoutError):
                 raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
-            except (TimeoutError, ConnectionError) as exception:
-                raise ConnectionLostError(self.read_timeout) from exception
 
             for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
                 yield frame
