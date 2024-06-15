@@ -22,8 +22,6 @@ async def make_connection() -> Connection | None:
     return await Connection.from_connection_parameters(
         connection_parameters=ConnectionParameters("localhost", 12345, login="login", passcode="passcode"),
         connect_timeout=2,
-        read_timeout=2,
-        read_max_chunk_size=2,
     )
 
 
@@ -86,9 +84,11 @@ async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
     connection.write_heartbeat()
     await connection.write_frame(CommitFrame(headers={"transaction": "transaction"}))
 
+    read_max_chunk_size = 1024
+
     async def take_frames(count: int) -> list[AnyServerFrame]:
         frames = []
-        async for frame in connection.read_frames():
+        async for frame in connection.read_frames(read_max_chunk_size=read_max_chunk_size, read_timeout=1):
             frames.append(frame)
             if len(frames) == count:
                 break
@@ -107,7 +107,7 @@ async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
     MockWriter.close.assert_called_once_with()
     MockWriter.wait_closed.assert_called_once_with()
     MockWriter.drain.assert_called_once_with()
-    MockReader.read.mock_calls = [mock.call(connection.read_timeout)] * len(read_bytes)  # type: ignore[assignment]
+    MockReader.read.mock_calls = [mock.call(read_max_chunk_size)] * len(read_bytes)  # type: ignore[assignment]
     assert MockWriter.write.mock_calls == [mock.call(b"\n"), mock.call(b"COMMIT\ntransaction:transaction\n\n\x00")]
 
 
@@ -158,7 +158,7 @@ async def test_read_frames_timeout_error(monkeypatch: pytest.MonkeyPatch) -> Non
 
     mock_wait_for(monkeypatch)
     with pytest.raises(ConnectionLostError):
-        [frame async for frame in connection.read_frames()]
+        [frame async for frame in connection.read_frames(1024, 1)]
 
 
 async def test_read_frames_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -172,4 +172,4 @@ async def test_read_frames_connection_error(monkeypatch: pytest.MonkeyPatch) -> 
     assert connection
 
     with pytest.raises(ConnectionLostError):
-        [frame async for frame in connection.read_frames()]
+        [frame async for frame in connection.read_frames(1024, 1)]

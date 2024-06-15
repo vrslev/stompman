@@ -65,26 +65,19 @@ FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 
 @dataclass
 class AbstractConnection(Protocol):
-    read_timeout: int # TODO: move to Client
-    read_max_chunk_size: int  # TODO: move to Client
-
     @classmethod
     async def from_connection_parameters(
-        cls,
-        connection_parameters: ConnectionParameters,
-        connect_timeout: int,
-        read_timeout: int,
-        read_max_chunk_size: int,
+        cls, connection_parameters: ConnectionParameters, connect_timeout: int
     ) -> Self | None: ...
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
-    def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]: ...
+    def read_frames(self, read_max_chunk_size: int, read_timeout: int) -> AsyncGenerator[AnyServerFrame, None]: ...
 
-    async def read_frame_of_type(self, type_: type[FrameT]) -> FrameT:
+    async def read_frame_of_type(self, type_: type[FrameT], read_max_chunk_size: int, read_timeout: int) -> FrameT:
         while True:
-            async for frame in self.read_frames():
+            async for frame in self.read_frames(read_max_chunk_size=read_max_chunk_size, read_timeout=read_timeout):
                 if isinstance(frame, type_):
                     return frame
 
@@ -99,18 +92,12 @@ def _reraise_connection_lost(*causes: type[Exception]) -> Generator[None, None, 
 
 @dataclass
 class Connection(AbstractConnection):
-    read_timeout: int
-    read_max_chunk_size: int
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
 
     @classmethod
     async def from_connection_parameters(
-        cls,
-        connection_parameters: ConnectionParameters,
-        connect_timeout: int,
-        read_timeout: int,
-        read_max_chunk_size: int,
+        cls, connection_parameters: ConnectionParameters, connect_timeout: int
     ) -> Self | None:
         try:
             reader, writer = await asyncio.wait_for(
@@ -119,7 +106,7 @@ class Connection(AbstractConnection):
         except (TimeoutError, ConnectionError, socket.gaierror):
             return None
         else:
-            return cls(read_timeout=read_timeout, read_max_chunk_size=read_max_chunk_size, reader=reader, writer=writer)
+            return cls(reader=reader, writer=writer)
 
     async def close(self) -> None:
         self.writer.close()
@@ -134,19 +121,19 @@ class Connection(AbstractConnection):
         with _reraise_connection_lost(ConnectionError):
             await self.writer.drain()
 
-    async def _read_non_empty_bytes(self) -> bytes:
-        while (
-            chunk := await self.reader.read(self.read_max_chunk_size)
-        ) == b"":  # pragma: no cover (it defenitely happens)
+    async def _read_non_empty_bytes(self, read_max_chunk_size: int) -> bytes:
+        while (chunk := await self.reader.read(read_max_chunk_size)) == b"":  # pragma: no cover (it defenitely happens)
             await asyncio.sleep(0)
         return chunk
 
-    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:
+    async def read_frames(self, read_max_chunk_size: int, read_timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
         parser = Parser()
 
         while True:
             with _reraise_connection_lost(ConnectionError, TimeoutError):
-                raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(), timeout=self.read_timeout)
+                raw_frames = await asyncio.wait_for(
+                    self._read_non_empty_bytes(read_max_chunk_size), timeout=read_timeout
+                )
 
             for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
                 yield frame
