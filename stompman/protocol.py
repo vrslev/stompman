@@ -101,7 +101,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
     return (
         frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
         if frame_type in FRAMES_WITH_BODY
-        else frame_type(headers=cast(Any, headers))
+        else frame_type(headers=cast(Any, headers))  # type: ignore[call-arg]
     )
 
 
