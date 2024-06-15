@@ -2,7 +2,7 @@ import struct
 from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from stompman.frames import (
     AbortFrame,
@@ -25,15 +25,15 @@ from stompman.frames import (
     UnsubscribeFrame,
 )
 
-NEWLINE = b"\n"
-NULL = b"\x00"
-HEADER_ESCAPE_CHARS = {
+NEWLINE: Final = b"\n"
+NULL: Final = b"\x00"
+HEADER_ESCAPE_CHARS: Final = {
     "\n": "\\n",
     ":": "\\c",
     "\\": "\\\\",
     "\r": "\\r",
 }
-HEADER_UNESCAPE_CHARS = {
+HEADER_UNESCAPE_CHARS: Final = {
     b"n": b"\n",
     b"c": b":",
     b"\\": b"\\",
@@ -45,7 +45,7 @@ def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
     return struct.unpack(f"{len(bytes_)!s}c", bytes_)
 
 
-COMMANDS_TO_FRAMES: dict[bytes, type[AnyClientFrame | AnyServerFrame]] = {
+COMMANDS_TO_FRAMES: Final[dict[bytes, type[AnyClientFrame | AnyServerFrame]]] = {
     # Client frames
     b"SEND": SendFrame,
     b"SUBSCRIBE": SubscribeFrame,
@@ -64,9 +64,9 @@ COMMANDS_TO_FRAMES: dict[bytes, type[AnyClientFrame | AnyServerFrame]] = {
     b"RECEIPT": ReceiptFrame,
     b"ERROR": ErrorFrame,
 }
-FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
-FRAMES_WITH_BODY = (SendFrame, MessageFrame, ErrorFrame)
-COMMANDS_BYTES_LISTS = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
+FRAMES_TO_COMMANDS: Final = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
+FRAMES_WITH_BODY: Final = (SendFrame, MessageFrame, ErrorFrame)
+COMMANDS_BYTES_LISTS: Final = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
 
 
 def dump_header(key: str, value: str) -> bytes:
