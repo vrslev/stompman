@@ -51,8 +51,8 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
         ),
         # Full packet
         (
-            b"CONNECT\naccept-version:1.0\n\nHey dude\x00",
-            [ConnectFrame(headers={"accept-version": "1.0"}, body=b"Hey dude")],
+            b"MESSAGE\naccept-version:1.0\n\nHey dude\x00",
+            [MessageFrame(headers={"accept-version": "1.0"}, body=b"Hey dude")],
         ),
         # Long packet
         (

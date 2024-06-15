@@ -9,7 +9,10 @@ from stompman.frames import (
     FRAMES_TO_COMMANDS,
     AnyClientFrame,
     AnyServerFrame,
+    ErrorFrame,
     HeartbeatFrame,
+    MessageFrame,
+    SendFrame,
 )
 
 ESCAPE_CHARS = {
@@ -26,6 +29,7 @@ UNESCAPE_CHARS = {
 }
 NULL = b"\x00"
 NEWLINE = b"\n"
+FRAMES_WITH_BODY = (SendFrame, MessageFrame, ErrorFrame)
 
 
 def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
@@ -42,12 +46,13 @@ def dump_header(key: str, value: str) -> bytes:
 
 
 def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
+    frame_type = type(frame)
     lines = (
-        FRAMES_TO_COMMANDS[type(frame)],
+        FRAMES_TO_COMMANDS[frame_type],
         NEWLINE,
         *(dump_header(key, cast(str, value)) for key, value in sorted(frame.headers.items())),
         NEWLINE,
-        frame.body,
+        frame.body if frame_type in FRAMES_WITH_BODY else b"",
         NULL,
     )
     return b"".join(lines)
