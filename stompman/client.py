@@ -58,10 +58,11 @@ class Client:
     connection_class: type[AbstractConnection] = Connection
 
     _connection: AbstractConnection = field(init=False)
+    _connection_parameters: ConnectionParameters = field(init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> Self:
-        self._connection = await self._connect_to_any_server()
+        self._connection, self._connection_parameters = await self._connect_to_any_server()
         await self._exit_stack.enter_async_context(self._connection_lifespan())
         return self
 
@@ -71,26 +72,27 @@ class Client:
         await self._exit_stack.aclose()
         await self._connection.close()
 
-    async def _connect_to_one_server(self, server: ConnectionParameters) -> AbstractConnection | None:
+    async def _connect_to_one_server(
+        self, server: ConnectionParameters
+    ) -> tuple[AbstractConnection, ConnectionParameters] | None:
         for attempt in range(self.connect_retry_attempts):
-            connection = self.connection_class(
+            if connection := await self.connection_class.from_connection_parameters(
                 connection_parameters=server,
                 connect_timeout=self.connect_timeout,
                 read_timeout=self.read_timeout,
                 read_max_chunk_size=self.read_max_chunk_size,
-            )
-            if await connection.connect():
-                return connection
+            ):
+                return connection, server
             await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
         return None
 
-    async def _connect_to_any_server(self) -> AbstractConnection:
+    async def _connect_to_any_server(self) -> tuple[AbstractConnection, ConnectionParameters]:
         for maybe_connection_future in asyncio.as_completed(
             [self._connect_to_one_server(server) for server in self.servers]
         ):
-            maybe_connection = await maybe_connection_future
-            if maybe_connection:
-                return maybe_connection
+            maybe_result = await maybe_connection_future
+            if maybe_result:
+                return maybe_result
         raise FailedAllConnectAttemptsError(
             servers=self.servers,
             retry_attempts=self.connect_retry_attempts,
@@ -114,9 +116,9 @@ class Client:
                 headers={
                     "accept-version": PROTOCOL_VERSION,
                     "heart-beat": self.heartbeat.to_header(),
-                    "host": self._connection.connection_parameters.host,
-                    "login": self._connection.connection_parameters.login,
-                    "passcode": self._connection.connection_parameters.passcode,
+                    "host": self._connection_parameters.host,
+                    "login": self._connection_parameters.login,
+                    "passcode": self._connection_parameters.passcode,
                 },
             )
         )

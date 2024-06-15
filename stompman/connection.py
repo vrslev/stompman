@@ -65,12 +65,18 @@ FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 
 @dataclass
 class AbstractConnection(Protocol):
-    connection_parameters: ConnectionParameters
-    connect_timeout: int
-    read_timeout: int
-    read_max_chunk_size: int
+    read_timeout: int # TODO: move to Client
+    read_max_chunk_size: int  # TODO: move to Client
 
-    async def connect(self) -> bool: ...
+    @classmethod
+    async def from_connection_parameters(
+        cls,
+        connection_parameters: ConnectionParameters,
+        connect_timeout: int,
+        read_timeout: int,
+        read_max_chunk_size: int,
+    ) -> Self | None: ...
+
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
@@ -93,22 +99,27 @@ def _reraise_connection_lost(*causes: type[Exception]) -> Generator[None, None, 
 
 @dataclass
 class Connection(AbstractConnection):
-    connection_parameters: ConnectionParameters
-    connect_timeout: int
     read_timeout: int
     read_max_chunk_size: int
-    reader: asyncio.StreamReader = field(init=False)
-    writer: asyncio.StreamWriter = field(init=False)
+    reader: asyncio.StreamReader
+    writer: asyncio.StreamWriter
 
-    async def connect(self) -> bool:
+    @classmethod
+    async def from_connection_parameters(
+        cls,
+        connection_parameters: ConnectionParameters,
+        connect_timeout: int,
+        read_timeout: int,
+        read_max_chunk_size: int,
+    ) -> Self | None:
         try:
-            self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(self.connection_parameters.host, self.connection_parameters.port),
-                timeout=self.connect_timeout,
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(connection_parameters.host, connection_parameters.port), timeout=connect_timeout
             )
         except (TimeoutError, ConnectionError, socket.gaierror):
-            return False
-        return True
+            return None
+        else:
+            return cls(read_timeout=read_timeout, read_max_chunk_size=read_max_chunk_size, reader=reader, writer=writer)
 
     async def close(self) -> None:
         self.writer.close()
