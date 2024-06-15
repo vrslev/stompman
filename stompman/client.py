@@ -126,7 +126,7 @@ class Client:
         self, server: ConnectionParameters
     ) -> tuple[AbstractConnection, ConnectionParameters] | None:
         for attempt in range(self.connect_retry_attempts):
-            if connection := await self.connection_class.from_connection_parameters(
+            if connection := await self.connection_class.connect(
                 host=server.host, port=server.port, connect_timeout=self.connect_timeout
             ):
                 return connection, server

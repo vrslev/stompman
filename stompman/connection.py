@@ -15,7 +15,7 @@ FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 @dataclass
 class AbstractConnection(Protocol):
     @classmethod
-    async def from_connection_parameters(cls, host: str, port: int, connect_timeout: int) -> Self | None: ...
+    async def connect(cls, host: str, port: int, connect_timeout: int) -> Self | None: ...
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
@@ -43,7 +43,7 @@ class Connection(AbstractConnection):
     writer: asyncio.StreamWriter
 
     @classmethod
-    async def from_connection_parameters(cls, host: str, port: int, connect_timeout: int) -> Self | None:
+    async def connect(cls, host: str, port: int, connect_timeout: int) -> Self | None:
         try:
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=connect_timeout)
         except (TimeoutError, ConnectionError, socket.gaierror):
