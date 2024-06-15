@@ -30,7 +30,7 @@ from stompman.frames import (
 from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent
 
 if TYPE_CHECKING:
-    from stompman.frame_headers import SendHeaders
+    from stompman.frames import SendHeaders
 
 
 class Heartbeat(NamedTuple):
