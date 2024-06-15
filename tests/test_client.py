@@ -51,8 +51,8 @@ class BaseMockConnection(AbstractConnection):
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
     async def read_frames(  # noqa: PLR6301
         self,
-        read_max_chunk_size: int,  # noqa: ARG002
-        read_timeout: int,  # noqa: ARG002
+        max_chunk_size: int,  # noqa: ARG002
+        timeout: int,  # noqa: ARG002
     ) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]

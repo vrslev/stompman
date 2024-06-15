@@ -23,7 +23,7 @@ async def test_integration() -> None:
         async with asyncio.timeout(5), consumer.subscribe(destination=destination):
             async for event in consumer.listen():
                 match event:
-                    case stompman.client.MessageEvent(body=body):
+                    case stompman.MessageEvent(body=body):
                         await event.ack()
                         received_messages.append(body)
                         if len(received_messages) == len(messages):
