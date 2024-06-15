@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import NamedTuple, Self, TypedDict
+from typing import TYPE_CHECKING, NamedTuple, Self, TypedDict
 from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection
@@ -24,11 +24,13 @@ from stompman.frames import (
     MessageFrame,
     ReceiptFrame,
     SendFrame,
-    SendHeaders,
     SubscribeFrame,
     UnsubscribeFrame,
 )
 from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent
+
+if TYPE_CHECKING:
+    from stompman.frame_headers import SendHeaders
 
 
 class Heartbeat(NamedTuple):
