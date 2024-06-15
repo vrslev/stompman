@@ -25,20 +25,20 @@ from stompman.frames import (
     UnsubscribeFrame,
 )
 
-ESCAPE_CHARS = {
+NEWLINE = b"\n"
+NULL = b"\x00"
+HEADER_ESCAPE_CHARS = {
     "\n": "\\n",
     ":": "\\c",
     "\\": "\\\\",
     "\r": "\\r",
 }
-UNESCAPE_CHARS = {
+HEADER_UNESCAPE_CHARS = {
     b"n": b"\n",
     b"c": b":",
     b"\\": b"\\",
     b"r": b"\r",
 }
-NULL = b"\x00"
-NEWLINE = b"\n"
 
 
 def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
@@ -66,12 +66,12 @@ COMMANDS_TO_FRAMES: dict[bytes, type[AnyClientFrame | AnyServerFrame]] = {
 }
 FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
 FRAMES_WITH_BODY = (SendFrame, MessageFrame, ErrorFrame)
-VALID_COMMANDS = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
+COMMANDS_BYTES_LISTS = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
 
 
 def dump_header(key: str, value: str) -> bytes:
-    escaped_key = "".join(ESCAPE_CHARS.get(char, char) for char in key)
-    escaped_value = "".join(ESCAPE_CHARS.get(char, char) for char in value)
+    escaped_key = "".join(HEADER_ESCAPE_CHARS.get(char, char) for char in key)
+    escaped_value = "".join(HEADER_ESCAPE_CHARS.get(char, char) for char in value)
     return f"{escaped_key}:{escaped_value}\n".encode()
 
 
@@ -92,7 +92,7 @@ def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
         return None
 
     if previous_byte == b"\\":
-        return UNESCAPE_CHARS.get(byte, byte)
+        return HEADER_UNESCAPE_CHARS.get(byte, byte)
 
     return byte
 
@@ -164,7 +164,7 @@ class FrameParser:
                         self._current_line.pop()
                     self._headers_processed = not self._current_line  # extra empty line after headers
 
-                    if not self._lines and self._current_line not in VALID_COMMANDS:
+                    if not self._lines and self._current_line not in COMMANDS_BYTES_LISTS:
                         self._reset()
                     else:
                         self._lines.append(self._current_line)
