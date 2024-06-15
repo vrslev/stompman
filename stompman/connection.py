@@ -9,7 +9,7 @@ from stompman.errors import ConnectionLostError
 from stompman.frame_serde import NEWLINE, FrameParser, dump_frame
 from stompman.frames import AnyClientFrame, AnyServerFrame
 
-FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
+FrameType = TypeVar("FrameType", bound=AnyClientFrame | AnyServerFrame)
 
 
 @dataclass
@@ -21,7 +21,7 @@ class AbstractConnection(Protocol):
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
     def read_frames(self, max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]: ...
 
-    async def read_frame_of_type(self, type_: type[FrameT], max_chunk_size: int, timeout: int) -> FrameT:
+    async def read_frame_of_type(self, type_: type[FrameType], max_chunk_size: int, timeout: int) -> FrameType:
         while True:
             async for frame in self.read_frames(max_chunk_size=max_chunk_size, timeout=timeout):
                 if isinstance(frame, type_):
