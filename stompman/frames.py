@@ -1,8 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, NotRequired, TypedDict, TypeVar
-
-HeadersType = TypeVar("HeadersType")
-
+from typing import Literal, NotRequired, TypedDict
 
 ConnectHeaders = TypedDict(
     "ConnectHeaders",
