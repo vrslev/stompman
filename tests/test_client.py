@@ -32,7 +32,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.client import PROTOCOL_VERSION, ConnectionParameters, ErrorEvent, HeartbeatEvent, MessageEvent
+from stompman.client import ConnectionParameters, ErrorEvent, HeartbeatEvent, MessageEvent
 
 
 @dataclass
@@ -82,7 +82,7 @@ def create_spying_connection(
 
 def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> list[list[AnyServerFrame]]:
     return [
-        [ConnectedFrame(headers={"version": PROTOCOL_VERSION, "heart-beat": "1,1"})],
+        [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
         [ReceiptFrame(headers={"receipt-id": "whatever"})],
     ]
@@ -204,7 +204,7 @@ async def test_client_connect_to_any_server_fails() -> None:
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    connected_frame = ConnectedFrame(headers={"version": PROTOCOL_VERSION, "heart-beat": "1,1"})
+    connected_frame = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
     receipt_frame = ReceiptFrame(headers={"receipt-id": "whatever"})
     connection_class, collected_frames = create_spying_connection([[connected_frame], [receipt_frame]])
     write_heartbeat_mock = mock.Mock()
@@ -226,7 +226,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         ConnectFrame(
             headers={
                 "host": client._connection_parameters.host,
-                "accept-version": PROTOCOL_VERSION,
+                "accept-version": client.PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
                 "login": login,
                 "passcode": passcode,
@@ -265,7 +265,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
         await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == UnsupportedProtocolVersionError(
-        given_version=given_version, supported_version=PROTOCOL_VERSION
+        given_version=given_version, supported_version=client.PROTOCOL_VERSION
     )
 
 

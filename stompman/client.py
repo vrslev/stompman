@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Any, NamedTuple, Self, TypedDict
+from typing import Any, ClassVar, NamedTuple, Self, TypedDict
 from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection
@@ -95,9 +95,6 @@ class ConnectionParameters:
         return servers
 
 
-PROTOCOL_VERSION = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
-
-
 @dataclass
 class Client:
     servers: list[ConnectionParameters]
@@ -109,6 +106,9 @@ class Client:
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
+
+    PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
+
     _connection: AbstractConnection = field(init=False)
     _connection_parameters: ConnectionParameters = field(init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
@@ -164,7 +164,7 @@ class Client:
         await self._connection.write_frame(
             ConnectFrame(
                 headers={
-                    "accept-version": PROTOCOL_VERSION,
+                    "accept-version": self.PROTOCOL_VERSION,
                     "heart-beat": self.heartbeat.to_header(),
                     "host": self._connection_parameters.host,
                     "login": self._connection_parameters.login,
@@ -182,9 +182,9 @@ class Client:
         except TimeoutError as exception:
             raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout) from exception
 
-        if connected_frame.headers["version"] != PROTOCOL_VERSION:
+        if connected_frame.headers["version"] != self.PROTOCOL_VERSION:
             raise UnsupportedProtocolVersionError(
-                given_version=connected_frame.headers["version"], supported_version=PROTOCOL_VERSION
+                given_version=connected_frame.headers["version"], supported_version=self.PROTOCOL_VERSION
             )
 
         server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
