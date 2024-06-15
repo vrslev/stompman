@@ -28,7 +28,6 @@ class AbstractConnection(Protocol):
                     return frame
 
 
-# TODO: Update readme
 @contextmanager
 def _reraise_connection_lost(*causes: type[Exception]) -> Generator[None, None, None]:
     try:

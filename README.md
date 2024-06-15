@@ -50,7 +50,7 @@ Or, to send messages in a transaction:
 ```python
 async with client.enter_transaction() as transaction:
     for _ in range(10):
-        await client.send(body=b"hi there!", destination="DLQ", transaction=transaction)
+        await client.send(body=b"hi there!", destination="DLQ", transaction=transaction, headers={"persistent": "true"})
         await asyncio.sleep(0.1)
 ```
 
