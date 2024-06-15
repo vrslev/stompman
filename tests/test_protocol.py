@@ -14,14 +14,8 @@ from stompman.protocol import FrameParser, dump_frame
 @pytest.mark.parametrize(
     ("frame", "dumped_frame"),
     [
-        (
-            AckFrame(headers={"subscription": "1", "id": "1"}, body=b"I Am The Walrus"),
-            (b"ACK\nid:1\nsubscription:1\n\nI Am The Walrus\x00"),
-        ),
-        (
-            ConnectedFrame(headers={"heart-beat": "1,1", "version": "1"}),
-            (b"CONNECTED\n" b"heart-beat:1,1\nversion:1\n\n" b"\x00"),
-        ),
+        (AckFrame(headers={"subscription": "1", "id": "1"}), (b"ACK\nid:1\nsubscription:1\n\n\x00")),
+        (ConnectedFrame(headers={"version": "1.1"}), (b"CONNECTED\nversion:1.1\n\n\x00")),
         (
             MessageFrame(
                 headers={"destination": "me:123", "message-id": "you\nmore\rextra\\here", "subscription": "hi"},
