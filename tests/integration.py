@@ -3,11 +3,10 @@ import os
 from uuid import uuid4
 
 import stompman
-import stompman.client
 
 
 async def test_integration() -> None:
-    server = stompman.client.ConnectionParameters(
+    server = stompman.ConnectionParameters(
         host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="admin"
     )
     destination = "DLQ"

@@ -1,18 +1,17 @@
 import asyncio
 
 import stompman
-import stompman.client
 
 
 async def main() -> None:
     async with (
-        stompman.Client(servers=[stompman.client.ConnectionParameters("0.0.0.0", 61616, "admin", "admin")]) as client,  # noqa: S104
+        stompman.Client(servers=[stompman.ConnectionParameters("0.0.0.0", 61616, "admin", "admin")]) as client,  # noqa: S104
         client.subscribe("DLQ"),
     ):
         async for event in client.listen():
             print(event)  # noqa: T201
             match event:
-                case stompman.client.MessageEvent():
+                case stompman.MessageEvent():
                     await event.ack()
 
 
