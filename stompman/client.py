@@ -77,10 +77,7 @@ class Client:
     ) -> tuple[AbstractConnection, ConnectionParameters] | None:
         for attempt in range(self.connect_retry_attempts):
             if connection := await self.connection_class.from_connection_parameters(
-                connection_parameters=server,
-                connect_timeout=self.connect_timeout,
-                read_timeout=self.read_timeout,
-                read_max_chunk_size=self.read_max_chunk_size,
+                connection_parameters=server, connect_timeout=self.connect_timeout
             ):
                 return connection, server
             await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
@@ -124,7 +121,10 @@ class Client:
         )
         try:
             connected_frame = await asyncio.wait_for(
-                self._connection.read_frame_of_type(ConnectedFrame), timeout=self.connection_confirmation_timeout
+                self._connection.read_frame_of_type(
+                    ConnectedFrame, read_max_chunk_size=self.read_max_chunk_size, read_timeout=self.read_timeout
+                ),
+                timeout=self.connection_confirmation_timeout,
             )
         except TimeoutError as exception:
             raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout) from exception
@@ -152,7 +152,9 @@ class Client:
                 task.cancel()
 
         await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
-        await self._connection.read_frame_of_type(ReceiptFrame)
+        await self._connection.read_frame_of_type(
+            ReceiptFrame, read_max_chunk_size=self.read_max_chunk_size, read_timeout=self.read_timeout
+        )
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
@@ -166,7 +168,9 @@ class Client:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
 
     async def listen(self) -> AsyncIterator[AnyListeningEvent]:
-        async for frame in self._connection.read_frames():
+        async for frame in self._connection.read_frames(
+            read_max_chunk_size=self.read_max_chunk_size, read_timeout=self.read_timeout
+        ):
             match frame:
                 case MessageFrame():
                     yield MessageEvent(_client=self, _frame=frame)

@@ -41,30 +41,22 @@ from stompman.protocol import PROTOCOL_VERSION
 
 @dataclass
 class BaseMockConnection(AbstractConnection):
-    read_timeout: int
-    read_max_chunk_size: int
-    received_connection_parameters: ConnectionParameters
-    received_connect_timeout: int
-
     @classmethod
     async def from_connection_parameters(
         cls,
-        connection_parameters: ConnectionParameters,
-        connect_timeout: int,
-        read_timeout: int,
-        read_max_chunk_size: int,
+        connection_parameters: ConnectionParameters,  # noqa: ARG003
+        connect_timeout: int,  # noqa: ARG003
     ) -> Self | None:
-        return cls(
-            read_timeout=read_timeout,
-            read_max_chunk_size=read_max_chunk_size,
-            received_connection_parameters=connection_parameters,
-            received_connect_timeout=connect_timeout,
-        )
+        return cls()
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
-    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover  # noqa: PLR6301
+    async def read_frames(  # noqa: PLR6301
+        self,
+        read_max_chunk_size: int,  # noqa: ARG002
+        read_timeout: int,  # noqa: ARG002
+    ) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
 
@@ -77,7 +69,11 @@ def create_spying_connection(
         async def write_frame(self, frame: AnyClientFrame) -> None:  # noqa: PLR6301
             collected_frames.append(frame)
 
-        async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:  # noqa: PLR6301
+        async def read_frames(  # noqa: PLR6301
+            self,
+            read_max_chunk_size: int,  # noqa: ARG002
+            read_timeout: int,  # noqa: ARG002
+        ) -> AsyncGenerator[AnyServerFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
@@ -121,20 +117,14 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
     class MockConnection(BaseMockConnection):
         @classmethod
         async def from_connection_parameters(
-            cls,
-            connection_parameters: ConnectionParameters,
-            connect_timeout: int,
-            read_timeout: int,
-            read_max_chunk_size: int,
+            cls, connection_parameters: ConnectionParameters, connect_timeout: int
         ) -> Self | None:
             assert connection_parameters == client.servers[0]
             nonlocal attempts
             attempts += 1
 
             return (
-                await super().from_connection_parameters(
-                    connection_parameters, connect_timeout, read_timeout, read_max_chunk_size
-                )
+                await super().from_connection_parameters(connection_parameters, connect_timeout)
                 if attempts == ok_on_attempt
                 else None
             )
@@ -154,8 +144,6 @@ async def test_client_connect_to_one_server_fails() -> None:
             cls,
             connection_parameters: ConnectionParameters,  # noqa: ARG003
             connect_timeout: int,  # noqa: ARG003
-            read_timeout: int,  # noqa: ARG003
-            read_max_chunk_size: int,  # noqa: ARG003
         ) -> Self | None:
             return None
 
@@ -168,16 +156,10 @@ async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
         async def from_connection_parameters(
-            cls,
-            connection_parameters: ConnectionParameters,
-            connect_timeout: int,
-            read_timeout: int,
-            read_max_chunk_size: int,
+            cls, connection_parameters: ConnectionParameters, connect_timeout: int
         ) -> Self | None:
             return (
-                await super().from_connection_parameters(
-                    connection_parameters, connect_timeout, read_timeout, read_max_chunk_size
-                )
+                await super().from_connection_parameters(connection_parameters, connect_timeout)
                 if connection_parameters.port == successful_server.port
                 else None
             )
@@ -205,8 +187,6 @@ async def test_client_connect_to_any_server_fails() -> None:
             cls,
             connection_parameters: ConnectionParameters,  # noqa: ARG003
             connect_timeout: int,  # noqa: ARG003
-            read_timeout: int,  # noqa: ARG003
-            read_max_chunk_size: int,  # noqa: ARG003
         ) -> Self | None:
             return None
 
