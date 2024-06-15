@@ -128,10 +128,9 @@ class Parser:
 
                     if not self._lines and b"".join(self._current_line) not in COMMANDS_TO_FRAMES:
                         self._reset()
-                        continue
-
-                    self._lines.append(self._current_line)
-                    self._current_line = []
+                    else:
+                        self._lines.append(self._current_line)
+                        self._current_line = []
                 else:
                     yield HeartbeatFrame()
 
