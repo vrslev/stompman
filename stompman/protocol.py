@@ -26,8 +26,6 @@ UNESCAPE_CHARS = {
 }
 NULL = b"\x00"
 NEWLINE = b"\n"
-CARRIAGE = b"\r"
-CARRIAGE_NEWLINE_CARRIAGE_NEWLINE = (CARRIAGE, NEWLINE, CARRIAGE, NEWLINE)
 
 
 def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
