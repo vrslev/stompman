@@ -15,7 +15,7 @@ FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 @dataclass
 class AbstractConnection(Protocol):
     @classmethod
-    async def connect(cls, host: str, port: int, connect_timeout: int) -> Self | None: ...
+    async def connect(cls, host: str, port: int, timeout: int) -> Self | None: ...
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
@@ -28,7 +28,7 @@ class AbstractConnection(Protocol):
                 if isinstance(frame, type_):
                     return frame
 
-
+# TODO: Update readme
 @contextmanager
 def _reraise_connection_lost(*causes: type[Exception]) -> Generator[None, None, None]:
     try:
@@ -43,9 +43,9 @@ class Connection(AbstractConnection):
     writer: asyncio.StreamWriter
 
     @classmethod
-    async def connect(cls, host: str, port: int, connect_timeout: int) -> Self | None:
+    async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
         try:
-            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=connect_timeout)
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
         except (TimeoutError, ConnectionError, socket.gaierror):
             return None
         else:

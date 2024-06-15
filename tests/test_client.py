@@ -45,7 +45,7 @@ class BaseMockConnection(AbstractConnection):
         cls,
         host: str,  # noqa: ARG003
         port: int,  # noqa: ARG003
-        connect_timeout: int,  # noqa: ARG003
+        timeout: int,  # noqa: ARG003
     ) -> Self | None:
         return cls()
 
@@ -128,12 +128,12 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(cls, host: str, port: int, connect_timeout: int) -> Self | None:
+        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
             assert (host, port) == (client.servers[0].host, client.servers[0].port)
             nonlocal attempts
             attempts += 1
 
-            return await super().connect(host, port, connect_timeout) if attempts == ok_on_attempt else None
+            return await super().connect(host, port, timeout) if attempts == ok_on_attempt else None
 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
@@ -150,7 +150,7 @@ async def test_client_connect_to_one_server_fails() -> None:
             cls,
             host: str,  # noqa: ARG003
             port: int,  # noqa: ARG003
-            connect_timeout: int,  # noqa: ARG003
+            timeout: int,  # noqa: ARG003
         ) -> Self | None:
             return None
 
@@ -162,8 +162,8 @@ async def test_client_connect_to_one_server_fails() -> None:
 async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(cls, host: str, port: int, connect_timeout: int) -> Self | None:
-            return await super().connect(host, port, connect_timeout) if port == successful_server.port else None
+        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
+            return await super().connect(host, port, timeout) if port == successful_server.port else None
 
     successful_server = ConnectionParameters("localhost", 10, "login", "pass")
     client = EnrichedClient(
@@ -188,7 +188,7 @@ async def test_client_connect_to_any_server_fails() -> None:
             cls,
             host: str,  # noqa: ARG003
             port: int,  # noqa: ARG003
-            connect_timeout: int,  # noqa: ARG003
+            timeout: int,  # noqa: ARG003
         ) -> Self | None:
             return None
 
