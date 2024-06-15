@@ -1,8 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, NotRequired, TypedDict, TypeVar
-
-HeadersType = TypeVar("HeadersType")
-
+from typing import Literal, NotRequired, TypedDict
 
 ConnectHeaders = TypedDict(
     "ConnectHeaders",
@@ -15,20 +12,6 @@ ConnectHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
-
-
-@dataclass
-class ConnectFrame:
-    headers: ConnectHeaders
-    body: bytes = b""
-
-
-@dataclass
-class StompFrame:
-    headers: ConnectHeaders
-    body: bytes = b""
-
-
 ConnectedHeaders = TypedDict(
     "ConnectedHeaders",
     {
@@ -38,14 +21,6 @@ ConnectedHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
-
-
-@dataclass
-class ConnectedFrame:
-    headers: ConnectedHeaders
-    body: bytes = b""
-
-
 SendHeaders = TypedDict(
     "SendHeaders",
     {
@@ -55,14 +30,6 @@ SendHeaders = TypedDict(
         "transaction": NotRequired[str],
     },
 )
-
-
-@dataclass
-class SendFrame:
-    headers: SendHeaders
-    body: bytes = b""
-
-
 SubscribeHeaders = TypedDict(
     "SubscribeHeaders",
     {
@@ -72,23 +39,13 @@ SubscribeHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
-
-
-@dataclass
-class SubscribeFrame:
-    headers: SubscribeHeaders
-    body: bytes = b""
-
-
-UnsubscribeHeaders = TypedDict("UnsubscribeHeaders", {"id": str, "content-length": NotRequired[str]})
-
-
-@dataclass
-class UnsubscribeFrame:
-    headers: UnsubscribeHeaders
-    body: bytes = b""
-
-
+UnsubscribeHeaders = TypedDict(
+    "UnsubscribeHeaders",
+    {
+        "id": str,
+        "content-length": NotRequired[str],
+    },
+)
 AckHeaders = TypedDict(
     "AckHeaders",
     {
@@ -98,14 +55,6 @@ AckHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
-
-
-@dataclass
-class AckFrame:
-    headers: AckHeaders
-    body: bytes = b""
-
-
 NackHeaders = TypedDict(
     "NackHeaders",
     {
@@ -115,59 +64,41 @@ NackHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
-
-
-@dataclass
-class NackFrame:
-    headers: NackHeaders
-    body: bytes = b""
-
-
-BeginHeaders = TypedDict("BeginHeaders", {"transaction": str, "content-length": NotRequired[str]})
-
-
-@dataclass
-class BeginFrame:
-    headers: BeginHeaders
-    body: bytes = b""
-
-
-CommitHeaders = TypedDict("CommitHeaders", {"transaction": str, "content-length": NotRequired[str]})
-
-
-@dataclass
-class CommitFrame:
-    headers: CommitHeaders
-    body: bytes = b""
-
-
-AbortHeaders = TypedDict("AbortHeaders", {"transaction": str, "content-length": NotRequired[str]})
-
-
-@dataclass
-class AbortFrame:
-    headers: AbortHeaders
-    body: bytes = b""
-
-
-DisconnectHeaders = TypedDict("DisconnectHeaders", {"receipt": NotRequired[str], "content-length": NotRequired[str]})
-
-
-@dataclass
-class DisconnectFrame:
-    headers: DisconnectHeaders
-    body: bytes = b""
-
-
-ReceiptHeaders = TypedDict("ReceiptHeaders", {"receipt-id": str, "content-length": NotRequired[str]})
-
-
-@dataclass
-class ReceiptFrame:
-    headers: ReceiptHeaders
-    body: bytes = b""
-
-
+BeginHeaders = TypedDict(
+    "BeginHeaders",
+    {
+        "transaction": str,
+        "content-length": NotRequired[str],
+    },
+)
+CommitHeaders = TypedDict(
+    "CommitHeaders",
+    {
+        "transaction": str,
+        "content-length": NotRequired[str],
+    },
+)
+AbortHeaders = TypedDict(
+    "AbortHeaders",
+    {
+        "transaction": str,
+        "content-length": NotRequired[str],
+    },
+)
+DisconnectHeaders = TypedDict(
+    "DisconnectHeaders",
+    {
+        "receipt": NotRequired[str],
+        "content-length": NotRequired[str],
+    },
+)
+ReceiptHeaders = TypedDict(
+    "ReceiptHeaders",
+    {
+        "receipt-id": str,
+        "content-length": NotRequired[str],
+    },
+)
 MessageHeaders = TypedDict(
     "MessageHeaders",
     {
@@ -179,17 +110,86 @@ MessageHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
+ErrorHeaders = TypedDict(
+    "ErrorHeaders",
+    {
+        "message": str,
+        "content-length": NotRequired[str],
+        "content-type": NotRequired[str],
+    },
+)
+
+
+@dataclass
+class ConnectFrame:
+    headers: ConnectHeaders
+
+
+@dataclass
+class StompFrame:
+    headers: ConnectHeaders
+
+
+@dataclass
+class ConnectedFrame:
+    headers: ConnectedHeaders
+
+
+@dataclass
+class SendFrame:
+    headers: SendHeaders
+    body: bytes = b""
+
+
+@dataclass
+class SubscribeFrame:
+    headers: SubscribeHeaders
+
+
+@dataclass
+class UnsubscribeFrame:
+    headers: UnsubscribeHeaders
+
+
+@dataclass
+class AckFrame:
+    headers: AckHeaders
+
+
+@dataclass
+class NackFrame:
+    headers: NackHeaders
+
+
+@dataclass
+class BeginFrame:
+    headers: BeginHeaders
+
+
+@dataclass
+class CommitFrame:
+    headers: CommitHeaders
+
+
+@dataclass
+class AbortFrame:
+    headers: AbortHeaders
+
+
+@dataclass
+class DisconnectFrame:
+    headers: DisconnectHeaders
+
+
+@dataclass
+class ReceiptFrame:
+    headers: ReceiptHeaders
 
 
 @dataclass
 class MessageFrame:
     headers: MessageHeaders
-    body: bytes = b""
-
-
-ErrorHeaders = TypedDict(
-    "ErrorHeaders", {"message": str, "content-length": NotRequired[str], "content-type": NotRequired[str]}
-)
+    body: bytes
 
 
 @dataclass
@@ -201,47 +201,6 @@ class ErrorFrame:
 @dataclass
 class HeartbeatFrame: ...
 
-
-COMMANDS_TO_FRAMES: dict[
-    bytes,
-    type[
-        SendFrame
-        | SubscribeFrame
-        | UnsubscribeFrame
-        | BeginFrame
-        | CommitFrame
-        | AbortFrame
-        | AckFrame
-        | NackFrame
-        | DisconnectFrame
-        | ConnectFrame
-        | StompFrame
-        # ...
-        | ConnectedFrame
-        | MessageFrame
-        | ReceiptFrame
-        | ErrorFrame
-    ],
-] = {
-    # Client frames
-    b"SEND": SendFrame,
-    b"SUBSCRIBE": SubscribeFrame,
-    b"UNSUBSCRIBE": UnsubscribeFrame,
-    b"BEGIN": BeginFrame,
-    b"COMMIT": CommitFrame,
-    b"ABORT": AbortFrame,
-    b"ACK": AckFrame,
-    b"NACK": NackFrame,
-    b"DISCONNECT": DisconnectFrame,
-    b"CONNECT": ConnectFrame,
-    b"STOMP": StompFrame,
-    # Server frames
-    b"CONNECTED": ConnectedFrame,
-    b"MESSAGE": MessageFrame,
-    b"RECEIPT": ReceiptFrame,
-    b"ERROR": ErrorFrame,
-}
-FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
 
 AnyClientFrame = (
     SendFrame

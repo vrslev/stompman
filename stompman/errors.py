@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from stompman.connection import ConnectionParameters
+    from stompman.client import ConnectionParameters
 
 
 @dataclass
