@@ -20,11 +20,11 @@ class AbstractConnection(Protocol):
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
-    def read_frames(self, read_max_chunk_size: int, read_timeout: int) -> AsyncGenerator[AnyServerFrame, None]: ...
+    def read_frames(self, max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]: ...
 
-    async def read_frame_of_type(self, type_: type[FrameT], read_max_chunk_size: int, read_timeout: int) -> FrameT:
+    async def read_frame_of_type(self, type_: type[FrameT], max_chunk_size: int, timeout: int) -> FrameT:
         while True:
-            async for frame in self.read_frames(read_max_chunk_size=read_max_chunk_size, read_timeout=read_timeout):
+            async for frame in self.read_frames(max_chunk_size=max_chunk_size, timeout=timeout):
                 if isinstance(frame, type_):
                     return frame
 
@@ -64,19 +64,17 @@ class Connection(AbstractConnection):
         with _reraise_connection_lost(ConnectionError):
             await self.writer.drain()
 
-    async def _read_non_empty_bytes(self, read_max_chunk_size: int) -> bytes:
-        while (chunk := await self.reader.read(read_max_chunk_size)) == b"":  # pragma: no cover (it defenitely happens)
+    async def _read_non_empty_bytes(self, max_chunk_size: int) -> bytes:
+        while (chunk := await self.reader.read(max_chunk_size)) == b"":  # pragma: no cover (it defenitely happens)
             await asyncio.sleep(0)
         return chunk
 
-    async def read_frames(self, read_max_chunk_size: int, read_timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
+    async def read_frames(self, max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
         parser = FrameParser()
 
         while True:
             with _reraise_connection_lost(ConnectionError, TimeoutError):
-                raw_frames = await asyncio.wait_for(
-                    self._read_non_empty_bytes(read_max_chunk_size), timeout=read_timeout
-                )
+                raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(max_chunk_size), timeout=timeout)
 
             for frame in cast(Iterator[AnyServerFrame], parser.parse_frames_from_chunk(raw_frames)):
                 yield frame

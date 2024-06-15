@@ -174,7 +174,7 @@ class Client:
         try:
             connected_frame = await asyncio.wait_for(
                 self._connection.read_frame_of_type(
-                    ConnectedFrame, read_max_chunk_size=self.read_max_chunk_size, read_timeout=self.read_timeout
+                    ConnectedFrame, max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
                 ),
                 timeout=self.connection_confirmation_timeout,
             )
@@ -205,7 +205,7 @@ class Client:
 
         await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
         await self._connection.read_frame_of_type(
-            ReceiptFrame, read_max_chunk_size=self.read_max_chunk_size, read_timeout=self.read_timeout
+            ReceiptFrame, max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
         )
 
     @asynccontextmanager
@@ -221,7 +221,7 @@ class Client:
 
     async def listen(self) -> AsyncIterator[AnyListeningEvent]:
         async for frame in self._connection.read_frames(
-            read_max_chunk_size=self.read_max_chunk_size, read_timeout=self.read_timeout
+            max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
         ):
             match frame:
                 case MessageFrame():

@@ -71,8 +71,8 @@ def create_spying_connection(
 
         async def read_frames(  # noqa: PLR6301
             self,
-            read_max_chunk_size: int,  # noqa: ARG002
-            read_timeout: int,  # noqa: ARG002
+            max_chunk_size: int,  # noqa: ARG002
+            timeout: int,  # noqa: ARG002
         ) -> AsyncGenerator[AnyServerFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
