@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, NamedTuple, Self, TypedDict
+from typing import Any, NamedTuple, Self, TypedDict
 from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection
@@ -26,12 +26,10 @@ from stompman.frames import (
     NackFrame,
     ReceiptFrame,
     SendFrame,
+    SendHeaders,
     SubscribeFrame,
     UnsubscribeFrame,
 )
-
-if TYPE_CHECKING:
-    from stompman.frames import SendHeaders
 
 
 class Heartbeat(NamedTuple):
