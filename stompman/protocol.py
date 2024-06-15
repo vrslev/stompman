@@ -31,6 +31,13 @@ CARRIAGE = b"\r"
 CARRIAGE_NEWLINE_CARRIAGE_NEWLINE = (CARRIAGE, NEWLINE, CARRIAGE, NEWLINE)
 
 
+def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
+    return struct.unpack(f"{len(bytes_)!s}c", bytes_)
+
+
+VALID_COMMANDS = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
+
+
 def dump_header(key: str, value: str) -> bytes:
     escaped_key = "".join(ESCAPE_CHARS.get(char, char) for char in key)
     escaped_value = "".join(ESCAPE_CHARS.get(char, char) for char in value)
@@ -79,7 +86,7 @@ def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
     return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
 
 
-def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnyServerFrame | None:
+def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnyServerFrame:
     command = b"".join(lines.popleft())
     headers = {}
 
@@ -89,16 +96,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
             headers[header[0]] = header[1]
     body = b"".join(lines.popleft()) if lines else b""
 
-    if known_frame_type := COMMANDS_TO_FRAMES.get(command):
-        return known_frame_type(headers=cast(Any, headers), body=body)
-    return None
-
-
-def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
-    return struct.unpack(f"{len(bytes_)!s}c", bytes_)
-
-
-VALID_COMMANDS = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
+    return COMMANDS_TO_FRAMES[command](headers=cast(Any, headers), body=body)
 
 
 @dataclass
@@ -121,8 +119,7 @@ class Parser:
             if byte == NULL:
                 if self._headers_processed:
                     self._lines.append(self._current_line)
-                    if parsed_frame := parse_lines_into_frame(self._lines):
-                        yield parsed_frame
+                    yield parse_lines_into_frame(self._lines)
                 self._reset()
 
             elif not self._headers_processed and byte == NEWLINE:
