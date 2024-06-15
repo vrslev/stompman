@@ -16,7 +16,6 @@ FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 class AbstractConnection(Protocol):
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None: ...
-
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
@@ -27,6 +26,7 @@ class AbstractConnection(Protocol):
             async for frame in self.read_frames(max_chunk_size=max_chunk_size, timeout=timeout):
                 if isinstance(frame, type_):
                     return frame
+
 
 # TODO: Update readme
 @contextmanager
