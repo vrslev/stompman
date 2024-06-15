@@ -26,6 +26,7 @@ from stompman.frames import (
 )
 
 NEWLINE: Final = b"\n"
+CARRIAGE: Final = b"\r"
 NULL: Final = b"\x00"
 HEADER_ESCAPE_CHARS: Final = {
     "\n": "\\n",
@@ -160,7 +161,7 @@ class FrameParser:
 
             elif not self._headers_processed and byte == NEWLINE:
                 if self._current_line or self._lines:
-                    if self._previous_byte == b"\r":
+                    if self._previous_byte == CARRIAGE:
                         self._current_line.pop()
                     self._headers_processed = not self._current_line  # extra empty line after headers
 
