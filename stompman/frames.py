@@ -87,7 +87,7 @@ class ReceiptFrame:
 @dataclass
 class MessageFrame:
     headers: MessageHeaders
-    body: bytes = b""
+    body: bytes
 
 
 @dataclass
