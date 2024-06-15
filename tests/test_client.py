@@ -44,7 +44,8 @@ class BaseMockConnection(AbstractConnection):
     @classmethod
     async def from_connection_parameters(
         cls,
-        connection_parameters: ConnectionParameters,  # noqa: ARG003
+        host: str,  # noqa: ARG003
+        port: int,  # noqa: ARG003
         connect_timeout: int,  # noqa: ARG003
     ) -> Self | None:
         return cls()
@@ -116,15 +117,13 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def from_connection_parameters(
-            cls, connection_parameters: ConnectionParameters, connect_timeout: int
-        ) -> Self | None:
-            assert connection_parameters == client.servers[0]
+        async def from_connection_parameters(cls, host: str, port: int, connect_timeout: int) -> Self | None:
+            assert (host, port) == (client.servers[0].host, client.servers[0].port)
             nonlocal attempts
             attempts += 1
 
             return (
-                await super().from_connection_parameters(connection_parameters, connect_timeout)
+                await super().from_connection_parameters(host, port, connect_timeout)
                 if attempts == ok_on_attempt
                 else None
             )
@@ -142,7 +141,8 @@ async def test_client_connect_to_one_server_fails() -> None:
         @classmethod
         async def from_connection_parameters(
             cls,
-            connection_parameters: ConnectionParameters,  # noqa: ARG003
+            host: str,  # noqa: ARG003
+            port: int,  # noqa: ARG003
             connect_timeout: int,  # noqa: ARG003
         ) -> Self | None:
             return None
@@ -155,12 +155,10 @@ async def test_client_connect_to_one_server_fails() -> None:
 async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def from_connection_parameters(
-            cls, connection_parameters: ConnectionParameters, connect_timeout: int
-        ) -> Self | None:
+        async def from_connection_parameters(cls, host: str, port: int, connect_timeout: int) -> Self | None:
             return (
-                await super().from_connection_parameters(connection_parameters, connect_timeout)
-                if connection_parameters.port == successful_server.port
+                await super().from_connection_parameters(host, port, connect_timeout)
+                if port == successful_server.port
                 else None
             )
 
@@ -185,7 +183,8 @@ async def test_client_connect_to_any_server_fails() -> None:
         @classmethod
         async def from_connection_parameters(
             cls,
-            connection_parameters: ConnectionParameters,  # noqa: ARG003
+            host: str,  # noqa: ARG003
+            port: int,  # noqa: ARG003
             connect_timeout: int,  # noqa: ARG003
         ) -> Self | None:
             return None

@@ -19,10 +19,7 @@ from stompman.frames import BeginFrame, CommitFrame
 
 
 async def make_connection() -> Connection | None:
-    return await Connection.from_connection_parameters(
-        connection_parameters=ConnectionParameters("localhost", 12345, login="login", passcode="passcode"),
-        connect_timeout=2,
-    )
+    return await Connection.from_connection_parameters(host="localhost", port=12345, connect_timeout=2)
 
 
 def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:

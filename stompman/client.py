@@ -77,7 +77,7 @@ class Client:
     ) -> tuple[AbstractConnection, ConnectionParameters] | None:
         for attempt in range(self.connect_retry_attempts):
             if connection := await self.connection_class.from_connection_parameters(
-                connection_parameters=server, connect_timeout=self.connect_timeout
+                host=server.host, port=server.port, connect_timeout=self.connect_timeout
             ):
                 return connection, server
             await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
