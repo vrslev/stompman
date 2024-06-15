@@ -110,7 +110,6 @@ class Client:
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
-
     _connection: AbstractConnection = field(init=False)
     _connection_parameters: ConnectionParameters = field(init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
