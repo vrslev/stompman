@@ -114,7 +114,7 @@ class Client:
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> Self:
-        self._connection, self._connection_parameters = await self._connect_to_any_server()
+        await self._connect_to_any_server()
         await self._exit_stack.enter_async_context(self._connection_lifespan())
         return self
 
@@ -135,13 +135,14 @@ class Client:
             await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
         return None
 
-    async def _connect_to_any_server(self) -> tuple[AbstractConnection, ConnectionParameters]:
+    async def _connect_to_any_server(self) -> None:
         for maybe_connection_future in asyncio.as_completed(
             [self._connect_to_one_server(server) for server in self.servers]
         ):
             maybe_result = await maybe_connection_future
             if maybe_result:
-                return maybe_result
+                self._connection, self._connection_parameters = maybe_result
+                return
         raise FailedAllConnectAttemptsError(
             servers=self.servers,
             retry_attempts=self.connect_retry_attempts,

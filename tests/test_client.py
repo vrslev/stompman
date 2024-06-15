@@ -175,9 +175,9 @@ async def test_client_connect_to_any_server_ok() -> None:
         ],
         connection_class=MockConnection,
     )
-    connection, connection_parameters = await client._connect_to_any_server()
-    assert connection
-    assert connection_parameters == successful_server
+    await client._connect_to_any_server()
+    assert client._connection
+    assert client._connection_parameters == successful_server
 
 
 @pytest.mark.usefixtures("mock_sleep")
