@@ -1,4 +1,12 @@
-from stompman.client import Client, ConnectionParameters, Heartbeat
+from stompman.client import (
+    AnyListeningEvent,
+    Client,
+    ConnectionParameters,
+    ErrorEvent,
+    Heartbeat,
+    HeartbeatEvent,
+    MessageEvent,
+)
 from stompman.connection import AbstractConnection, Connection
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
@@ -26,7 +34,6 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent
 
 __all__ = [
     "AbortFrame",

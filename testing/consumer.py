@@ -12,7 +12,7 @@ async def main() -> None:
         async for event in client.listen():
             print(event)  # noqa: T201
             match event:
-                case stompman.MessageEvent():
+                case stompman.client.MessageEvent():
                     await event.ack()
 
 

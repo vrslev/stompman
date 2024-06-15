@@ -21,12 +21,9 @@ from stompman import (
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
     DisconnectFrame,
-    ErrorEvent,
     ErrorFrame,
     FailedAllConnectAttemptsError,
-    HeartbeatEvent,
     HeartbeatFrame,
-    MessageEvent,
     MessageFrame,
     NackFrame,
     ReceiptFrame,
@@ -35,7 +32,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.client import PROTOCOL_VERSION, ConnectionParameters
+from stompman.client import PROTOCOL_VERSION, ConnectionParameters, ErrorEvent, HeartbeatEvent, MessageEvent
 
 
 @dataclass
