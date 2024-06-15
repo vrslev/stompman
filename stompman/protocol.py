@@ -5,14 +5,24 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from stompman.frames import (
-    COMMANDS_TO_FRAMES,
-    FRAMES_TO_COMMANDS,
+    AbortFrame,
+    AckFrame,
     AnyClientFrame,
     AnyServerFrame,
+    BeginFrame,
+    CommitFrame,
+    ConnectedFrame,
+    ConnectFrame,
+    DisconnectFrame,
     ErrorFrame,
     HeartbeatFrame,
     MessageFrame,
+    NackFrame,
+    ReceiptFrame,
     SendFrame,
+    StompFrame,
+    SubscribeFrame,
+    UnsubscribeFrame,
 )
 
 ESCAPE_CHARS = {
@@ -29,13 +39,33 @@ UNESCAPE_CHARS = {
 }
 NULL = b"\x00"
 NEWLINE = b"\n"
-FRAMES_WITH_BODY = (SendFrame, MessageFrame, ErrorFrame)
 
 
 def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
     return struct.unpack(f"{len(bytes_)!s}c", bytes_)
 
 
+COMMANDS_TO_FRAMES: dict[bytes, type[AnyClientFrame | AnyServerFrame]] = {
+    # Client frames
+    b"SEND": SendFrame,
+    b"SUBSCRIBE": SubscribeFrame,
+    b"UNSUBSCRIBE": UnsubscribeFrame,
+    b"BEGIN": BeginFrame,
+    b"COMMIT": CommitFrame,
+    b"ABORT": AbortFrame,
+    b"ACK": AckFrame,
+    b"NACK": NackFrame,
+    b"DISCONNECT": DisconnectFrame,
+    b"CONNECT": ConnectFrame,
+    b"STOMP": StompFrame,
+    # Server frames
+    b"CONNECTED": ConnectedFrame,
+    b"MESSAGE": MessageFrame,
+    b"RECEIPT": ReceiptFrame,
+    b"ERROR": ErrorFrame,
+}
+FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
+FRAMES_WITH_BODY = (SendFrame, MessageFrame, ErrorFrame)
 VALID_COMMANDS = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
 
 

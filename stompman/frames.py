@@ -114,25 +114,3 @@ AnyClientFrame = (
     | StompFrame
 )
 AnyServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
-
-
-COMMANDS_TO_FRAMES: dict[bytes, type[AnyClientFrame | AnyServerFrame]] = {
-    # Client frames
-    b"SEND": SendFrame,
-    b"SUBSCRIBE": SubscribeFrame,
-    b"UNSUBSCRIBE": UnsubscribeFrame,
-    b"BEGIN": BeginFrame,
-    b"COMMIT": CommitFrame,
-    b"ABORT": AbortFrame,
-    b"ACK": AckFrame,
-    b"NACK": NackFrame,
-    b"DISCONNECT": DisconnectFrame,
-    b"CONNECT": ConnectFrame,
-    b"STOMP": StompFrame,
-    # Server frames
-    b"CONNECTED": ConnectedFrame,
-    b"MESSAGE": MessageFrame,
-    b"RECEIPT": ReceiptFrame,
-    b"ERROR": ErrorFrame,
-}
-FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}

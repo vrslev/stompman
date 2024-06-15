@@ -38,7 +38,13 @@ SubscribeHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
-UnsubscribeHeaders = TypedDict("UnsubscribeHeaders", {"id": str, "content-length": NotRequired[str]})
+UnsubscribeHeaders = TypedDict(
+    "UnsubscribeHeaders",
+    {
+        "id": str,
+        "content-length": NotRequired[str],
+    },
+)
 AckHeaders = TypedDict(
     "AckHeaders",
     {
@@ -57,11 +63,41 @@ NackHeaders = TypedDict(
         "content-length": NotRequired[str],
     },
 )
-BeginHeaders = TypedDict("BeginHeaders", {"transaction": str, "content-length": NotRequired[str]})
-CommitHeaders = TypedDict("CommitHeaders", {"transaction": str, "content-length": NotRequired[str]})
-AbortHeaders = TypedDict("AbortHeaders", {"transaction": str, "content-length": NotRequired[str]})
-DisconnectHeaders = TypedDict("DisconnectHeaders", {"receipt": NotRequired[str], "content-length": NotRequired[str]})
-ReceiptHeaders = TypedDict("ReceiptHeaders", {"receipt-id": str, "content-length": NotRequired[str]})
+BeginHeaders = TypedDict(
+    "BeginHeaders",
+    {
+        "transaction": str,
+        "content-length": NotRequired[str],
+    },
+)
+CommitHeaders = TypedDict(
+    "CommitHeaders",
+    {
+        "transaction": str,
+        "content-length": NotRequired[str],
+    },
+)
+AbortHeaders = TypedDict(
+    "AbortHeaders",
+    {
+        "transaction": str,
+        "content-length": NotRequired[str],
+    },
+)
+DisconnectHeaders = TypedDict(
+    "DisconnectHeaders",
+    {
+        "receipt": NotRequired[str],
+        "content-length": NotRequired[str],
+    },
+)
+ReceiptHeaders = TypedDict(
+    "ReceiptHeaders",
+    {
+        "receipt-id": str,
+        "content-length": NotRequired[str],
+    },
+)
 MessageHeaders = TypedDict(
     "MessageHeaders",
     {
@@ -74,5 +110,10 @@ MessageHeaders = TypedDict(
     },
 )
 ErrorHeaders = TypedDict(
-    "ErrorHeaders", {"message": str, "content-length": NotRequired[str], "content-type": NotRequired[str]}
+    "ErrorHeaders",
+    {
+        "message": str,
+        "content-length": NotRequired[str],
+        "content-type": NotRequired[str],
+    },
 )
