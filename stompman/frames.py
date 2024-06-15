@@ -199,27 +199,23 @@ class ErrorFrame:
 class HeartbeatFrame: ...
 
 
-COMMANDS_TO_FRAMES: dict[
-    bytes,
-    type[
-        SendFrame
-        | SubscribeFrame
-        | UnsubscribeFrame
-        | BeginFrame
-        | CommitFrame
-        | AbortFrame
-        | AckFrame
-        | NackFrame
-        | DisconnectFrame
-        | ConnectFrame
-        | StompFrame
-        # ...
-        | ConnectedFrame
-        | MessageFrame
-        | ReceiptFrame
-        | ErrorFrame
-    ],
-] = {
+AnyClientFrame = (
+    SendFrame
+    | SubscribeFrame
+    | UnsubscribeFrame
+    | BeginFrame
+    | CommitFrame
+    | AbortFrame
+    | AckFrame
+    | NackFrame
+    | DisconnectFrame
+    | ConnectFrame
+    | StompFrame
+)
+AnyServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
+
+
+COMMANDS_TO_FRAMES: dict[bytes, type[AnyClientFrame | AnyServerFrame]] = {
     # Client frames
     b"SEND": SendFrame,
     b"SUBSCRIBE": SubscribeFrame,
@@ -239,18 +235,3 @@ COMMANDS_TO_FRAMES: dict[
     b"ERROR": ErrorFrame,
 }
 FRAMES_TO_COMMANDS = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
-
-AnyClientFrame = (
-    SendFrame
-    | SubscribeFrame
-    | UnsubscribeFrame
-    | BeginFrame
-    | CommitFrame
-    | AbortFrame
-    | AckFrame
-    | NackFrame
-    | DisconnectFrame
-    | ConnectFrame
-    | StompFrame
-)
-AnyServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
