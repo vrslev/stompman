@@ -8,7 +8,7 @@ from stompman import (
     MessageFrame,
 )
 from stompman.frames import AckFrame, AnyClientFrame, AnyServerFrame
-from stompman.protocol import FrameParser, dump_frame
+from stompman.frame_serde import FrameParser, dump_frame
 
 
 @pytest.mark.parametrize(

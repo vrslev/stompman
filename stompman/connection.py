@@ -7,7 +7,7 @@ from typing import Protocol, Self, TypeVar, cast
 
 from stompman.errors import ConnectionLostError
 from stompman.frames import AnyClientFrame, AnyServerFrame
-from stompman.protocol import NEWLINE, FrameParser, dump_frame
+from stompman.frame_serde import NEWLINE, FrameParser, dump_frame
 
 FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 
