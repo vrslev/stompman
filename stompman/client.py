@@ -210,31 +210,6 @@ class Client:
         )
 
     @asynccontextmanager
-    async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
-        subscription_id = str(uuid4())
-        await self._connection.write_frame(
-            SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
-        )
-        try:
-            yield
-        finally:
-            await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
-
-    async def listen(self) -> AsyncIterator["AnyListeningEvent"]:
-        async for frame in self._connection.read_frames(
-            max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-        ):
-            match frame:
-                case MessageFrame():
-                    yield MessageEvent(_client=self, _frame=frame)
-                case ErrorFrame():
-                    yield ErrorEvent(_client=self, _frame=frame)
-                case HeartbeatFrame():
-                    yield HeartbeatEvent(_client=self, _frame=frame)
-                case ConnectedFrame() | ReceiptFrame():
-                    raise AssertionError("Should be unreachable! Report the issue.", frame)
-
-    @asynccontextmanager
     async def enter_transaction(self) -> AsyncGenerator[str, None]:
         transaction_id = str(uuid4())
         await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
@@ -263,6 +238,31 @@ class Client:
         if transaction is not None:
             full_headers["transaction"] = transaction
         await self._connection.write_frame(SendFrame(headers=full_headers, body=body))
+
+    @asynccontextmanager
+    async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
+        subscription_id = str(uuid4())
+        await self._connection.write_frame(
+            SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
+        )
+        try:
+            yield
+        finally:
+            await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
+
+    async def listen(self) -> AsyncIterator["AnyListeningEvent"]:
+        async for frame in self._connection.read_frames(
+            max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
+        ):
+            match frame:
+                case MessageFrame():
+                    yield MessageEvent(_client=self, _frame=frame)
+                case ErrorFrame():
+                    yield ErrorEvent(_client=self, _frame=frame)
+                case HeartbeatFrame():
+                    yield HeartbeatEvent(_client=self, _frame=frame)
+                case ConnectedFrame() | ReceiptFrame():
+                    raise AssertionError("Should be unreachable! Report the issue.", frame)
 
 
 @dataclass
