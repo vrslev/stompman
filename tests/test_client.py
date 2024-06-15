@@ -111,6 +111,18 @@ def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
     monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())
 
 
+def test_connection_parameters_from_pydantic_multihost_hosts() -> None:
+    full_host: dict[str, Any] = {"username": "me", "password": "pass", "host": "localhost", "port": 1234}
+    assert ConnectionParameters.from_pydantic_multihost_hosts([{**full_host, "port": index} for index in range(5)]) == [  # type: ignore[typeddict-item]
+        ConnectionParameters(full_host["host"], index, full_host["username"], full_host["password"])
+        for index in range(5)
+    ]
+
+    for key in ("username", "password", "host", "port"):
+        with pytest.raises(ValueError, match=f"{key} must be set"):
+            assert ConnectionParameters.from_pydantic_multihost_hosts([{**full_host, key: None}, full_host])  # type: ignore[typeddict-item, list-item]
+
+
 @pytest.mark.parametrize("ok_on_attempt", [1, 2, 3])
 async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.MonkeyPatch) -> None:
     attempts = 0

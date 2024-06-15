@@ -14,7 +14,6 @@ from stompman import (
     ConnectionLostError,
     HeartbeatFrame,
 )
-from stompman.client import ConnectionParameters
 from stompman.frames import BeginFrame, CommitFrame
 
 
@@ -28,18 +27,6 @@ def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
 
     original_wait_for = asyncio.wait_for
     monkeypatch.setattr("asyncio.wait_for", mock_impl)
-
-
-def test_connection_parameters_from_pydantic_multihost_hosts() -> None:
-    full_host: dict[str, Any] = {"username": "me", "password": "pass", "host": "localhost", "port": 1234}
-    assert ConnectionParameters.from_pydantic_multihost_hosts([{**full_host, "port": index} for index in range(5)]) == [  # type: ignore[typeddict-item]
-        ConnectionParameters(full_host["host"], index, full_host["username"], full_host["password"])
-        for index in range(5)
-    ]
-
-    for key in ("username", "password", "host", "port"):
-        with pytest.raises(ValueError, match=f"{key} must be set"):
-            assert ConnectionParameters.from_pydantic_multihost_hosts([{**full_host, key: None}, full_host])  # type: ignore[typeddict-item, list-item]
 
 
 async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
