@@ -21,19 +21,16 @@ from stompman.frame_headers import (
 @dataclass
 class ConnectFrame:
     headers: ConnectHeaders
-    body: bytes = b""
 
 
 @dataclass
 class StompFrame:
     headers: ConnectHeaders
-    body: bytes = b""
 
 
 @dataclass
 class ConnectedFrame:
     headers: ConnectedHeaders
-    body: bytes = b""
 
 
 @dataclass
@@ -45,55 +42,46 @@ class SendFrame:
 @dataclass
 class SubscribeFrame:
     headers: SubscribeHeaders
-    body: bytes = b""
 
 
 @dataclass
 class UnsubscribeFrame:
     headers: UnsubscribeHeaders
-    body: bytes = b""
 
 
 @dataclass
 class AckFrame:
     headers: AckHeaders
-    body: bytes = b""
 
 
 @dataclass
 class NackFrame:
     headers: NackHeaders
-    body: bytes = b""
 
 
 @dataclass
 class BeginFrame:
     headers: BeginHeaders
-    body: bytes = b""
 
 
 @dataclass
 class CommitFrame:
     headers: CommitHeaders
-    body: bytes = b""
 
 
 @dataclass
 class AbortFrame:
     headers: AbortHeaders
-    body: bytes = b""
 
 
 @dataclass
 class DisconnectFrame:
     headers: DisconnectHeaders
-    body: bytes = b""
 
 
 @dataclass
 class ReceiptFrame:
     headers: ReceiptHeaders
-    body: bytes = b""
 
 
 @dataclass

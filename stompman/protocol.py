@@ -46,13 +46,12 @@ def dump_header(key: str, value: str) -> bytes:
 
 
 def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
-    frame_type = type(frame)
     lines = (
-        FRAMES_TO_COMMANDS[frame_type],
+        FRAMES_TO_COMMANDS[type(frame)],
         NEWLINE,
         *(dump_header(key, cast(str, value)) for key, value in sorted(frame.headers.items())),
         NEWLINE,
-        frame.body if frame_type in FRAMES_WITH_BODY else b"",
+        frame.body if isinstance(frame, FRAMES_WITH_BODY) else b"",
         NULL,
     )
     return b"".join(lines)
@@ -98,7 +97,12 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
             headers[header[0]] = header[1]
     body = b"".join(lines.popleft()) if lines else b""
 
-    return COMMANDS_TO_FRAMES[command](headers=cast(Any, headers), body=body)
+    frame_type = COMMANDS_TO_FRAMES[command]
+    return (
+        frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
+        if frame_type in FRAMES_WITH_BODY
+        else frame_type(headers=cast(Any, headers))
+    )
 
 
 @dataclass

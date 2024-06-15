@@ -192,7 +192,7 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
         (b"CONNECTED\n", []),
         (b"CONNECTED\x00", []),
         # \r\n after command
-        (b"CONNECTED\r\n\n\n\x00", [ConnectedFrame(headers={}, body=b"\n")]),
+        (b"CONNECTED\r\n\n\n\x00", [ConnectedFrame(headers={})]),
         (b"CONNECTED\r\nheader:1.0\n\n\x00", [ConnectedFrame(headers={"header": "1.0"})]),
         # header without :
         (b"CONNECTED\nhead\nheader:1.1\n\n\x00", [ConnectedFrame(headers={"header": "1.1"})]),
@@ -217,9 +217,9 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
             b"whatever\nWHATEVER\nheader:1.1\n\n\x00CONNECTED\nheader:1.1\n\n\x00\nwhatever\nCONNECTED\nheader:1.2\n\n\x00",
             [
                 HeartbeatFrame(),
-                ConnectedFrame(headers={"header": "1.1"}, body=b""),
+                ConnectedFrame(headers={"header": "1.1"}),
                 HeartbeatFrame(),
-                ConnectedFrame(headers={"header": "1.2"}, body=b""),
+                ConnectedFrame(headers={"header": "1.2"}),
             ],
         ),
     ],
