@@ -35,8 +35,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.client import ConnectionParameters
-from stompman.protocol import PROTOCOL_VERSION
+from stompman.client import PROTOCOL_VERSION, ConnectionParameters
 
 
 @dataclass

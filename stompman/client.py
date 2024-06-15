@@ -29,7 +29,6 @@ from stompman.frames import (
     UnsubscribeFrame,
 )
 from stompman.listening_events import AnyListeningEvent, ErrorEvent, HeartbeatEvent, MessageEvent
-from stompman.protocol import PROTOCOL_VERSION
 
 
 class Heartbeat(NamedTuple):
@@ -93,6 +92,9 @@ class ConnectionParameters:
                 raise ValueError("password must be set")
             servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
         return servers
+
+
+PROTOCOL_VERSION = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
 
 
 @dataclass
