@@ -8,7 +8,7 @@ from stompman import (
     MessageFrame,
 )
 from stompman.frames import AckFrame, AnyClientFrame, AnyServerFrame
-from stompman.protocol import Parser, dump_frame
+from stompman.protocol import FrameParser, dump_frame
 
 
 @pytest.mark.parametrize(
@@ -231,4 +231,4 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> None:
-    assert list(Parser().load_frames(raw_frames)) == loaded_frames
+    assert list(FrameParser().parse_frames_from_chunk(raw_frames)) == loaded_frames

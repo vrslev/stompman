@@ -7,7 +7,7 @@ from typing import Protocol, Self, TypeVar, cast
 
 from stompman.errors import ConnectionLostError
 from stompman.frames import AnyClientFrame, AnyServerFrame
-from stompman.protocol import NEWLINE, Parser, dump_frame
+from stompman.protocol import NEWLINE, FrameParser, dump_frame
 
 FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 
@@ -70,7 +70,7 @@ class Connection(AbstractConnection):
         return chunk
 
     async def read_frames(self, read_max_chunk_size: int, read_timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
-        parser = Parser()
+        parser = FrameParser()
 
         while True:
             with _reraise_connection_lost(ConnectionError, TimeoutError):
@@ -78,5 +78,5 @@ class Connection(AbstractConnection):
                     self._read_non_empty_bytes(read_max_chunk_size), timeout=read_timeout
                 )
 
-            for frame in cast(Iterator[AnyServerFrame], parser.load_frames(raw_frames)):
+            for frame in cast(Iterator[AnyServerFrame], parser.parse_frames_from_chunk(raw_frames)):
                 yield frame

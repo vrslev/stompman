@@ -97,7 +97,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
 
 
 @dataclass
-class Parser:
+class FrameParser:
     _lines: deque[list[bytes]] = field(default_factory=deque, init=False)
     _current_line: list[bytes] = field(default_factory=list, init=False)
     _previous_byte: bytes = field(default=b"", init=False)
@@ -108,8 +108,8 @@ class Parser:
         self._lines.clear()
         self._current_line = []
 
-    def load_frames(self, raw_frames: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
-        buffer = deque(iter_bytes(raw_frames))
+    def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
+        buffer = deque(iter_bytes(chunk))
         while buffer:
             byte = buffer.popleft()
 
