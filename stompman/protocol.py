@@ -94,6 +94,13 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
     return None
 
 
+def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
+    return struct.unpack(f"{len(bytes_)!s}c", bytes_)
+
+
+VALID_COMMANDS = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
+
+
 @dataclass
 class Parser:
     _lines: deque[list[bytes]] = field(default_factory=deque, init=False)
@@ -107,7 +114,7 @@ class Parser:
         self._current_line = []
 
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
-        buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
+        buffer = deque(iter_bytes(raw_frames))
         while buffer:
             byte = buffer.popleft()
 
@@ -122,10 +129,9 @@ class Parser:
                 if self._current_line or self._lines:
                     if self._previous_byte == b"\r":
                         self._current_line.pop()
-                    if not self._current_line:  # extra empty line after headers
-                        self._headers_processed = True
+                    self._headers_processed = not self._current_line  # extra empty line after headers
 
-                    if not self._lines and b"".join(self._current_line) not in COMMANDS_TO_FRAMES:
+                    if not self._lines and self._current_line not in VALID_COMMANDS:
                         self._reset()
                     else:
                         self._lines.append(self._current_line)
