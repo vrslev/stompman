@@ -2,63 +2,12 @@ import asyncio
 import socket
 from collections.abc import AsyncGenerator, Generator, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import Protocol, Self, TypedDict, TypeVar, cast
+from dataclasses import dataclass
+from typing import Protocol, Self, TypeVar, cast
 
 from stompman.errors import ConnectionLostError
 from stompman.frames import AnyClientFrame, AnyServerFrame
 from stompman.protocol import NEWLINE, Parser, dump_frame
-
-
-class MultiHostHostLike(TypedDict):
-    username: str | None
-    password: str | None
-    host: str | None
-    port: int | None
-
-
-@dataclass
-class ConnectionParameters:
-    host: str
-    port: int
-    login: str
-    passcode: str = field(repr=False)
-
-    @classmethod
-    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
-        """Create connection parameters from a list of `MultiHostUrl` objects.
-
-        .. code-block:: python
-        import stompman.
-
-        ArtemisDsn = typing.Annotated[
-            pydantic_core.MultiHostUrl,
-            pydantic.UrlConstraints(
-                host_required=True,
-                allowed_schemes=["tcp"],
-            ),
-        ]
-
-        async with stompman.Client(
-            servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-                ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
-            ),
-        ):
-            ...
-        """
-        servers: list[Self] = []
-        for host in hosts:
-            if host["host"] is None:
-                raise ValueError("host must be set")
-            if host["port"] is None:
-                raise ValueError("port must be set")
-            if host["username"] is None:
-                raise ValueError("username must be set")
-            if host["password"] is None:
-                raise ValueError("password must be set")
-            servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
-        return servers
-
 
 FrameT = TypeVar("FrameT", bound=AnyClientFrame | AnyServerFrame)
 

@@ -1,5 +1,5 @@
-from stompman.client import Client, Heartbeat
-from stompman.connection import AbstractConnection, Connection, ConnectionParameters
+from stompman.client import Client, ConnectionParameters, Heartbeat
+from stompman.connection import AbstractConnection, Connection
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
     ConnectionLostError,

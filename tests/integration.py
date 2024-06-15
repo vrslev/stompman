@@ -3,10 +3,13 @@ import os
 from uuid import uuid4
 
 import stompman
+import stompman.client
 
 
 async def test_integration() -> None:
-    server = stompman.ConnectionParameters(host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="admin")
+    server = stompman.client.ConnectionParameters(
+        host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="admin"
+    )
     destination = "DLQ"
     messages = [str(uuid4()).encode() for _ in range(10000)]
 

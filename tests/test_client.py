@@ -20,7 +20,6 @@ from stompman import (
     ConnectedFrame,
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
-    ConnectionParameters,
     DisconnectFrame,
     ErrorEvent,
     ErrorFrame,
@@ -36,6 +35,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
+from stompman.client import ConnectionParameters
 from stompman.protocol import PROTOCOL_VERSION
 
 

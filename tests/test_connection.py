@@ -12,9 +12,9 @@ from stompman import (
     ConnectedFrame,
     Connection,
     ConnectionLostError,
-    ConnectionParameters,
     HeartbeatFrame,
 )
+from stompman.client import ConnectionParameters
 from stompman.frames import BeginFrame, CommitFrame
 
 

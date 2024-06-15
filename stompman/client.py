@@ -3,10 +3,10 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import NamedTuple, Self
+from typing import NamedTuple, Self, TypedDict
 from uuid import uuid4
 
-from stompman.connection import AbstractConnection, Connection, ConnectionParameters
+from stompman.connection import AbstractConnection, Connection
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
     FailedAllConnectAttemptsError,
@@ -43,6 +43,56 @@ class Heartbeat(NamedTuple):
     def from_header(cls, header: str) -> Self:
         first, second = header.split(",", maxsplit=1)
         return cls(int(first), int(second))
+
+
+class MultiHostHostLike(TypedDict):
+    username: str | None
+    password: str | None
+    host: str | None
+    port: int | None
+
+
+@dataclass
+class ConnectionParameters:
+    host: str
+    port: int
+    login: str
+    passcode: str = field(repr=False)
+
+    @classmethod
+    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
+        """Create connection parameters from a list of `MultiHostUrl` objects.
+
+        .. code-block:: python
+        import stompman.
+
+        ArtemisDsn = typing.Annotated[
+            pydantic_core.MultiHostUrl,
+            pydantic.UrlConstraints(
+                host_required=True,
+                allowed_schemes=["tcp"],
+            ),
+        ]
+
+        async with stompman.Client(
+            servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+                ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
+            ),
+        ):
+            ...
+        """
+        servers: list[Self] = []
+        for host in hosts:
+            if host["host"] is None:
+                raise ValueError("host must be set")
+            if host["port"] is None:
+                raise ValueError("port must be set")
+            if host["username"] is None:
+                raise ValueError("username must be set")
+            if host["password"] is None:
+                raise ValueError("password must be set")
+            servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
+        return servers
 
 
 @dataclass
