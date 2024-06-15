@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Awaitable
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Self
 from unittest import mock
 
 import pytest
@@ -41,13 +41,25 @@ from stompman.protocol import PROTOCOL_VERSION
 
 @dataclass
 class BaseMockConnection(AbstractConnection):
-    connection_parameters: ConnectionParameters
-    connect_timeout: int
     read_timeout: int
     read_max_chunk_size: int
+    received_connection_parameters: ConnectionParameters
+    received_connect_timeout: int
 
-    async def connect(self) -> bool:  # noqa: PLR6301
-        return True
+    @classmethod
+    async def from_connection_parameters(
+        cls,
+        connection_parameters: ConnectionParameters,
+        connect_timeout: int,
+        read_timeout: int,
+        read_max_chunk_size: int,
+    ) -> Self | None:
+        return cls(
+            read_timeout=read_timeout,
+            read_max_chunk_size=read_max_chunk_size,
+            received_connection_parameters=connection_parameters,
+            received_connect_timeout=connect_timeout,
+        )
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
@@ -107,11 +119,25 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
     attempts = 0
 
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> bool:
-            assert self.connection_parameters == client.servers[0]
+        @classmethod
+        async def from_connection_parameters(
+            cls,
+            connection_parameters: ConnectionParameters,
+            connect_timeout: int,
+            read_timeout: int,
+            read_max_chunk_size: int,
+        ) -> Self | None:
+            assert connection_parameters == client.servers[0]
             nonlocal attempts
             attempts += 1
-            return attempts == ok_on_attempt
+
+            return (
+                await super().from_connection_parameters(
+                    connection_parameters, connect_timeout, read_timeout, read_max_chunk_size
+                )
+                if attempts == ok_on_attempt
+                else None
+            )
 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
@@ -123,8 +149,15 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_one_server_fails() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> bool:  # noqa: PLR6301
-            return False
+        @classmethod
+        async def from_connection_parameters(
+            cls,
+            connection_parameters: ConnectionParameters,  # noqa: ARG003
+            connect_timeout: int,  # noqa: ARG003
+            read_timeout: int,  # noqa: ARG003
+            read_max_chunk_size: int,  # noqa: ARG003
+        ) -> Self | None:
+            return None
 
     client = EnrichedClient(connection_class=MockConnection)
     assert await client._connect_to_one_server(client.servers[0]) is None
@@ -133,8 +166,21 @@ async def test_client_connect_to_one_server_fails() -> None:
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> bool:
-            return self.connection_parameters.port == successful_server.port
+        @classmethod
+        async def from_connection_parameters(
+            cls,
+            connection_parameters: ConnectionParameters,
+            connect_timeout: int,
+            read_timeout: int,
+            read_max_chunk_size: int,
+        ) -> Self | None:
+            return (
+                await super().from_connection_parameters(
+                    connection_parameters, connect_timeout, read_timeout, read_max_chunk_size
+                )
+                if connection_parameters.port == successful_server.port
+                else None
+            )
 
     successful_server = ConnectionParameters("localhost", 10, "login", "pass")
     client = EnrichedClient(
@@ -146,15 +192,23 @@ async def test_client_connect_to_any_server_ok() -> None:
         ],
         connection_class=MockConnection,
     )
-    connection = await client._connect_to_any_server()
-    assert connection.connection_parameters == successful_server
+    connection, connection_parameters = await client._connect_to_any_server()
+    assert connection
+    assert connection_parameters == successful_server
 
 
 @pytest.mark.usefixtures("mock_sleep")
 async def test_client_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
-        async def connect(self) -> bool:  # noqa: PLR6301
-            return False
+        @classmethod
+        async def from_connection_parameters(
+            cls,
+            connection_parameters: ConnectionParameters,  # noqa: ARG003
+            connect_timeout: int,  # noqa: ARG003
+            read_timeout: int,  # noqa: ARG003
+            read_max_chunk_size: int,  # noqa: ARG003
+        ) -> Self | None:
+            return None
 
     client = EnrichedClient(
         servers=[
@@ -192,7 +246,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert collected_frames == [
         ConnectFrame(
             headers={
-                "host": client._connection.connection_parameters.host,
+                "host": client._connection_parameters.host,
                 "accept-version": PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
                 "login": login,
