@@ -122,7 +122,6 @@ class Parser:
                 if self._current_line or self._lines:
                     if self._previous_byte == b"\r":
                         self._current_line.pop()
-
                     if not self._current_line:  # extra empty line after headers
                         self._headers_processed = True
 
