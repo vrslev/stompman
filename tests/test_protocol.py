@@ -213,14 +213,24 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
         # header value with :
         (b"CONNECTED\nheader:what:?\n\n\x00", [ConnectedFrame(headers={})]),
         # no NULL
-        (b"SOME_COMMAND\nheader:what:?\n\nhello", []),
+        (b"SOME_COMMAND\nheader:what:?\n\nhello", [HeartbeatFrame()]),
         # header never end
         (b"SOME_COMMAND\nheader:hello", []),
         (b"SOME_COMMAND\nheader:hello\n", []),
         (b"SOME_COMMAND\nheader:hello\n\x00", []),
         (b"SOME_COMMAND\nn", []),
         # unknown command
-        (b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00", []),
+        (b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00", [HeartbeatFrame()]),
+        # unknown command
+        (
+            b"whatever\nWHATEVER\nheader:1.1\n\n\x00CONNECTED\nheader:1.1\n\n\x00\nwhatever\nCONNECTED\nheader:1.2\n\n\x00",
+            [
+                HeartbeatFrame(),
+                ConnectedFrame(headers={"header": "1.1"}, body=b""),
+                HeartbeatFrame(),
+                ConnectedFrame(headers={"header": "1.2"}, body=b""),
+            ],
+        ),
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> None:

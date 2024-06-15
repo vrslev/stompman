@@ -101,26 +101,34 @@ class Parser:
     _previous_byte: bytes = field(default=b"", init=False)
     _headers_processed: bool = field(default=False, init=False)
 
+    def _reset(self) -> None:
+        self._headers_processed = False
+        self._lines.clear()
+        self._current_line = []
+
     def load_frames(self, raw_frames: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
         buffer = deque(struct.unpack(f"{len(raw_frames)!s}c", raw_frames))
         while buffer:
             byte = buffer.popleft()
 
-            if self._headers_processed and byte == NULL:
-                self._lines.append(self._current_line)
-                if parsed_frame := parse_lines_into_frame(self._lines):
-                    yield parsed_frame
-                self._headers_processed = False
-                self._lines.clear()
-                self._current_line = []
+            if byte == NULL:
+                if self._headers_processed:
+                    self._lines.append(self._current_line)
+                    if parsed_frame := parse_lines_into_frame(self._lines):
+                        yield parsed_frame
+                self._reset()
 
             elif not self._headers_processed and byte == NEWLINE:
                 if self._current_line or self._lines:
+                    if self._previous_byte == b"\r":
+                        self._current_line.pop()
+
                     if not self._current_line:  # extra empty line after headers
                         self._headers_processed = True
 
-                    if self._previous_byte == b"\r":
-                        self._current_line.pop()
+                    if not self._lines and b"".join(self._current_line) not in COMMANDS_TO_FRAMES:
+                        self._reset()
+                        continue
 
                     self._lines.append(self._current_line)
                     self._current_line = []
