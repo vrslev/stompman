@@ -187,19 +187,16 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
                 HeartbeatFrame(),
             ],
         ),
-        (
-            b"\n",
-            [HeartbeatFrame()],
-        ),
+        (b"\n", [HeartbeatFrame()]),
         # Two headers: only first should be accepted
         (
             b"CONNECTED\naccept-version:1.0\naccept-version:1.1\n\n\x00",
             [ConnectedFrame(headers={"accept-version": "1.0"})],
         ),
         # no end of line after command
-        (b"SOME_COMMAND", []),
-        (b"SOME_COMMAND\n", []),
-        (b"SOME_COMMAND\x00", []),
+        (b"CONNECTED", []),
+        (b"CONNECTED\n", []),
+        (b"CONNECTED\x00", []),
         # \r\n after command
         (b"CONNECTED\r\n\n\n\x00", [ConnectedFrame(headers={}, body=b"\n")]),
         (b"CONNECTED\r\nheader:1.0\n\n\x00", [ConnectedFrame(headers={"header": "1.0"})]),
@@ -213,14 +210,24 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
         # header value with :
         (b"CONNECTED\nheader:what:?\n\n\x00", [ConnectedFrame(headers={})]),
         # no NULL
-        (b"SOME_COMMAND\nheader:what:?\n\nhello", []),
+        (b"CONNECTED\nheader:what:?\n\nhello", []),
         # header never end
-        (b"SOME_COMMAND\nheader:hello", []),
-        (b"SOME_COMMAND\nheader:hello\n", []),
-        (b"SOME_COMMAND\nheader:hello\n\x00", []),
-        (b"SOME_COMMAND\nn", []),
+        (b"CONNECTED\nheader:hello", []),
+        (b"CONNECTED\nheader:hello\n", []),
+        (b"CONNECTED\nheader:hello\n\x00", []),
+        (b"CONNECTED\nn", []),
         # unknown command
-        (b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00", []),
+        (b"SOME_COMMAND\nhead:\nheader:1.1\n\n\x00", [HeartbeatFrame()]),
+        # unknown command
+        (
+            b"whatever\nWHATEVER\nheader:1.1\n\n\x00CONNECTED\nheader:1.1\n\n\x00\nwhatever\nCONNECTED\nheader:1.2\n\n\x00",
+            [
+                HeartbeatFrame(),
+                ConnectedFrame(headers={"header": "1.1"}, body=b""),
+                HeartbeatFrame(),
+                ConnectedFrame(headers={"header": "1.2"}, body=b""),
+            ],
+        ),
     ],
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> None:
