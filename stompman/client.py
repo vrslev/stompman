@@ -4,6 +4,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any, ClassVar, NamedTuple, Self, TypedDict
+from urllib.parse import unquote
 from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection
@@ -58,6 +59,10 @@ class ConnectionParameters:
     port: int
     login: str
     passcode: str = field(repr=False)
+
+    @property
+    def unescaped_passcode(self) -> str:
+        return unquote(self.passcode)
 
     @classmethod
     def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
