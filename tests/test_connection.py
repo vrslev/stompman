@@ -121,6 +121,19 @@ async def test_connection_write_frame_connection_error(monkeypatch: pytest.Monke
         await connection.write_frame(BeginFrame(headers={"transaction": ""}))
 
 
+async def test_connection_write_frame_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MockWriter:
+        write = mock.Mock(side_effect=RuntimeError)
+        drain = mock.AsyncMock()
+
+    monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(return_value=(mock.Mock(), MockWriter())))
+    connection = await make_connection()
+    assert connection
+
+    with pytest.raises(ConnectionLostError):
+        await connection.write_frame(BeginFrame(headers={"transaction": ""}))
+
+
 async def test_connection_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_wait_for(monkeypatch)
     assert not await make_connection()
@@ -131,7 +144,7 @@ async def test_connection_connect_connection_error(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(side_effect=exception))
     assert not await make_connection()
 
-
+# TODO: Add mock_open_connection def
 async def test_read_frames_timeout_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "asyncio.open_connection",
