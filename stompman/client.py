@@ -173,7 +173,7 @@ class Client:
                     "heart-beat": self.heartbeat.to_header(),
                     "host": self._connection_parameters.host,
                     "login": self._connection_parameters.login,
-                    "passcode": self._connection_parameters.passcode,
+                    "passcode": self._connection_parameters.unescaped_passcode,
                 },
             )
         )
