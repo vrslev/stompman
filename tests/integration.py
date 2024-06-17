@@ -12,7 +12,7 @@ pytestmark = pytest.mark.anyio
 
 @pytest.fixture()
 def server() -> stompman.ConnectionParameters:
-    return stompman.ConnectionParameters(host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="admin")
+    return stompman.ConnectionParameters(host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="%3D123")
 
 
 async def test_ok(server: stompman.ConnectionParameters) -> None:

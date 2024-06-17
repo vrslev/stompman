@@ -218,9 +218,8 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stompman.client, "uuid4", lambda: receipt_id)
 
     login = "login"
-    passcode = "passcode"
     async with EnrichedClient(
-        [ConnectionParameters("localhost", 10, login, passcode)], connection_class=MockConnection
+        [ConnectionParameters("localhost", 10, login, "%3Dpasscode")], connection_class=MockConnection
     ) as client:
         await asyncio.sleep(0)
 
@@ -231,7 +230,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
                 "accept-version": client.PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
                 "login": login,
-                "passcode": passcode,
+                "passcode": "=passcode",
             }
         ),
         connected_frame,
