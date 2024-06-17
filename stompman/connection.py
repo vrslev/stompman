@@ -59,7 +59,8 @@ class Connection(AbstractConnection):
         return self.writer.write(NEWLINE)
 
     async def write_frame(self, frame: AnyClientFrame) -> None:
-        self.writer.write(dump_frame(frame))
+        with _reraise_connection_lost(RuntimeError):
+            self.writer.write(dump_frame(frame))
         with _reraise_connection_lost(ConnectionError):
             await self.writer.drain()
 

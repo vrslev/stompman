@@ -269,7 +269,7 @@ class Client:
 class MessageEvent:
     body: bytes = field(init=False)
     _frame: MessageFrame
-    _client: "Client" = field(repr=False)
+    _client: Client = field(repr=False)
 
     def __post_init__(self) -> None:
         self.body = self._frame.body
@@ -314,7 +314,7 @@ class ErrorEvent:
     body: bytes = field(init=False)
     """Long description of the error."""
     _frame: ErrorFrame
-    _client: "Client" = field(repr=False)
+    _client: Client = field(repr=False)
 
     def __post_init__(self) -> None:
         self.message_header = self._frame.headers["message"]
@@ -324,7 +324,7 @@ class ErrorEvent:
 @dataclass
 class HeartbeatEvent:
     _frame: HeartbeatFrame
-    _client: "Client" = field(repr=False)
+    _client: Client = field(repr=False)
 
 
 AnyListeningEvent = MessageEvent | ErrorEvent | HeartbeatEvent

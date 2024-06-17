@@ -2,11 +2,20 @@ import asyncio
 import os
 from uuid import uuid4
 
+import pytest
+
 import stompman
+from stompman.errors import ConnectionLostError
+
+pytestmark = pytest.mark.anyio
 
 
-async def test_integration() -> None:
-    server = stompman.ConnectionParameters(host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="admin")
+@pytest.fixture()
+def server() -> stompman.ConnectionParameters:
+    return stompman.ConnectionParameters(host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="admin")
+
+
+async def test_ok(server: stompman.ConnectionParameters) -> None:
     destination = "DLQ"
     messages = [str(uuid4()).encode() for _ in range(10000)]
 
@@ -38,3 +47,9 @@ async def test_integration() -> None:
     ):
         task_group.create_task(consume())
         task_group.create_task(produce())
+
+
+async def test_raises_connection_lost_error(server: stompman.ConnectionParameters) -> None:
+    with pytest.raises(ConnectionLostError):
+        async with stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as consumer:
+            await consumer._connection.close()
