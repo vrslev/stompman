@@ -10,6 +10,8 @@ import pytest
 from stompman import AnyServerFrame, ConnectedFrame, Connection, ConnectionLostError, HeartbeatFrame
 from stompman.frames import BeginFrame, CommitFrame
 
+pytestmark = pytest.mark.anyio
+
 
 async def make_connection() -> Connection | None:
     return await Connection.connect(host="localhost", port=12345, timeout=2)

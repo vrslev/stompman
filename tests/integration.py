@@ -7,6 +7,8 @@ import pytest
 import stompman
 from stompman.errors import ConnectionLostError
 
+pytestmark = pytest.mark.anyio
+
 
 @pytest.fixture()
 def server() -> stompman.ConnectionParameters:

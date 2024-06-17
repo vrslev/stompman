@@ -34,6 +34,8 @@ from stompman import (
 )
 from stompman.client import ConnectionParameters, ErrorEvent, HeartbeatEvent, MessageEvent
 
+pytestmark = pytest.mark.anyio
+
 
 @dataclass
 class BaseMockConnection(AbstractConnection):
