@@ -17,7 +17,7 @@ from stompman.serde import (
     dump_frame,
     dump_header,
     make_frame_from_parts,
-    parse_headers,
+    parse_header,
 )
 
 pytestmark = pytest.mark.anyio
@@ -71,8 +71,7 @@ async def test_raises_connection_lost_error(server: stompman.ConnectionParameter
 def generate_frames(
     cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]],
 ) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
-    all_bytes: list[bytes] = []
-    all_frames = []
+    all_bytes, all_frames = [], []
 
     for noise, frames in cases:
         current_all_bytes = []
@@ -80,8 +79,7 @@ def generate_frames(
             current_all_bytes.append(noise + NEWLINE)
 
         for frame in frames:
-            dumped_frame = NEWLINE if isinstance(frame, HeartbeatFrame) else dump_frame(frame)
-            current_all_bytes.append(dumped_frame)
+            current_all_bytes.append(NEWLINE if isinstance(frame, HeartbeatFrame) else dump_frame(frame))
             all_frames.append(frame)
 
         all_bytes.append(b"".join(current_all_bytes))
@@ -94,13 +92,15 @@ def bytes_not_contains(*avoided: bytes) -> Callable[[bytes], bool]:
 
 
 noise_bytes_strategy = strategies.binary().filter(bytes_not_contains(NEWLINE, NULL))
-
+headers_strategy = strategies.dictionaries(strategies.text(), strategies.text()).map(
+    lambda headers: dict(
+        parsed_header for header in starmap(dump_header, headers.items()) if (parsed_header := parse_header(header))
+    )
+)
 frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
     make_frame_from_parts,
     command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
-    headers=strategies.dictionaries(strategies.text(), strategies.text()).map(
-        lambda headers: parse_headers(list(starmap(dump_header, headers.items()))) or {}
-    ),
+    headers=headers_strategy,
     body=strategies.binary().filter(bytes_not_contains(NULL)),
 )
 

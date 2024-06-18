@@ -95,7 +95,7 @@ def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
     return byte
 
 
-def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
+def parse_header(buffer: list[bytes]) -> tuple[str, str] | None:
     key_buffer: list[bytes] = []
     key_parsed = False
     value_buffer: list[bytes] = []
@@ -129,7 +129,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
     headers = {}
 
     while line := lines.popleft():
-        header = parse_headers(line)
+        header = parse_header(line)
         if header and header[0] not in headers:
             headers[header[0]] = header[1]
     body = b"".join(lines.popleft()) if lines else b""
