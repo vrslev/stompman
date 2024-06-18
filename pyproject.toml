@@ -27,6 +27,7 @@ dev-dependencies = [
     "pytest~=8.2.2",
     "ruff~=0.4.8",
     "uvloop~=0.19.0",
+    "hypothesis~=6.103.0",
 ]
 
 [build-system]
