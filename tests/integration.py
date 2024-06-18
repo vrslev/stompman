@@ -100,7 +100,7 @@ frame_strategy = strategies.builds(
         strategies.lists(strategies.tuples(noise_bytes_strategy, strategies.lists(frame_strategy))),
     ),
 )
-def test_props(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]) -> None:
+def test_parsing(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]) -> None:
     stream_chunks, expected_frames = case
     parser = FrameParser()
     assert [frame for chunk in stream_chunks for frame in parser.parse_frames_from_chunk(chunk)] == expected_frames
