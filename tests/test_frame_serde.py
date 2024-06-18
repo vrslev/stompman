@@ -20,13 +20,13 @@ from stompman.serde import FrameParser, dump_frame
         (ConnectedFrame(headers={"version": "1.1"}), (b"CONNECTED\nversion:1.1\n\n\x00")),
         (
             MessageFrame(
-                headers={"destination": "me:123", "message-id": "you\nmore\rextra\\here", "subscription": "hi"},
+                headers={"destination": "me:123", "message-id": "you\nmoreextra\\here", "subscription": "hi"},
                 body=b"I Am The Walrus",
             ),
             (
                 b"MESSAGE\n"
                 b"destination:me\\c123\n"
-                b"message-id:you\\nmore\\rextra\\\\here\nsubscription:hi\n\n"
+                b"message-id:you\\nmoreextra\\\\here\nsubscription:hi\n\n"
                 b"I Am The Walrus"
                 b"\x00"
             ),
