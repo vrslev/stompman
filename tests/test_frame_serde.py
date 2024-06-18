@@ -231,18 +231,25 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> 
 
 def generate_frame(
     command: bytes, headers: dict[str, str], body: bytes
-) -> AnyServerFrame | AnyClientFrame | HeartbeatFrame:
+) -> AnyServerFrame | AnyClientFrame:
     return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
 def generate_frames(
-    cases: list[tuple[bytes, list[AnyServerFrame | AnyClientFrame]]],
-) -> tuple[list[bytes], list[AnyServerFrame | AnyClientFrame]]:
+    cases: list[tuple[bytes, list[AnyServerFrame | AnyClientFrame | HeartbeatFrame]]],
+) -> tuple[list[bytes], list[AnyServerFrame | AnyClientFrame | HeartbeatFrame]]:
     all_bytes: list[bytes] = []
-    all_frames: list[AnyClientFrame | AnyServerFrame] = []
-    for _intermediate_bytes, frames in cases:
-        all_bytes.append(b"".join(dump_frame(frame) for frame in frames))
+    all_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
+
+    for intermediate_bytes, frames in cases:
+        if intermediate_bytes:
+            all_bytes.append(intermediate_bytes + b"\n")
+
+        all_bytes.append(
+            b"".join(b"\n" if isinstance(frame, HeartbeatFrame) else dump_frame(frame) for frame in frames)
+        )
         all_frames += frames
+
     return all_bytes, all_frames
 
 
@@ -251,7 +258,9 @@ def generate_frames(
         generate_frames,
         strategies.lists(
             strategies.tuples(
-                strategies.binary(),
+                strategies.binary()
+                .filter(lambda bytes_: b"\n" not in bytes_)
+                .filter(lambda bytes_: b"\x00" not in bytes_),
                 strategies.lists(
                     strategies.builds(
                         generate_frame,
@@ -264,7 +273,8 @@ def generate_frames(
                             .filter(lambda value: "\\" not in value),
                         ),
                         body=strategies.binary().filter(lambda body: b"\x00" not in body),
-                    ),
+                    )
+                    | strategies.just(HeartbeatFrame()),
                 ),
             ),
         ),
