@@ -229,13 +229,9 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> 
     assert list(FrameParser().parse_frames_from_chunk(raw_frames)) == loaded_frames
 
 
-def generate_frame(command: bytes, headers: dict[str, str], body: bytes) -> AnyServerFrame | AnyClientFrame:
-    return make_frame_from_parts(command=command, headers=headers, body=body)
-
-
 def generate_frames(
-    cases: list[tuple[bytes, list[AnyServerFrame | AnyClientFrame | HeartbeatFrame]]],
-) -> tuple[list[bytes], list[AnyServerFrame | AnyClientFrame | HeartbeatFrame]]:
+    cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]],
+) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
     all_bytes: list[bytes] = []
     all_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
 
@@ -256,7 +252,7 @@ intermediate_bytes_strategy = (
     strategies.binary().filter(lambda bytes_: b"\n" not in bytes_).filter(lambda bytes_: b"\x00" not in bytes_)
 )
 frame_strategy = strategies.builds(
-    generate_frame,
+    make_frame_from_parts,
     command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
     headers=strategies.dictionaries(
         # TODO: Fix \\ and \x00
@@ -277,7 +273,7 @@ def test_props(case: tuple[list[bytes], list[AnyServerFrame | AnyClientFrame]]) 
     stream_chunks, expected_frames = case
     parser = FrameParser()
 
-    parsed_frames: list[AnyServerFrame | AnyClientFrame | HeartbeatFrame] = []
+    parsed_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
     for chunk in stream_chunks:
         parsed_frames.extend(parser.parse_frames_from_chunk(chunk))
 
