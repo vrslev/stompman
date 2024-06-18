@@ -77,10 +77,10 @@ def generate_frames(
     for noise, frames in cases:
         current_all_bytes = []
         if noise:
-            current_all_bytes.append(noise + b"\n")
+            current_all_bytes.append(noise + NEWLINE)
 
         for frame in frames:
-            dumped_frame = b"\n" if isinstance(frame, HeartbeatFrame) else dump_frame(frame)
+            dumped_frame = NEWLINE if isinstance(frame, HeartbeatFrame) else dump_frame(frame)
             current_all_bytes.append(dumped_frame)
             all_frames.append(frame)
 

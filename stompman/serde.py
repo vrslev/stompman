@@ -35,7 +35,7 @@ HEADER_ESCAPE_CHARS: Final = {
     "\r": "",  # [\r]\n is newline, therefore can't be used in header
 }
 HEADER_UNESCAPE_CHARS: Final = {
-    b"n": b"\n",
+    b"n": NEWLINE,
     b"c": b":",
     b"\\": b"\\",
 }
