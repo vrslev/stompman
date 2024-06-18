@@ -20,10 +20,14 @@ from stompman import (
     ConnectedFrame,
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
+    ConnectionParameters,
     DisconnectFrame,
+    ErrorEvent,
     ErrorFrame,
     FailedAllConnectAttemptsError,
+    HeartbeatEvent,
     HeartbeatFrame,
+    MessageEvent,
     MessageFrame,
     NackFrame,
     ReceiptFrame,
@@ -32,7 +36,6 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.client import ConnectionParameters, ErrorEvent, HeartbeatEvent, MessageEvent
 
 pytestmark = pytest.mark.anyio
 
