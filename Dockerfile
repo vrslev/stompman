@@ -2,7 +2,7 @@ ARG PYTHON_VERSION
 FROM python:${PYTHON_VERSION}-slim-bullseye
 
 # hadolint ignore=DL3013, DL3042
-RUN --mount=type=cache,target=~/.cache/pip pip install uv
+RUN --mount=type=cache,target=~/.cache/pip pip install uv==0.2.11
 
 WORKDIR /app
 
