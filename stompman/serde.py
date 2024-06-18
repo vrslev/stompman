@@ -118,6 +118,15 @@ def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
     return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
 
 
+def make_frame_from_parts(command: bytes, headers: dict[str, str], body: bytes) -> AnyClientFrame | AnyServerFrame:
+    frame_type = COMMANDS_TO_FRAMES[command]
+    return (
+        frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
+        if frame_type in FRAMES_WITH_BODY
+        else frame_type(headers=cast(Any, headers))  # type: ignore[call-arg]
+    )
+
+
 def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnyServerFrame:
     command = b"".join(lines.popleft())
     headers = {}
@@ -127,13 +136,7 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
         if header and header[0] not in headers:
             headers[header[0]] = header[1]
     body = b"".join(lines.popleft()) if lines else b""
-
-    frame_type = COMMANDS_TO_FRAMES[command]
-    return (
-        frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
-        if frame_type in FRAMES_WITH_BODY
-        else frame_type(headers=cast(Any, headers))  # type: ignore[call-arg]
-    )
+    return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
 @dataclass

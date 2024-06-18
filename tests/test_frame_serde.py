@@ -1,6 +1,5 @@
 import pytest
-from hypothesis import given
-from hypothesis.strategies import binary, builds
+from hypothesis import given, strategies
 
 from stompman import (
     ConnectedFrame,
@@ -10,7 +9,7 @@ from stompman import (
     MessageFrame,
 )
 from stompman.frames import AckFrame, AnyClientFrame, AnyServerFrame
-from stompman.serde import FrameParser, dump_frame
+from stompman.serde import COMMANDS_TO_FRAMES, FrameParser, dump_frame, make_frame_from_parts
 
 
 @pytest.mark.parametrize(
@@ -230,11 +229,41 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> 
     assert list(FrameParser().parse_frames_from_chunk(raw_frames)) == loaded_frames
 
 
-def generate_frames(b: bytes) -> tuple[list[bytes], list[AnyServerFrame | AnyClientFrame | HeartbeatFrame]]:  # noqa: ARG001
-    return ([b"\n"], [HeartbeatFrame()])
+def generate_frame(
+    command: bytes, headers: dict[str, str], body: bytes
+) -> AnyServerFrame | AnyClientFrame | HeartbeatFrame:
+    return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
-@given(builds(generate_frames, binary()))
+def generate_frames(
+    cases: list[tuple[bytes, list[AnyServerFrame | AnyClientFrame]]],
+) -> tuple[list[bytes], list[AnyServerFrame | AnyClientFrame]]:
+    all_bytes: list[bytes] = []
+    all_frames: list[AnyClientFrame | AnyServerFrame] = []
+    for _intermediate_bytes, frames in cases:
+        all_bytes.append(b"".join(dump_frame(frame) for frame in frames))
+        all_frames += frames
+    return all_bytes, all_frames
+
+
+@given(
+    strategies.builds(
+        generate_frames,
+        strategies.lists(
+            strategies.tuples(
+                strategies.binary(),
+                strategies.lists(
+                    strategies.builds(
+                        generate_frame,
+                        command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
+                        headers=strategies.dictionaries(strategies.text(), strategies.text()),
+                        body=strategies.binary(),
+                    )
+                ),
+            )
+        ),
+    )
+)
 def test_props(case: tuple[list[bytes], list[AnyServerFrame | AnyClientFrame]]) -> None:
     stream_chunks, expected_frames = case
     parser = FrameParser()
