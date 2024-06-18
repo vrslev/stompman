@@ -233,16 +233,19 @@ def generate_frames(
     cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]],
 ) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
     all_bytes: list[bytes] = []
-    all_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
+    all_frames = []
 
     for intermediate_bytes, frames in cases:
+        current_all_bytes = []
         if intermediate_bytes:
-            all_bytes.append(intermediate_bytes + b"\n")
+            current_all_bytes.append(intermediate_bytes + b"\n")
 
-        all_bytes.append(
-            b"".join(b"\n" if isinstance(frame, HeartbeatFrame) else dump_frame(frame) for frame in frames)
-        )
-        all_frames += frames
+        for frame in frames:
+            dumped_frame = b"\n" if isinstance(frame, HeartbeatFrame) else dump_frame(frame)
+            current_all_bytes.append(dumped_frame)
+            all_frames.append(frame)
+
+        all_bytes.append(b"".join(current_all_bytes))
 
     return all_bytes, all_frames
 
@@ -269,12 +272,7 @@ frame_strategy = strategies.builds(
         strategies.lists(strategies.tuples(intermediate_bytes_strategy, strategies.lists(frame_strategy))),
     ),
 )
-def test_props(case: tuple[list[bytes], list[AnyServerFrame | AnyClientFrame]]) -> None:
+def test_props(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]) -> None:
     stream_chunks, expected_frames = case
     parser = FrameParser()
-
-    parsed_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
-    for chunk in stream_chunks:
-        parsed_frames.extend(parser.parse_frames_from_chunk(chunk))
-
-    assert parsed_frames == expected_frames
+    assert [frame for chunk in stream_chunks for frame in parser.parse_frames_from_chunk(chunk)] == expected_frames
