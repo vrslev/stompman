@@ -229,9 +229,7 @@ def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> 
     assert list(FrameParser().parse_frames_from_chunk(raw_frames)) == loaded_frames
 
 
-def generate_frame(
-    command: bytes, headers: dict[str, str], body: bytes
-) -> AnyServerFrame | AnyClientFrame:
+def generate_frame(command: bytes, headers: dict[str, str], body: bytes) -> AnyServerFrame | AnyClientFrame:
     return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
@@ -253,31 +251,26 @@ def generate_frames(
     return all_bytes, all_frames
 
 
+intermediate_bytes_strategy = (
+    # TODO: Check if that's OK
+    strategies.binary().filter(lambda bytes_: b"\n" not in bytes_).filter(lambda bytes_: b"\x00" not in bytes_)
+)
+frame_strategy = strategies.builds(
+    generate_frame,
+    command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
+    headers=strategies.dictionaries(
+        # TODO: Fix \\ and \x00
+        strategies.text().filter(lambda key: "\x00" not in key).filter(lambda key: "\\" not in key),
+        strategies.text().filter(lambda value: "\x00" not in value).filter(lambda value: "\\" not in value),
+    ),
+    body=strategies.binary().filter(lambda body: b"\x00" not in body),
+) | strategies.just(HeartbeatFrame())
+
+
 @given(
     strategies.builds(
         generate_frames,
-        strategies.lists(
-            strategies.tuples(
-                strategies.binary()
-                .filter(lambda bytes_: b"\n" not in bytes_)
-                .filter(lambda bytes_: b"\x00" not in bytes_),
-                strategies.lists(
-                    strategies.builds(
-                        generate_frame,
-                        command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
-                        headers=strategies.dictionaries(
-                            # TODO: Fix \\ and \x00
-                            strategies.text().filter(lambda key: "\x00" not in key).filter(lambda key: "\\" not in key),
-                            strategies.text()
-                            .filter(lambda value: "\x00" not in value)
-                            .filter(lambda value: "\\" not in value),
-                        ),
-                        body=strategies.binary().filter(lambda body: b"\x00" not in body),
-                    )
-                    | strategies.just(HeartbeatFrame()),
-                ),
-            ),
-        ),
+        strategies.lists(strategies.tuples(intermediate_bytes_strategy, strategies.lists(frame_strategy))),
     ),
 )
 def test_props(case: tuple[list[bytes], list[AnyServerFrame | AnyClientFrame]]) -> None:
