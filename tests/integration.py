@@ -10,6 +10,8 @@ import stompman
 from stompman import AnyClientFrame, AnyServerFrame, ConnectionLostError, HeartbeatFrame
 from stompman.serde import (
     COMMANDS_TO_FRAMES,
+    NEWLINE,
+    NULL,
     FrameParser,
     dump_frame,
     dump_header,
@@ -88,18 +90,17 @@ def generate_frames(
 
 noise_bytes_strategy = (
     # TODO: Check if that's OK
-    strategies.binary().filter(lambda bytes_: b"\n" not in bytes_).filter(lambda bytes_: b"\x00" not in bytes_)
+    strategies.binary().filter(lambda bytes_: NEWLINE not in bytes_).filter(lambda bytes_: NULL not in bytes_)
 )
-frame_strategy = strategies.builds(
+frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
     make_frame_from_parts,
     command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
-    headers=strategies.dictionaries(
-        # TODO: Fix \\ and \x00
-        strategies.text().filter(lambda key: "\x00" not in key).filter(lambda key: "\\" not in key),
-        strategies.text().filter(lambda value: "\x00" not in value).filter(lambda value: "\\" not in value),
-    ).map(lambda headers: parse_headers(list(starmap(dump_header, headers.items()))) or {}),
-    body=strategies.binary().filter(lambda body: b"\x00" not in body),
-) | strategies.just(HeartbeatFrame())
+    headers=strategies.dictionaries(strategies.text(), strategies.text()).map(
+        # TODO: This dependence is weird
+        lambda headers: parse_headers(list(starmap(dump_header, headers.items()))) or {}
+    ),
+    body=strategies.binary().filter(lambda body: NULL not in body),
+)
 
 
 @given(
