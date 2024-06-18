@@ -32,6 +32,7 @@ HEADER_ESCAPE_CHARS: Final = {
     "\n": "\\n",
     ":": "\\c",
     "\\": "\\\\",
+    "\r": "",
 }
 HEADER_UNESCAPE_CHARS: Final = {
     b"n": b"\n",

@@ -1,5 +1,6 @@
 import asyncio
 import os
+from itertools import starmap
 from uuid import uuid4
 
 import pytest
@@ -7,7 +8,14 @@ from hypothesis import given, strategies
 
 import stompman
 from stompman import AnyClientFrame, AnyServerFrame, ConnectionLostError, HeartbeatFrame
-from stompman.serde import COMMANDS_TO_FRAMES, FrameParser, dump_frame, make_frame_from_parts
+from stompman.serde import (
+    COMMANDS_TO_FRAMES,
+    FrameParser,
+    dump_frame,
+    dump_header,
+    make_frame_from_parts,
+    parse_headers,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -89,7 +97,7 @@ frame_strategy = strategies.builds(
         # TODO: Fix \\ and \x00
         strategies.text().filter(lambda key: "\x00" not in key).filter(lambda key: "\\" not in key),
         strategies.text().filter(lambda value: "\x00" not in value).filter(lambda value: "\\" not in value),
-    ),
+    ).map(lambda headers: parse_headers(list(starmap(dump_header, headers.items()))) or {}),
     body=strategies.binary().filter(lambda body: b"\x00" not in body),
 ) | strategies.just(HeartbeatFrame())
 
