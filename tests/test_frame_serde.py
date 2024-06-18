@@ -1,4 +1,6 @@
 import pytest
+from hypothesis import given
+from hypothesis.strategies import binary, builds
 
 from stompman import (
     ConnectedFrame,
@@ -226,3 +228,19 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
 )
 def test_load_frames(raw_frames: bytes, loaded_frames: list[AnyServerFrame]) -> None:
     assert list(FrameParser().parse_frames_from_chunk(raw_frames)) == loaded_frames
+
+
+def generate_frames(b: bytes) -> tuple[list[bytes], list[AnyServerFrame | AnyClientFrame | HeartbeatFrame]]:  # noqa: ARG001
+    return ([b"\n"], [HeartbeatFrame()])
+
+
+@given(builds(generate_frames, binary()))
+def test_props(case: tuple[list[bytes], list[AnyServerFrame | AnyClientFrame]]) -> None:
+    stream_chunks, expected_frames = case
+    parser = FrameParser()
+
+    parsed_frames: list[AnyServerFrame | AnyClientFrame | HeartbeatFrame] = []
+    for chunk in stream_chunks:
+        parsed_frames.extend(parser.parse_frames_from_chunk(chunk))
+
+    assert parsed_frames == expected_frames
