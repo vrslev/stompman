@@ -32,13 +32,11 @@ HEADER_ESCAPE_CHARS: Final = {
     "\n": "\\n",
     ":": "\\c",
     "\\": "\\\\",
-    "\r": "\\r",
 }
 HEADER_UNESCAPE_CHARS: Final = {
     b"n": b"\n",
     b"c": b":",
     b"\\": b"\\",
-    b"r": b"\r",
 }
 
 
@@ -89,12 +87,10 @@ def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
 
 
 def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
-    if byte == b"\\":
-        return None
-
     if previous_byte == b"\\":
         return HEADER_UNESCAPE_CHARS.get(byte, byte)
-
+    if byte == b"\\":
+        return None
     return byte
 
 
