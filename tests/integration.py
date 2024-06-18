@@ -1,5 +1,6 @@
 import asyncio
 import os
+from collections.abc import Callable
 from itertools import starmap
 from uuid import uuid4
 
@@ -88,18 +89,19 @@ def generate_frames(
     return all_bytes, all_frames
 
 
-noise_bytes_strategy = (
-    # TODO: Check if that's OK
-    strategies.binary().filter(lambda bytes_: NEWLINE not in bytes_).filter(lambda bytes_: NULL not in bytes_)
-)
+def bytes_not_contains(*avoided: bytes) -> Callable[[bytes], bool]:
+    return lambda checked: all(item not in checked for item in avoided)
+
+
+noise_bytes_strategy = strategies.binary().filter(bytes_not_contains(NEWLINE, NULL))
+
 frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
     make_frame_from_parts,
     command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
     headers=strategies.dictionaries(strategies.text(), strategies.text()).map(
-        # TODO: This dependence is weird
         lambda headers: parse_headers(list(starmap(dump_header, headers.items()))) or {}
     ),
-    body=strategies.binary().filter(lambda body: NULL not in body),
+    body=strategies.binary().filter(bytes_not_contains(NULL)),
 )
 
 
