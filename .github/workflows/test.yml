@@ -26,7 +26,7 @@ jobs:
         with:
           path: ~/.cache/uv
           key: check-types-${{ hashFiles('pyproject.toml') }}
-      - run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run: curl -LsSf https://astral.sh/uv/0.2.11/install.sh | sh
       - uses: extractions/setup-just@v2
       - run: just install check-types
 
@@ -41,7 +41,7 @@ jobs:
         with:
           path: ~/.cache/uv
           key: lint-${{ hashFiles('pyproject.toml') }}
-      - run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run: curl -LsSf https://astral.sh/uv/0.2.11/install.sh | sh
       - uses: extractions/setup-just@v2
       - run: just install lint
 
@@ -62,7 +62,7 @@ jobs:
         with:
           path: ~/.cache/uv
           key: ${{ github.job }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-      - run: curl -LsSf https://astral.sh/uv/install.sh | sh
+      - run: curl -LsSf https://astral.sh/uv/0.2.11/install.sh | sh
       - uses: extractions/setup-just@v2
       - run: just install test -vv
 
