@@ -73,4 +73,4 @@ async def test_raises_connection_lost_error_in_write_frame(server: stompman.Conn
 async def test_raises_connection_lost_error_in_write_heartbeat(server: stompman.ConnectionParameters) -> None:
     with pytest.raises(ConnectionLostError):
         async with closed_client(server) as client:
-            await client._connection.write_heartbeat()
+            client._connection.write_heartbeat()
