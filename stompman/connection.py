@@ -56,7 +56,8 @@ class Connection(AbstractConnection):
             await self.writer.wait_closed()
 
     def write_heartbeat(self) -> None:
-        return self.writer.write(NEWLINE)
+        with _reraise_connection_lost(RuntimeError):
+            return self.writer.write(NEWLINE)
 
     async def write_frame(self, frame: AnyClientFrame) -> None:
         with _reraise_connection_lost(RuntimeError):

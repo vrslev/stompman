@@ -108,6 +108,15 @@ async def test_connection_close_connection_error(monkeypatch: pytest.MonkeyPatch
         await connection.close()
 
 
+async def test_connection_write_heartbeat_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MockWriter:
+        write = mock.Mock(side_effect=RuntimeError)
+
+    connection = await make_mocked_connection(monkeypatch, mock.Mock(), MockWriter())
+    with pytest.raises(ConnectionLostError):
+        connection.write_heartbeat()
+
+
 async def test_connection_write_frame_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
     class MockWriter:
         write = mock.Mock()
