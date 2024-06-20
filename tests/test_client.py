@@ -33,6 +33,7 @@ from stompman import (
     UnsupportedProtocolVersionError,
 )
 from stompman.client import ConnectionParameters, ErrorEvent, HeartbeatEvent, MessageEvent
+from stompman.errors import ConnectionLostError
 
 pytestmark = pytest.mark.anyio
 
@@ -317,6 +318,16 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
 
     assert sleep_calls == [1, 1]
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
+
+
+async def test_client_heartbeat_not_raises_connection_lost() -> None:
+    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([]))
+
+    class MockConnection(connection_class):  # type: ignore[valid-type, misc]
+        write_heartbeat = mock.Mock(side_effect=ConnectionLostError)
+
+    async with EnrichedClient(connection_class=MockConnection):
+        await asyncio.sleep(0)
 
 
 async def test_client_listen_to_events_ok() -> None:
