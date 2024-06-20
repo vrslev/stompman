@@ -64,19 +64,13 @@ async def test_not_raises_connection_lost_error_in_aexit(server: stompman.Connec
 
 
 async def test_not_raises_connection_lost_error_in_write_frame(server: stompman.ConnectionParameters) -> None:
-    client = await closed_client(server).__aenter__()  # noqa: PLC2801
-
-    with pytest.raises(ConnectionLostError):
-        await client._connection.write_frame(stompman.ConnectFrame(headers={"accept-version": "", "host": ""}))
-
-    await client.__aexit__(None, None, None)
+    async with closed_client(server) as client:
+        with pytest.raises(ConnectionLostError):
+            await client._connection.write_frame(stompman.ConnectFrame(headers={"accept-version": "", "host": ""}))
 
 
 @pytest.mark.parametrize("anyio_backend", [("asyncio", {"use_uvloop": True})])
 async def test_not_raises_connection_lost_error_in_write_heartbeat(server: stompman.ConnectionParameters) -> None:
-    client = await closed_client(server).__aenter__()  # noqa: PLC2801
-
-    with pytest.raises(ConnectionLostError):
-        client._connection.write_heartbeat()
-
-    await client.__aexit__(None, None, None)
+    async with closed_client(server) as client:
+        with pytest.raises(ConnectionLostError):
+            client._connection.write_heartbeat()
