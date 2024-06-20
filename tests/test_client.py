@@ -33,6 +33,7 @@ from stompman import (
     UnsupportedProtocolVersionError,
 )
 from stompman.client import ConnectionParameters, ErrorEvent, HeartbeatEvent, MessageEvent
+from stompman.errors import ConnectionLostError
 
 pytestmark = pytest.mark.anyio
 
@@ -42,19 +43,19 @@ class BaseMockConnection(AbstractConnection):
     @classmethod
     async def connect(
         cls,
-        host: str,  # noqa: ARG003
-        port: int,  # noqa: ARG003
-        timeout: int,  # noqa: ARG003
+        host: str,
+        port: int,
+        timeout: int,
     ) -> Self | None:
         return cls()
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
-    async def read_frames(  # noqa: PLR6301
+    async def read_frames(
         self,
-        max_chunk_size: int,  # noqa: ARG002
-        timeout: int,  # noqa: ARG002
+        max_chunk_size: int,
+        timeout: int,
     ) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
@@ -65,13 +66,13 @@ def create_spying_connection(
 ) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
-        async def write_frame(self, frame: AnyClientFrame) -> None:  # noqa: PLR6301
+        async def write_frame(self, frame: AnyClientFrame) -> None:
             collected_frames.append(frame)
 
-        async def read_frames(  # noqa: PLR6301
+        async def read_frames(
             self,
-            max_chunk_size: int,  # noqa: ARG002
-            timeout: int,  # noqa: ARG002
+            max_chunk_size: int,
+            timeout: int,
         ) -> AsyncGenerator[AnyServerFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
@@ -147,9 +148,9 @@ async def test_client_connect_to_one_server_fails() -> None:
         @classmethod
         async def connect(
             cls,
-            host: str,  # noqa: ARG003
-            port: int,  # noqa: ARG003
-            timeout: int,  # noqa: ARG003
+            host: str,
+            port: int,
+            timeout: int,
         ) -> Self | None:
             return None
 
@@ -185,9 +186,9 @@ async def test_client_connect_to_any_server_fails() -> None:
         @classmethod
         async def connect(
             cls,
-            host: str,  # noqa: ARG003
-            port: int,  # noqa: ARG003
-            timeout: int,  # noqa: ARG003
+            host: str,
+            port: int,
+            timeout: int,
         ) -> Self | None:
             return None
 
@@ -241,7 +242,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def timeout(future: Awaitable[Any], timeout: float) -> Any:  # noqa: ANN401
+    async def timeout(future: Awaitable[Any], timeout: float) -> Any:
         assert timeout == client.connection_confirmation_timeout
         return await original_wait_for(future, 0)
 
@@ -250,7 +251,7 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
 
     client = EnrichedClient(connection_class=BaseMockConnection)
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
-        await client.__aenter__()  # noqa: PLC2801
+        await client.__aenter__()
 
     assert exc_info.value == ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout)
 
@@ -263,7 +264,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
 
     client = EnrichedClient(connection_class=connection_class)
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
-        await client.__aenter__()  # noqa: PLC2801
+        await client.__aenter__()
 
     assert exc_info.value == UnsupportedProtocolVersionError(
         given_version=given_version, supported_version=client.PROTOCOL_VERSION
@@ -317,6 +318,16 @@ async def test_client_start_sendind_heartbeats(monkeypatch: pytest.MonkeyPatch) 
 
     assert sleep_calls == [1, 1]
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
+
+
+async def test_client_heartbeat_not_raises_connection_lost() -> None:
+    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([]))
+
+    class MockConnection(connection_class):  # type: ignore[valid-type, misc]
+        write_heartbeat = mock.Mock(side_effect=ConnectionLostError)
+
+    async with EnrichedClient(connection_class=MockConnection):
+        await asyncio.sleep(0)
 
 
 async def test_client_listen_to_events_ok() -> None:
@@ -423,11 +434,11 @@ async def test_message_event_with_auto_ack_ack_raises() -> None:
     event, ack, nack, on_suppressed_exception = get_mocked_message_event()
 
     async def func() -> None:  # noqa: RUF029
-        raise Exception  # noqa: TRY002
+        raise ImportError
 
-    with suppress(Exception):
+    with suppress(ImportError):
         await event.with_auto_ack(
-            func(), supressed_exception_classes=(RuntimeError,), on_suppressed_exception=on_suppressed_exception
+            func(), supressed_exception_classes=(ModuleNotFoundError,), on_suppressed_exception=on_suppressed_exception
         )
 
     ack.assert_called_once_with()
