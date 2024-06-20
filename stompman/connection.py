@@ -1,7 +1,7 @@
 import asyncio
 import socket
 from collections.abc import AsyncGenerator, Generator, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from typing import Protocol, Self, TypeVar, cast
 
@@ -52,7 +52,7 @@ class Connection(AbstractConnection):
 
     async def close(self) -> None:
         self.writer.close()
-        with _reraise_connection_lost(ConnectionError):
+        with suppress(ConnectionError):
             await self.writer.wait_closed()
 
     def write_heartbeat(self) -> None:

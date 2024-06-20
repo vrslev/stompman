@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any, ClassVar, NamedTuple, Self, TypedDict
@@ -10,6 +10,7 @@ from uuid import uuid4
 from stompman.connection import AbstractConnection, Connection
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
+    ConnectionLostError,
     FailedAllConnectAttemptsError,
     UnsupportedProtocolVersionError,
 )
@@ -199,7 +200,10 @@ class Client:
 
         async def send_heartbeats_forever() -> None:
             while True:
-                self._connection.write_heartbeat()
+                try:
+                    self._connection.write_heartbeat()
+                except ConnectionLostError:
+                    return
                 await asyncio.sleep(heartbeat_interval)
 
         async with asyncio.TaskGroup() as task_group:
@@ -209,10 +213,11 @@ class Client:
             finally:
                 task.cancel()
 
-        await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
-        await self._connection.read_frame_of_type(
-            ReceiptFrame, max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-        )
+        with suppress(ConnectionLostError):
+            await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
+            await self._connection.read_frame_of_type(
+                ReceiptFrame, max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
+            )
 
     @asynccontextmanager
     async def enter_transaction(self) -> AsyncGenerator[str, None]:
