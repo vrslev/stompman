@@ -5,7 +5,7 @@ import stompman
 
 async def main() -> None:
     async with (
-        stompman.Client(servers=[stompman.ConnectionParameters("0.0.0.0", 61616, "admin", "admin")]) as client,  # noqa: S104
+        stompman.Client(servers=[stompman.ConnectionParameters("0.0.0.0", 61616, "admin", "admin")]) as client,
         client.enter_transaction() as transaction,
     ):
         for _ in range(10):
