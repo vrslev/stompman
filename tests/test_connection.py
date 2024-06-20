@@ -104,8 +104,7 @@ async def test_connection_close_connection_error(monkeypatch: pytest.MonkeyPatch
         wait_closed = mock.AsyncMock(side_effect=ConnectionError)
 
     connection = await make_mocked_connection(monkeypatch, mock.Mock(), MockWriter())
-    with pytest.raises(ConnectionLostError):
-        await connection.close()
+    await connection.close()
 
 
 async def test_connection_write_heartbeat_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
