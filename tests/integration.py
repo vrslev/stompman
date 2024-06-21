@@ -12,15 +12,27 @@ from stompman.errors import ConnectionLostError
 pytestmark = pytest.mark.anyio
 
 
+@asynccontextmanager
+async def create_client() -> AsyncGenerator[stompman.Client, None]:
+    server = stompman.ConnectionParameters(
+        host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="%3D123"
+    )
+    async with stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as client:
+        yield client
+
+
 @pytest.fixture()
-def server() -> stompman.ConnectionParameters:
-    return stompman.ConnectionParameters(host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="%3D123")
+async def client() -> AsyncGenerator[stompman.Client, None]:
+    async with create_client() as client:
+        yield client
 
 
-async def test_ok(server: stompman.ConnectionParameters) -> None:
-    destination = "DLQ"
-    messages = [str(uuid4()).encode() for _ in range(10000)]
+@pytest.fixture()
+def destination() -> str:
+    return "DLQ"
 
+
+async def test_ok(destination: str) -> None:
     async def produce() -> None:
         async with producer.enter_transaction() as transaction:
             for message in messages:
@@ -42,35 +54,62 @@ async def test_ok(server: stompman.ConnectionParameters) -> None:
 
         assert sorted(received_messages) == sorted(messages)
 
-    async with (
-        stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as consumer,
-        stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as producer,
-        asyncio.TaskGroup() as task_group,
-    ):
+    messages = [str(uuid4()).encode() for _ in range(10000)]
+
+    async with create_client() as consumer, create_client() as producer, asyncio.TaskGroup() as task_group:
         task_group.create_task(consume())
         task_group.create_task(produce())
 
 
-@asynccontextmanager
-async def closed_client(server: stompman.ConnectionParameters) -> AsyncGenerator[stompman.Client, None]:
-    async with stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as client:
-        await client._connection.close()
-        yield client
+async def test_not_raises_connection_lost_error_in_aexit(client: stompman.Client) -> None:
+    await client._connection.close()
 
 
-async def test_not_raises_connection_lost_error_in_aexit(server: stompman.ConnectionParameters) -> None:
-    async with closed_client(server):
-        pass
+async def test_not_raises_connection_lost_error_in_write_frame(client: stompman.Client) -> None:
+    await client._connection.close()
 
-
-async def test_not_raises_connection_lost_error_in_write_frame(server: stompman.ConnectionParameters) -> None:
-    async with closed_client(server) as client:
-        with pytest.raises(ConnectionLostError):
-            await client._connection.write_frame(stompman.ConnectFrame(headers={"accept-version": "", "host": ""}))
+    with pytest.raises(ConnectionLostError):
+        await client._connection.write_frame(stompman.ConnectFrame(headers={"accept-version": "", "host": ""}))
 
 
 @pytest.mark.parametrize("anyio_backend", [("asyncio", {"use_uvloop": True})])
-async def test_not_raises_connection_lost_error_in_write_heartbeat(server: stompman.ConnectionParameters) -> None:
-    async with closed_client(server) as client:
+async def test_not_raises_connection_lost_error_in_write_heartbeat(client: stompman.Client) -> None:
+    await client._connection.close()
+
+    with pytest.raises(ConnectionLostError):
+        client._connection.write_heartbeat()
+
+
+async def test_not_raises_connection_lost_error_in_subscription(client: stompman.Client, destination: str) -> None:
+    async with client.subscribe(destination):
+        await client._connection.close()
+
+
+async def test_not_raises_connection_lost_error_in_transaction_without_send(client: stompman.Client) -> None:
+    async with client.enter_transaction():
+        await client._connection.close()
+
+
+async def test_not_raises_connection_lost_error_in_transaction_with_send(
+    client: stompman.Client, destination: str
+) -> None:
+    async with client.enter_transaction() as transaction:
+        await client.send(b"first", destination=destination, transaction=transaction)
+        await client._connection.close()
+
         with pytest.raises(ConnectionLostError):
-            client._connection.write_heartbeat()
+            await client.send(b"second", destination=destination, transaction=transaction)
+
+
+async def test_raises_connection_lost_error_in_send(client: stompman.Client, destination: str) -> None:
+    await client._connection.close()
+
+    with pytest.raises(ConnectionLostError):
+        await client.send(b"first", destination=destination)
+
+
+async def test_raises_connection_lost_error_in_listen(client: stompman.Client) -> None:
+    await client._connection.close()
+    client.read_timeout = 0
+    with pytest.raises(ConnectionLostError):
+        [event async for event in client.listen()]
