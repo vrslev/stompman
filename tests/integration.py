@@ -52,25 +52,36 @@ async def test_ok(server: stompman.ConnectionParameters) -> None:
 
 
 @asynccontextmanager
-async def closed_client(server: stompman.ConnectionParameters) -> AsyncGenerator[stompman.Client, None]:
+async def create_client(server: stompman.ConnectionParameters) -> AsyncGenerator[stompman.Client, None]:
     async with stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as client:
-        await client._connection.close()
         yield client
 
 
 async def test_not_raises_connection_lost_error_in_aexit(server: stompman.ConnectionParameters) -> None:
-    async with closed_client(server):
-        pass
+    async with create_client(server) as client:
+        await client._connection.close()
 
 
 async def test_not_raises_connection_lost_error_in_write_frame(server: stompman.ConnectionParameters) -> None:
-    async with closed_client(server) as client:
+    async with create_client(server) as client:
+        await client._connection.close()
         with pytest.raises(ConnectionLostError):
             await client._connection.write_frame(stompman.ConnectFrame(headers={"accept-version": "", "host": ""}))
 
 
 @pytest.mark.parametrize("anyio_backend", [("asyncio", {"use_uvloop": True})])
 async def test_not_raises_connection_lost_error_in_write_heartbeat(server: stompman.ConnectionParameters) -> None:
-    async with closed_client(server) as client:
+    async with create_client(server) as client:
+        await client._connection.close()
         with pytest.raises(ConnectionLostError):
             client._connection.write_heartbeat()
+
+
+async def test_not_raises_connection_lost_error_in_subscription(server: stompman.ConnectionParameters) -> None:
+    async with create_client(server) as client, client.subscribe("DLQ"):
+        await client._connection.close()
+
+
+async def test_not_raises_connection_lost_error_in_transaction(server: stompman.ConnectionParameters) -> None:
+    async with create_client(server) as client, client.enter_transaction():
+        await client._connection.close()
