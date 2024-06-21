@@ -160,7 +160,7 @@ class FrameParser:
     def _reset(self) -> None:
         self._headers_processed = False
         self._lines.clear()
-        self._current_line = bytearray()
+        self._current_line.clear()
 
     def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
         for byte in iter_bytes(chunk):
@@ -180,7 +180,7 @@ class FrameParser:
                         self._reset()
                     else:
                         self._lines.append(self._current_line)
-                        self._current_line = bytearray()
+                        self._current_line.clear()
                 else:
                     yield HeartbeatFrame()
 
