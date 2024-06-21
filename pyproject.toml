@@ -56,8 +56,6 @@ extend-per-file-ignores = { "tests/*" = [
     "S101",
     "SLF001",
     "ARG",
-    # "PLR6301",
-    "ANN401",
     "PLC2801",
 ] }
 

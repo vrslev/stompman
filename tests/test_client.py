@@ -227,7 +227,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def timeout(future: Awaitable[Any], timeout: float) -> Any:
+    async def timeout(future: Awaitable[Any], timeout: float) -> object:
         assert timeout == client.connection_confirmation_timeout
         return await original_wait_for(future, 0)
 
