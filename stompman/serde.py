@@ -29,6 +29,9 @@ from stompman.frames import (
 NEWLINE: Final = b"\n"
 CARRIAGE: Final = b"\r"
 NULL: Final = b"\x00"
+BACKSLASH = b"\\"
+COLON_ = b":"
+
 HEADER_ESCAPE_CHARS: Final = {
     b"\n": b"\\n",
     b":": b"\\c",
@@ -67,18 +70,14 @@ COMMANDS_TO_FRAMES: Final[dict[bytes, type[AnyClientFrame | AnyServerFrame]]] = 
 }
 FRAMES_TO_COMMANDS: Final = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
 FRAMES_WITH_BODY: Final = (SendFrame, MessageFrame, ErrorFrame)
-COMMANDS_BYTES_LISTS: Final = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
 
 
 def dump_header(key: str, value: str) -> Iterator[bytes]:
     for char in iter_bytes(key.encode()):
         yield HEADER_ESCAPE_CHARS.get(char, char)
-
     yield b":"
-
     for char in iter_bytes(value.encode()):
         yield HEADER_ESCAPE_CHARS.get(char, char)
-
     yield NEWLINE
 
 
@@ -105,15 +104,15 @@ def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
     return byte
 
 
-def parse_header(buffer: list[bytes]) -> tuple[str, str] | None:
-    key_buffer: list[bytes] = []
+def parse_header(buffer: bytearray) -> tuple[str, str] | None:
+    key_buffer = bytearray()
+    value_buffer = bytearray()
     key_parsed = False
-    value_buffer: list[bytes] = []
 
     previous_byte = None
     just_escaped_line = False
 
-    for byte in buffer:
+    for byte in iter_bytes(buffer):
         if byte == b":":
             if key_parsed:
                 return None
@@ -121,16 +120,16 @@ def parse_header(buffer: list[bytes]) -> tuple[str, str] | None:
         elif just_escaped_line:
             just_escaped_line = False
             if byte != b"\\":
-                (value_buffer if key_parsed else key_buffer).append(byte)
+                (value_buffer if key_parsed else key_buffer).append(byte[0])
         elif unescaped_byte := unescape_byte(byte, previous_byte):
             just_escaped_line = True
-            (value_buffer if key_parsed else key_buffer).append(unescaped_byte)
+            (value_buffer if key_parsed else key_buffer).append(unescaped_byte[0])
 
         previous_byte = byte
 
     if key_parsed:
         with suppress(UnicodeDecodeError):
-            return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode())
+            return key_buffer.decode(), value_buffer.decode()
 
     return None
 
@@ -144,29 +143,29 @@ def make_frame_from_parts(command: bytes, headers: dict[str, str], body: bytes) 
     )
 
 
-def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnyServerFrame:
-    command = b"".join(lines.popleft())
+def parse_lines_into_frame(lines: deque[bytearray]) -> AnyClientFrame | AnyServerFrame:
+    command = lines.popleft()
     headers = {}
 
     while line := lines.popleft():
         header = parse_header(line)
         if header and header[0] not in headers:
             headers[header[0]] = header[1]
-    body = b"".join(lines.popleft()) if lines else b""
+    body = lines.popleft() if lines else b""
     return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
 @dataclass
 class FrameParser:
-    _lines: deque[list[bytes]] = field(default_factory=deque, init=False)
-    _current_line: list[bytes] = field(default_factory=list, init=False)
+    _lines: deque[bytearray] = field(default_factory=deque, init=False)
+    _current_line: bytearray = field(default_factory=bytearray, init=False)
     _previous_byte: bytes = field(default=b"", init=False)
     _headers_processed: bool = field(default=False, init=False)
 
     def _reset(self) -> None:
         self._headers_processed = False
         self._lines.clear()
-        self._current_line = []
+        self._current_line = bytearray()
 
     def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
         for byte in iter_bytes(chunk):
@@ -182,15 +181,15 @@ class FrameParser:
                         self._current_line.pop()
                     self._headers_processed = not self._current_line  # extra empty line after headers
 
-                    if not self._lines and self._current_line not in COMMANDS_BYTES_LISTS:
+                    if not self._lines and bytes(self._current_line) not in COMMANDS_TO_FRAMES:
                         self._reset()
                     else:
                         self._lines.append(self._current_line)
-                        self._current_line = []
+                        self._current_line = bytearray()
                 else:
                     yield HeartbeatFrame()
 
             else:
-                self._current_line.append(byte)
+                self._current_line.append(byte[0])
 
             self._previous_byte = byte
