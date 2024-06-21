@@ -42,8 +42,8 @@ HEADER_UNESCAPE_CHARS: Final = {
 }
 
 
-def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
-    return struct.unpack(f"{len(bytes_)!s}c", bytes_)
+def iter_bytes(bytes_: bytes) -> Iterator[bytes]:
+    return (tup[0] for tup in struct.iter_unpack(f"{len(bytes_)!s}c", bytes_))
 
 
 COMMANDS_TO_FRAMES: Final[dict[bytes, type[AnyClientFrame | AnyServerFrame]]] = {
