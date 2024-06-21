@@ -1,6 +1,7 @@
 import struct
 from collections import deque
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Final, cast
 
@@ -32,13 +33,12 @@ HEADER_ESCAPE_CHARS: Final = {
     "\n": "\\n",
     ":": "\\c",
     "\\": "\\\\",
-    "\r": "\\r",
+    "\r": "",  # [\r]\n is newline, therefore can't be used in header
 }
 HEADER_UNESCAPE_CHARS: Final = {
-    b"n": b"\n",
+    b"n": NEWLINE,
     b"c": b":",
     b"\\": b"\\",
-    b"r": b"\r",
 }
 
 
@@ -89,33 +89,50 @@ def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
 
 
 def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
+    if previous_byte == b"\\":
+        return HEADER_UNESCAPE_CHARS.get(byte)
     if byte == b"\\":
         return None
-
-    if previous_byte == b"\\":
-        return HEADER_UNESCAPE_CHARS.get(byte, byte)
-
     return byte
 
 
-def parse_headers(buffer: list[bytes]) -> tuple[str, str] | None:
+def parse_header(buffer: list[bytes]) -> tuple[str, str] | None:
     key_buffer: list[bytes] = []
     key_parsed = False
     value_buffer: list[bytes] = []
 
     previous_byte = None
+    just_escaped_line = False
+
     for byte in buffer:
         if byte == b":":
             if key_parsed:
                 return None
             key_parsed = True
-
-        elif (unescaped_byte := unescape_byte(byte, previous_byte)) is not None:
+        elif just_escaped_line:
+            just_escaped_line = False
+            if byte != b"\\":
+                (value_buffer if key_parsed else key_buffer).append(byte)
+        elif unescaped_byte := unescape_byte(byte, previous_byte):
+            just_escaped_line = True
             (value_buffer if key_parsed else key_buffer).append(unescaped_byte)
 
         previous_byte = byte
 
-    return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
+    if key_parsed:
+        with suppress(UnicodeDecodeError):
+            return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode())
+
+    return None
+
+
+def make_frame_from_parts(command: bytes, headers: dict[str, str], body: bytes) -> AnyClientFrame | AnyServerFrame:
+    frame_type = COMMANDS_TO_FRAMES[command]
+    return (
+        frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
+        if frame_type in FRAMES_WITH_BODY
+        else frame_type(headers=cast(Any, headers))  # type: ignore[call-arg]
+    )
 
 
 def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnyServerFrame:
@@ -123,17 +140,11 @@ def parse_lines_into_frame(lines: deque[list[bytes]]) -> AnyClientFrame | AnySer
     headers = {}
 
     while line := lines.popleft():
-        header = parse_headers(line)
+        header = parse_header(line)
         if header and header[0] not in headers:
             headers[header[0]] = header[1]
     body = b"".join(lines.popleft()) if lines else b""
-
-    frame_type = COMMANDS_TO_FRAMES[command]
-    return (
-        frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
-        if frame_type in FRAMES_WITH_BODY
-        else frame_type(headers=cast(Any, headers))  # type: ignore[call-arg]
-    )
+    return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
 @dataclass
@@ -149,10 +160,7 @@ class FrameParser:
         self._current_line = []
 
     def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
-        buffer = deque(iter_bytes(chunk))
-        while buffer:
-            byte = buffer.popleft()
-
+        for byte in iter_bytes(chunk):
             if byte == NULL:
                 if self._headers_processed:
                     self._lines.append(self._current_line)

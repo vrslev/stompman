@@ -7,8 +7,16 @@ from unittest import mock
 
 import pytest
 
-from stompman import AnyServerFrame, ConnectedFrame, Connection, ConnectionLostError, HeartbeatFrame
-from stompman.frames import BeginFrame, CommitFrame
+from stompman import (
+    AnyServerFrame,
+    BeginFrame,
+    CommitFrame,
+    ConnectedFrame,
+    Connection,
+    ConnectionLostError,
+    HeartbeatFrame,
+)
+from stompman.serde import NEWLINE
 
 pytestmark = pytest.mark.anyio
 
@@ -95,7 +103,7 @@ async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
     MockWriter.wait_closed.assert_called_once_with()
     MockWriter.drain.assert_called_once_with()
     MockReader.read.mock_calls = [mock.call(max_chunk_size)] * len(read_bytes)  # type: ignore[assignment]
-    assert MockWriter.write.mock_calls == [mock.call(b"\n"), mock.call(b"COMMIT\ntransaction:transaction\n\n\x00")]
+    assert MockWriter.write.mock_calls == [mock.call(NEWLINE), mock.call(b"COMMIT\ntransaction:transaction\n\n\x00")]
 
 
 async def test_connection_close_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:

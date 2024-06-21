@@ -1,14 +1,16 @@
 import pytest
 
 from stompman import (
+    AckFrame,
+    AnyClientFrame,
+    AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
     ErrorFrame,
     HeartbeatFrame,
     MessageFrame,
 )
-from stompman.frames import AckFrame, AnyClientFrame, AnyServerFrame
-from stompman.serde import FrameParser, dump_frame
+from stompman.serde import NEWLINE, FrameParser, dump_frame
 
 
 @pytest.mark.parametrize(
@@ -18,15 +20,12 @@ from stompman.serde import FrameParser, dump_frame
         (ConnectedFrame(headers={"version": "1.1"}), (b"CONNECTED\nversion:1.1\n\n\x00")),
         (
             MessageFrame(
-                headers={"destination": "me:123", "message-id": "you\nmore\rextra\\here", "subscription": "hi"},
+                headers={"destination": "me:123", "message-id": "you\nmoreextra\\here", "subscription": "hi"},
                 body=b"I Am The Walrus",
             ),
             (
-                b"MESSAGE\n"
-                b"destination:me\\c123\n"
-                b"message-id:you\\nmore\\rextra\\\\here\nsubscription:hi\n\n"
-                b"I Am The Walrus"
-                b"\x00"
+                b"MESSAGE\ndestination:me\\c123\nmessage-id:you\\nmoreextra\\\\here\nsubscription:hi\n\n"
+                b"I Am The Walrus\x00"
             ),
         ),
     ],
@@ -181,7 +180,7 @@ def test_dump_frame(frame: AnyClientFrame, dumped_frame: bytes) -> None:
                 HeartbeatFrame(),
             ],
         ),
-        (b"\n", [HeartbeatFrame()]),
+        (NEWLINE, [HeartbeatFrame()]),
         # Two headers: only first should be accepted
         (
             b"CONNECTED\naccept-version:1.0\naccept-version:1.1\n\n\x00",
