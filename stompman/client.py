@@ -202,6 +202,8 @@ class Client:
                 try:
                     self._connection.write_heartbeat()
                 except ConnectionLostError:
+                    # Avoid raising the error in an exception group.
+                    # ConnectionLostError should be raised in a way that user expects it.
                     return
                 await asyncio.sleep(heartbeat_interval)
 
