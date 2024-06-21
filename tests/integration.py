@@ -1,9 +1,8 @@
 import asyncio
 import os
-from collections.abc import Callable
-from itertools import starmap
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from itertools import starmap
 from uuid import uuid4
 
 import pytest
