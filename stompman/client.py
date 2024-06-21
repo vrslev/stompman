@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any, ClassVar, NamedTuple, Self, TypedDict
@@ -291,25 +291,27 @@ class MessageEvent:
 
     async def ack(self) -> None:
         if self._client._connection.active:
-            await self._client._connection.write_frame(
-                AckFrame(
-                    headers={
-                        "id": self._frame.headers["message-id"],
-                        "subscription": self._frame.headers["subscription"],
-                    },
+            with suppress(ConnectionLostError):
+                await self._client._connection.write_frame(
+                    AckFrame(
+                        headers={
+                            "id": self._frame.headers["message-id"],
+                            "subscription": self._frame.headers["subscription"],
+                        },
+                    )
                 )
-            )
 
     async def nack(self) -> None:
         if self._client._connection.active:
-            await self._client._connection.write_frame(
-                NackFrame(
-                    headers={
-                        "id": self._frame.headers["message-id"],
-                        "subscription": self._frame.headers["subscription"],
-                    }
+            with suppress(ConnectionLostError):
+                await self._client._connection.write_frame(
+                    NackFrame(
+                        headers={
+                            "id": self._frame.headers["message-id"],
+                            "subscription": self._frame.headers["subscription"],
+                        }
+                    )
                 )
-            )
 
     async def with_auto_ack(
         self,
