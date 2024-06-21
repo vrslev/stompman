@@ -290,18 +290,26 @@ class MessageEvent:
         self.body = self._frame.body
 
     async def ack(self) -> None:
-        await self._client._connection.write_frame(
-            AckFrame(
-                headers={"id": self._frame.headers["message-id"], "subscription": self._frame.headers["subscription"]},
+        if self._client._connection.active:
+            await self._client._connection.write_frame(
+                AckFrame(
+                    headers={
+                        "id": self._frame.headers["message-id"],
+                        "subscription": self._frame.headers["subscription"],
+                    },
+                )
             )
-        )
 
     async def nack(self) -> None:
-        await self._client._connection.write_frame(
-            NackFrame(
-                headers={"id": self._frame.headers["message-id"], "subscription": self._frame.headers["subscription"]}
+        if self._client._connection.active:
+            await self._client._connection.write_frame(
+                NackFrame(
+                    headers={
+                        "id": self._frame.headers["message-id"],
+                        "subscription": self._frame.headers["subscription"],
+                    }
+                )
             )
-        )
 
     async def with_auto_ack(
         self,
