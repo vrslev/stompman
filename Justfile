@@ -18,10 +18,10 @@ run-artemis:
     docker compose up
 
 run-consumer:
-    uv -q run python testing/consumer.py
+    ARTEMIS_HOST=0.0.0.0 uv -q run python testing/consumer.py
 
 run-producer:
-    uv -q run python testing/producer.py
+    ARTEMIS_HOST=0.0.0.0 uv -q run python testing/producer.py
 
 test-integration *args:
     #!/bin/bash

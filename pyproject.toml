@@ -51,24 +51,10 @@ line-length = 120
 [tool.ruff.lint]
 preview = true
 select = ["ALL"]
-ignore = [
-    "FBT",
-    "TRY003",
-    "D1",
-    "D203",
-    "D213",
-    "G004",
-    "FA",
-    "ANN101",
-    "ANN102",
-    "COM812",
-    "ISC001",
+ignore = ["D1", "D203", "D213", "COM812", "ISC001", "CPY001"]
+extend-per-file-ignores = { "tests/*" = [
     "S101",
     "SLF001",
-    "CPY001",
-    "S104",
-]
-extend-per-file-ignores = { "tests/*" = [
     "ARG002",
     "ARG003",
     "PLR6301",

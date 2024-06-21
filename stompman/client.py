@@ -296,9 +296,9 @@ class MessageEvent:
         self.body = self._frame.body
 
     async def ack(self) -> None:
-        if self._client._connection.active:
+        if self._client._connection.active:  # noqa: SLF001
             with suppress(ConnectionLostError):
-                await self._client._connection.write_frame(
+                await self._client._connection.write_frame(  # noqa: SLF001
                     AckFrame(
                         headers={
                             "id": self._frame.headers["message-id"],
@@ -308,9 +308,9 @@ class MessageEvent:
                 )
 
     async def nack(self) -> None:
-        if self._client._connection.active:
+        if self._client._connection.active:  # noqa: SLF001
             with suppress(ConnectionLostError):
-                await self._client._connection.write_frame(
+                await self._client._connection.write_frame(  # noqa: SLF001
                     NackFrame(
                         headers={
                             "id": self._frame.headers["message-id"],
