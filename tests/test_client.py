@@ -368,7 +368,7 @@ async def test_client_listen_to_events_unreachable(frame: ConnectedFrame | Recei
             [event async for event in client.listen()]
 
 
-async def test_ack_nack() -> None:
+async def test_ack_nack_ok() -> None:
     subscription = "subscription-id"
     message_id = "message-id"
 
@@ -389,6 +389,24 @@ async def test_ack_nack() -> None:
         await event.ack()
 
     assert_frames_between_lifespan_match(collected_frames, [message_frame, nack_frame, ack_frame])
+
+
+async def test_ack_nack_connection_lost_error() -> None:
+    message_frame = MessageFrame(headers={"subscription": "", "message-id": "", "destination": ""}, body=b"")
+    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
+
+    class MockConnection(connection_class):  # type: ignore[valid-type, misc]
+        async def write_frame(self, frame: AnyClientFrame) -> None:
+            if isinstance(frame, AckFrame | NackFrame):
+                raise ConnectionLostError
+
+    async with EnrichedClient(connection_class=MockConnection) as client:
+        events = [event async for event in client.listen()]
+        event = events[0]
+        assert isinstance(event, MessageEvent)
+
+        await event.nack()
+        await event.ack()
 
 
 def get_mocked_message_event() -> tuple[MessageEvent, mock.AsyncMock, mock.AsyncMock, mock.Mock]:
