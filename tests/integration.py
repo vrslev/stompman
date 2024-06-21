@@ -156,7 +156,7 @@ headers_strategy = strategies.dictionaries(header_value_strategy, header_value_s
     lambda headers: dict(
         parsed_header
         for header in starmap(dump_header, headers.items())
-        if (parsed_header := parse_header(bytearray().join(header)))
+        if (parsed_header := parse_header(bytearray(header)))
     )
 )
 frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
