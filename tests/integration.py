@@ -90,7 +90,9 @@ async def test_not_raises_connection_lost_error_in_transaction_without_send(clie
         await client._connection.close()
 
 
-async def test_not_raises_connection_lost_error_in_transaction_with_send(client: stompman.Client, destination: str) -> None:
+async def test_not_raises_connection_lost_error_in_transaction_with_send(
+    client: stompman.Client, destination: str
+) -> None:
     async with client.enter_transaction() as transaction:
         await client.send(b"first", destination=destination, transaction=transaction)
         await client._connection.close()
@@ -99,12 +101,13 @@ async def test_not_raises_connection_lost_error_in_transaction_with_send(client:
             await client.send(b"second", destination=destination, transaction=transaction)
 
 
-# async def test_raises_connection_lost_error_in_send(client: stompman.Client) -> None:
-#     client.send()
-#     async with client.enter_transaction():
-#         await client._connection.close()
+async def test_raises_connection_lost_error_in_send(client: stompman.Client, destination: str) -> None:
+    await client._connection.close()
+
+    with pytest.raises(ConnectionLostError):
+        await client.send(b"first", destination=destination)
 
 
-# async def test_raises_connection_lost_error_in_listen(client: stompman.Client) -> None:  # TODO
-#     async with client.enter_transaction():
-#         await client._connection.close()
+async def test_raises_connection_lost_error_in_listen(client: stompman.Client) -> None:  # TODO
+    async with client.enter_transaction():
+        await client._connection.close()
