@@ -37,7 +37,7 @@ async def make_mocked_connection(
 
 
 def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def mock_impl(future: Awaitable[Any], timeout: int) -> Any:  # noqa: ARG001
+    async def mock_impl(future: Awaitable[Any], timeout: int) -> Any:
         return await original_wait_for(future, timeout=0)
 
     original_wait_for = asyncio.wait_for

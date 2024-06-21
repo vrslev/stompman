@@ -55,9 +55,8 @@ ignore = ["D1", "D203", "D213", "COM812", "ISC001", "CPY001"]
 extend-per-file-ignores = { "tests/*" = [
     "S101",
     "SLF001",
-    "ARG002",
-    "ARG003",
-    "PLR6301",
+    "ARG",
+    # "PLR6301",
     "ANN401",
     "PLC2801",
 ] }
