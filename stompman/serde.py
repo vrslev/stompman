@@ -34,14 +34,14 @@ COLON_ = b":"
 
 HEADER_ESCAPE_CHARS: Final = {
     b"\n": b"\\n",
-    b":": b"\\c",
-    b"\\": b"\\\\",
+    COLON_: b"\\c",
+    BACKSLASH: b"\\\\",
     b"\r": b"",  # [\r]\n is newline, therefore can't be used in header
 }
 HEADER_UNESCAPE_CHARS: Final = {
     b"n": NEWLINE,
-    b"c": b":",
-    b"\\": b"\\",
+    b"c": COLON_,
+    BACKSLASH: BACKSLASH,
 }
 
 
@@ -75,7 +75,7 @@ FRAMES_WITH_BODY: Final = (SendFrame, MessageFrame, ErrorFrame)
 def dump_header(key: str, value: str) -> Iterator[bytes]:
     for char in iter_bytes(key.encode()):
         yield HEADER_ESCAPE_CHARS.get(char, char)
-    yield b":"
+    yield COLON_
     for char in iter_bytes(value.encode()):
         yield HEADER_ESCAPE_CHARS.get(char, char)
     yield NEWLINE
@@ -97,9 +97,9 @@ def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
 
 
 def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
-    if previous_byte == b"\\":
+    if previous_byte == BACKSLASH:
         return HEADER_UNESCAPE_CHARS.get(byte)
-    if byte == b"\\":
+    if byte == BACKSLASH:
         return None
     return byte
 
@@ -113,13 +113,13 @@ def parse_header(buffer: bytearray) -> tuple[str, str] | None:
     just_escaped_line = False
 
     for byte in iter_bytes(buffer):
-        if byte == b":":
+        if byte == COLON_:
             if key_parsed:
                 return None
             key_parsed = True
         elif just_escaped_line:
             just_escaped_line = False
-            if byte != b"\\":
+            if byte != BACKSLASH:
                 (value_buffer if key_parsed else key_buffer).append(byte[0])
         elif unescaped_byte := unescape_byte(byte, previous_byte):
             just_escaped_line = True
