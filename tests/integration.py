@@ -108,6 +108,8 @@ async def test_raises_connection_lost_error_in_send(client: stompman.Client, des
         await client.send(b"first", destination=destination)
 
 
-async def test_raises_connection_lost_error_in_listen(client: stompman.Client) -> None:  # TODO
-    async with client.enter_transaction():
-        await client._connection.close()
+async def test_raises_connection_lost_error_in_listen(client: stompman.Client) -> None:
+    await client._connection.close()
+    client.read_timeout = 0
+    with pytest.raises(ConnectionLostError):
+        [event async for event in client.listen()]
