@@ -14,6 +14,8 @@ FrameType = TypeVar("FrameType", bound=AnyClientFrame | AnyServerFrame)
 
 @dataclass
 class AbstractConnection(Protocol):
+    lost_or_closed: bool = False
+
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None: ...
     async def close(self) -> None: ...
@@ -28,11 +30,10 @@ class AbstractConnection(Protocol):
                     return frame
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Connection(AbstractConnection):
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
-    lost_or_closed: bool = False
 
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
