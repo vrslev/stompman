@@ -28,18 +28,11 @@ class AbstractConnection(Protocol):
                     return frame
 
 
-@contextmanager
-def _reraise_connection_lost(*causes: type[Exception]) -> Generator[None, None, None]:
-    try:
-        yield
-    except causes as exception:
-        raise ConnectionLostError from exception
-
-
 @dataclass
 class Connection(AbstractConnection):
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
+    closed: bool = False
 
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
@@ -55,14 +48,22 @@ class Connection(AbstractConnection):
         with suppress(ConnectionError):
             await self.writer.wait_closed()
 
+    @contextmanager
+    def _reraise_connection_lost(self, *causes: type[Exception]) -> Generator[None, None, None]:
+        try:
+            yield
+        except causes as exception:
+            self.closed = True
+            raise ConnectionLostError from exception
+
     def write_heartbeat(self) -> None:
-        with _reraise_connection_lost(RuntimeError):
+        with self._reraise_connection_lost(RuntimeError):
             return self.writer.write(NEWLINE)
 
     async def write_frame(self, frame: AnyClientFrame) -> None:
-        with _reraise_connection_lost(RuntimeError):
+        with self._reraise_connection_lost(RuntimeError):
             self.writer.write(dump_frame(frame))
-        with _reraise_connection_lost(ConnectionError):
+        with self._reraise_connection_lost(ConnectionError):
             await self.writer.drain()
 
     async def _read_non_empty_bytes(self, max_chunk_size: int) -> bytes:
@@ -74,7 +75,7 @@ class Connection(AbstractConnection):
         parser = FrameParser()
 
         while True:
-            with _reraise_connection_lost(ConnectionError, TimeoutError):
+            with self._reraise_connection_lost(ConnectionError, TimeoutError):
                 raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(max_chunk_size), timeout=timeout)
 
             for frame in cast(Iterator[AnyServerFrame], parser.parse_frames_from_chunk(raw_frames)):
