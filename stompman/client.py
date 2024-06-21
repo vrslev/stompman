@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
-from contextlib import AsyncExitStack, asynccontextmanager, suppress
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Any, ClassVar, NamedTuple, Self, TypedDict
@@ -145,8 +145,7 @@ class Client:
         for maybe_connection_future in asyncio.as_completed(
             [self._connect_to_one_server(server) for server in self.servers]
         ):
-            maybe_result = await maybe_connection_future
-            if maybe_result:
+            if maybe_result := await maybe_connection_future:
                 self._connection, self._connection_parameters = maybe_result
                 return
         raise FailedAllConnectAttemptsError(
@@ -199,7 +198,7 @@ class Client:
         )
 
         async def send_heartbeats_forever() -> None:
-            while True:
+            while self._connection.active:
                 try:
                     self._connection.write_heartbeat()
                 except ConnectionLostError:
@@ -213,8 +212,9 @@ class Client:
             finally:
                 task.cancel()
 
-        with suppress(ConnectionLostError):
+        if self._connection.active:
             await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
+        if self._connection.active:
             await self._connection.read_frame_of_type(
                 ReceiptFrame, max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
             )
@@ -227,10 +227,12 @@ class Client:
         try:
             yield transaction_id
         except Exception:
-            await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
+            if self._connection.active:
+                await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
             raise
         else:
-            await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
+            if self._connection.active:
+                await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
     async def send(  # noqa: PLR0913
         self,
@@ -258,7 +260,8 @@ class Client:
         try:
             yield
         finally:
-            await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
+            if self._connection.active:
+                await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
 
     async def listen(self) -> AsyncIterator["AnyListeningEvent"]:
         async for frame in self._connection.read_frames(
