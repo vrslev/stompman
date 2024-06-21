@@ -32,7 +32,7 @@ class AbstractConnection(Protocol):
 class Connection(AbstractConnection):
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
-    closed: bool = False
+    is_lost: bool = False
 
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
@@ -53,7 +53,7 @@ class Connection(AbstractConnection):
         try:
             yield
         except causes as exception:
-            self.closed = True
+            self.is_lost = True
             raise ConnectionLostError from exception
 
     def write_heartbeat(self) -> None:
