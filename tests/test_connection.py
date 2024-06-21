@@ -27,8 +27,8 @@ async def make_connection() -> Connection | None:
 
 async def make_mocked_connection(
     monkeypatch: pytest.MonkeyPatch,
-    reader: Any,  # noqa: ANN401
-    writer: Any,  # noqa: ANN401
+    reader: Any,
+    writer: Any,
 ) -> Connection:
     monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(return_value=(reader, writer)))
     connection = await make_connection()
@@ -37,7 +37,7 @@ async def make_mocked_connection(
 
 
 def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def mock_impl(future: Awaitable[Any], timeout: int) -> Any:  # noqa: ANN401, ARG001
+    async def mock_impl(future: Awaitable[Any], timeout: int) -> Any:  # noqa: ARG001
         return await original_wait_for(future, timeout=0)
 
     original_wait_for = asyncio.wait_for
@@ -112,8 +112,16 @@ async def test_connection_close_connection_error(monkeypatch: pytest.MonkeyPatch
         wait_closed = mock.AsyncMock(side_effect=ConnectionError)
 
     connection = await make_mocked_connection(monkeypatch, mock.Mock(), MockWriter())
+    await connection.close()
+
+
+async def test_connection_write_heartbeat_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MockWriter:
+        write = mock.Mock(side_effect=RuntimeError)
+
+    connection = await make_mocked_connection(monkeypatch, mock.Mock(), MockWriter())
     with pytest.raises(ConnectionLostError):
-        await connection.close()
+        connection.write_heartbeat()
 
 
 async def test_connection_write_frame_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
