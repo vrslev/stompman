@@ -90,13 +90,18 @@ class ConnectionParameters:
         servers: list[Self] = []
         for host in hosts:
             if host["host"] is None:
-                raise ValueError("host must be set")
+                msg = "host must be set"
+                raise ValueError(msg)
             if host["port"] is None:
-                raise ValueError("port must be set")
+                msg = "port must be set"
+                raise ValueError(msg)
             if host["username"] is None:
-                raise ValueError("username must be set")
+                msg = "username must be set"
+                raise ValueError(msg)
             if host["password"] is None:
-                raise ValueError("password must be set")
+                msg = "password must be set"
+                raise ValueError(msg)
+
             servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
         return servers
 
@@ -277,7 +282,8 @@ class Client:
                 case HeartbeatFrame():
                     yield HeartbeatEvent(_client=self, _frame=frame)
                 case ConnectedFrame() | ReceiptFrame():
-                    raise AssertionError("Should be unreachable! Report the issue.", frame)
+                    msg = "Should be unreachable! Report the issue."
+                    raise AssertionError(msg, frame)
 
 
 @dataclass
@@ -290,9 +296,9 @@ class MessageEvent:
         self.body = self._frame.body
 
     async def ack(self) -> None:
-        if self._client._connection.active:
+        if self._client._connection.active:  # noqa: SLF001
             with suppress(ConnectionLostError):
-                await self._client._connection.write_frame(
+                await self._client._connection.write_frame(  # noqa: SLF001
                     AckFrame(
                         headers={
                             "id": self._frame.headers["message-id"],
@@ -302,9 +308,9 @@ class MessageEvent:
                 )
 
     async def nack(self) -> None:
-        if self._client._connection.active:
+        if self._client._connection.active:  # noqa: SLF001
             with suppress(ConnectionLostError):
-                await self._client._connection.write_frame(
+                await self._client._connection.write_frame(  # noqa: SLF001
                     NackFrame(
                         headers={
                             "id": self._frame.headers["message-id"],

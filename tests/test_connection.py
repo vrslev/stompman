@@ -25,11 +25,7 @@ async def make_connection() -> Connection | None:
     return await Connection.connect(host="localhost", port=12345, timeout=2)
 
 
-async def make_mocked_connection(
-    monkeypatch: pytest.MonkeyPatch,
-    reader: Any,
-    writer: Any,
-) -> Connection:
+async def make_mocked_connection(monkeypatch: pytest.MonkeyPatch, reader: object, writer: object) -> Connection:
     monkeypatch.setattr("asyncio.open_connection", mock.AsyncMock(return_value=(reader, writer)))
     connection = await make_connection()
     assert connection
@@ -37,7 +33,7 @@ async def make_mocked_connection(
 
 
 def mock_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def mock_impl(future: Awaitable[Any], timeout: int) -> Any:  # noqa: ARG001
+    async def mock_impl(future: Awaitable[Any], timeout: int) -> object:
         return await original_wait_for(future, timeout=0)
 
     original_wait_for = asyncio.wait_for

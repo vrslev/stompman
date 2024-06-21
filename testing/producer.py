@@ -1,11 +1,12 @@
 import asyncio
 
 import stompman
+from tests.integration import CONNECTION_PARAMETERS
 
 
 async def main() -> None:
     async with (
-        stompman.Client(servers=[stompman.ConnectionParameters("0.0.0.0", 61616, "admin", "admin")]) as client,
+        stompman.Client(servers=[CONNECTION_PARAMETERS]) as client,
         client.enter_transaction() as transaction,
     ):
         for _ in range(10):

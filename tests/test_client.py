@@ -44,21 +44,15 @@ pytestmark = pytest.mark.anyio
 @dataclass
 class BaseMockConnection(AbstractConnection):
     @classmethod
-    async def connect(
-        cls,
-        host: str,
-        port: int,
-        timeout: int,
-    ) -> Self | None:
+    async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
         return cls()
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
+    @staticmethod
     async def read_frames(
-        self,
-        max_chunk_size: int,
-        timeout: int,
+        max_chunk_size: int, timeout: int
     ) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
@@ -69,14 +63,12 @@ def create_spying_connection(
 ) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
     @dataclass
     class BaseCollectingConnection(BaseMockConnection):
-        async def write_frame(self, frame: AnyClientFrame) -> None:
+        @staticmethod
+        async def write_frame(frame: AnyClientFrame) -> None:
             collected_frames.append(frame)
 
-        async def read_frames(
-            self,
-            max_chunk_size: int,
-            timeout: int,
-        ) -> AsyncGenerator[AnyServerFrame, None]:
+        @staticmethod
+        async def read_frames(max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
@@ -149,12 +141,7 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 async def test_client_connect_to_one_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(
-            cls,
-            host: str,
-            port: int,
-            timeout: int,
-        ) -> Self | None:
+        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
             return None
 
     client = EnrichedClient(connection_class=MockConnection)
@@ -187,12 +174,7 @@ async def test_client_connect_to_any_server_ok() -> None:
 async def test_client_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(
-            cls,
-            host: str,
-            port: int,
-            timeout: int,
-        ) -> Self | None:
+        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
             return None
 
     client = EnrichedClient(
@@ -245,7 +227,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def timeout(future: Awaitable[Any], timeout: float) -> Any:
+    async def timeout(future: Awaitable[Any], timeout: float) -> object:
         assert timeout == client.connection_confirmation_timeout
         return await original_wait_for(future, 0)
 
@@ -254,7 +236,7 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
 
     client = EnrichedClient(connection_class=BaseMockConnection)
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout)
 
@@ -267,7 +249,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
 
     client = EnrichedClient(connection_class=connection_class)
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == UnsupportedProtocolVersionError(
         given_version=given_version, supported_version=client.PROTOCOL_VERSION
@@ -399,7 +381,8 @@ async def test_ack_nack_connection_lost_error() -> None:
     connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
 
     class MockConnection(connection_class):  # type: ignore[valid-type, misc]
-        async def write_frame(self, frame: AnyClientFrame) -> None:
+        @staticmethod
+        async def write_frame(frame: AnyClientFrame) -> None:
             if isinstance(frame, AckFrame | NackFrame):
                 raise ConnectionLostError
 

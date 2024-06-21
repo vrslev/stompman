@@ -3,6 +3,7 @@ import os
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from itertools import starmap
+from typing import Final
 from uuid import uuid4
 
 import pytest
@@ -23,13 +24,16 @@ from stompman.serde import (
 
 pytestmark = pytest.mark.anyio
 
+CONNECTION_PARAMETERS: Final = stompman.ConnectionParameters(
+    host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="%3D123"
+)
+
 
 @asynccontextmanager
 async def create_client() -> AsyncGenerator[stompman.Client, None]:
-    server = stompman.ConnectionParameters(
-        host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="%3D123"
-    )
-    async with stompman.Client(servers=[server], read_timeout=10, connection_confirmation_timeout=10) as client:
+    async with stompman.Client(
+        servers=[CONNECTION_PARAMETERS], read_timeout=10, connection_confirmation_timeout=10
+    ) as client:
         yield client
 
 
