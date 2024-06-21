@@ -17,6 +17,7 @@ from stompman.serde import (
     FrameParser,
     dump_frame,
     dump_header,
+    iter_bytes,
     make_frame_from_parts,
     parse_header,
 )
@@ -153,7 +154,9 @@ def bytes_not_contains(*avoided: bytes) -> Callable[[bytes], bool]:
 noise_bytes_strategy = strategies.binary().filter(bytes_not_contains(NEWLINE, NULL))
 headers_strategy = strategies.dictionaries(strategies.text(), strategies.text()).map(
     lambda headers: dict(
-        parsed_header for header in starmap(dump_header, headers.items()) if (parsed_header := parse_header(header))
+        parsed_header
+        for header in starmap(dump_header, headers.items())
+        if (parsed_header := parse_header(list(iter_bytes(header))))
     )
 )
 frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
