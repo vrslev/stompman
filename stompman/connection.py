@@ -14,7 +14,7 @@ FrameType = TypeVar("FrameType", bound=AnyClientFrame | AnyServerFrame)
 
 @dataclass
 class AbstractConnection(Protocol):
-    lost_or_closed: bool = False
+    active: bool = True
 
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None: ...
@@ -48,14 +48,14 @@ class Connection(AbstractConnection):
         self.writer.close()
         with suppress(ConnectionError):
             await self.writer.wait_closed()
-        self.lost_or_closed = True
+        self.active = False
 
     @contextmanager
     def _reraise_connection_lost(self, *causes: type[Exception]) -> Generator[None, None, None]:
         try:
             yield
         except causes as exception:
-            self.lost_or_closed = True
+            self.active = False
             raise ConnectionLostError from exception
 
     def write_heartbeat(self) -> None:
