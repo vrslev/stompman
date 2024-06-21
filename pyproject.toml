@@ -37,6 +37,7 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 
+
 [tool.mypy]
 python_version = "3.11"
 warn_unused_ignores = true
@@ -52,12 +53,7 @@ line-length = 120
 preview = true
 select = ["ALL"]
 ignore = ["D1", "D203", "D213", "COM812", "ISC001", "CPY001"]
-extend-per-file-ignores = { "tests/*" = [
-    "S101",
-    "SLF001",
-    "ARG",
-] }
-
+extend-per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG"] }
 
 [tool.pytest.ini_options]
 addopts = "--cov -s"
