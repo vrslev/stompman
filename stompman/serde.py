@@ -33,10 +33,10 @@ BACKSLASH = b"\\"
 COLON_ = b":"
 
 HEADER_ESCAPE_CHARS: Final = {
-    b"\n": b"\\n",
+    NEWLINE: b"\\n",
     COLON_: b"\\c",
     BACKSLASH: b"\\\\",
-    b"\r": b"",  # [\r]\n is newline, therefore can't be used in header
+    CARRIAGE: b"",  # [\r]\n is newline, therefore can't be used in header
 }
 HEADER_UNESCAPE_CHARS: Final = {
     b"n": NEWLINE,
