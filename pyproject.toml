@@ -52,7 +52,6 @@ line-length = 120
 preview = true
 select = ["ALL"]
 ignore = [
-    "EM",
     "FBT",
     "TRY003",
     "D1",
