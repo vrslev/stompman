@@ -33,10 +33,10 @@ BACKSLASH = b"\\"
 COLON_ = b":"
 
 HEADER_ESCAPE_CHARS: Final = {
-    "\n": "\\n",
-    ":": "\\c",
-    "\\": "\\\\",
-    "\r": "",  # [\r]\n is newline, therefore can't be used in header
+    NEWLINE.decode(): "\\n",
+    COLON_.decode(): "\\c",
+    BACKSLASH.decode(): "\\\\",
+    CARRIAGE.decode(): "",  # [\r]\n is newline, therefore can't be used in header
 }
 HEADER_UNESCAPE_CHARS: Final = {
     b"n": NEWLINE,
@@ -160,7 +160,7 @@ class FrameParser:
     def _reset(self) -> None:
         self._headers_processed = False
         self._lines.clear()
-        self._current_line.clear()
+        self._current_line = bytearray()
 
     def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
         for byte in iter_bytes(chunk):
@@ -180,11 +180,11 @@ class FrameParser:
                         self._reset()
                     else:
                         self._lines.append(self._current_line)
-                        self._current_line.clear()
+                        self._current_line = bytearray()
                 else:
                     yield HeartbeatFrame()
 
             else:
-                self._current_line.extend(byte)
+                self._current_line += byte
 
             self._previous_byte = byte
