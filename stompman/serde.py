@@ -1,6 +1,7 @@
 import struct
 from collections import deque
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Final, cast
 
@@ -70,6 +71,7 @@ COMMANDS_BYTES_LISTS: Final = [list(iter_bytes(command)) for command in COMMANDS
 
 
 def dump_header(key: str, value: str) -> bytes:
+    print([(chat, HEADER_ESCAPE_CHARS.get(chat)) for chat in value])
     escaped_key = "".join(HEADER_ESCAPE_CHARS.get(char, char) for char in key)
     escaped_value = "".join(HEADER_ESCAPE_CHARS.get(char, char) for char in value)
     return f"{escaped_key}:{escaped_value}\n".encode()
@@ -87,7 +89,10 @@ def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
     return b"".join(lines)
 
 
-def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
+def unescape_byte(byte: bytes, previous_byte: bytes | None, pre_previous_byte: bytes|None) -> bytes | None:
+    print(previous_byte, byte, HEADER_UNESCAPE_CHARS.get(byte))
+    if byte == b"\\" and previous_byte == b"\\" and pre_previous_byte == b"\\":
+        return None
     if previous_byte == b"\\":
         return HEADER_UNESCAPE_CHARS.get(byte)
     if byte == b"\\":
@@ -101,18 +106,28 @@ def parse_header(buffer: list[bytes]) -> tuple[str, str] | None:
     value_buffer: list[bytes] = []
 
     previous_byte = None
+    pre_previous_byte = None
+    print(buffer)
     for byte in buffer:
+        print("TO READ", byte)
         if byte == b":":
             if key_parsed:
                 return None
             key_parsed = True
 
-        elif (unescaped_byte := unescape_byte(byte, previous_byte)) is not None:
+        elif (unescaped_byte := unescape_byte(byte, previous_byte, pre_previous_byte)) is not None:
+            print(previous_byte, byte, unescaped_byte, pre_previous_byte)
             (value_buffer if key_parsed else key_buffer).append(unescaped_byte)
-
+        pre_previous_byte = previous_byte
         previous_byte = byte
 
-    return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode()) if key_parsed else None
+
+    print(value_buffer)
+    if key_parsed:
+        with suppress(UnicodeDecodeError):
+            return (b"".join(key_buffer).decode(), b"".join(value_buffer).decode())
+
+    return None
 
 
 def make_frame_from_parts(command: bytes, headers: dict[str, str], body: bytes) -> AnyClientFrame | AnyServerFrame:

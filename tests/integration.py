@@ -152,7 +152,8 @@ def bytes_not_contains(*avoided: bytes) -> Callable[[bytes], bool]:
 
 
 noise_bytes_strategy = strategies.binary().filter(bytes_not_contains(NEWLINE, NULL))
-headers_strategy = strategies.dictionaries(strategies.text(), strategies.text()).map(
+header_value_strategy = strategies.text().filter(lambda text: "\x00" not in text)
+headers_strategy = strategies.dictionaries(header_value_strategy, header_value_strategy).map(
     lambda headers: dict(
         parsed_header
         for header in starmap(dump_header, headers.items())
