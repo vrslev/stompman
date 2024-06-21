@@ -32,7 +32,7 @@ class AbstractConnection(Protocol):
 class Connection(AbstractConnection):
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
-    is_lost: bool = False
+    lost_or_closed: bool = False
 
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
@@ -47,13 +47,14 @@ class Connection(AbstractConnection):
         self.writer.close()
         with suppress(ConnectionError):
             await self.writer.wait_closed()
+        self.lost_or_closed = True
 
     @contextmanager
     def _reraise_connection_lost(self, *causes: type[Exception]) -> Generator[None, None, None]:
         try:
             yield
         except causes as exception:
-            self.is_lost = True
+            self.lost_or_closed = True
             raise ConnectionLostError from exception
 
     def write_heartbeat(self) -> None:
