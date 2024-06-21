@@ -44,11 +44,6 @@ HEADER_UNESCAPE_CHARS: Final = {
     BACKSLASH: BACKSLASH,
 }
 
-
-def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
-    return struct.unpack(f"{len(bytes_)}c", bytes_)
-
-
 COMMANDS_TO_FRAMES: Final[dict[bytes, type[AnyClientFrame | AnyServerFrame]]] = {
     # Client frames
     b"SEND": SendFrame,
@@ -70,6 +65,10 @@ COMMANDS_TO_FRAMES: Final[dict[bytes, type[AnyClientFrame | AnyServerFrame]]] = 
 }
 FRAMES_TO_COMMANDS: Final = {value: key for key, value in COMMANDS_TO_FRAMES.items()}
 FRAMES_WITH_BODY: Final = (SendFrame, MessageFrame, ErrorFrame)
+
+
+def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
+    return struct.unpack(f"{len(bytes_)}c", bytes_)
 
 
 def dump_header(key: str, value: str) -> Iterator[bytes]:
@@ -120,10 +119,10 @@ def parse_header(buffer: bytearray) -> tuple[str, str] | None:
         elif just_escaped_line:
             just_escaped_line = False
             if byte != BACKSLASH:
-                (value_buffer if key_parsed else key_buffer).append(byte[0])
+                (value_buffer if key_parsed else key_buffer).extend(byte)
         elif unescaped_byte := unescape_byte(byte, previous_byte):
             just_escaped_line = True
-            (value_buffer if key_parsed else key_buffer).append(unescaped_byte[0])
+            (value_buffer if key_parsed else key_buffer).extend(unescaped_byte)
 
         previous_byte = byte
 
@@ -190,6 +189,6 @@ class FrameParser:
                     yield HeartbeatFrame()
 
             else:
-                self._current_line.append(byte[0])
+                self._current_line.extend(byte)
 
             self._previous_byte = byte
