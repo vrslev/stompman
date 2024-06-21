@@ -30,10 +30,10 @@ NEWLINE: Final = b"\n"
 CARRIAGE: Final = b"\r"
 NULL: Final = b"\x00"
 HEADER_ESCAPE_CHARS: Final = {
-    "\n": "\\n",
-    ":": "\\c",
-    "\\": "\\\\",
-    "\r": "",  # [\r]\n is newline, therefore can't be used in header
+    b"\n": b"\\n",
+    b":": b"\\c",
+    b"\\": b"\\\\",
+    b"\r": b"",  # [\r]\n is newline, therefore can't be used in header
 }
 HEADER_UNESCAPE_CHARS: Final = {
     b"n": NEWLINE,
@@ -70,22 +70,31 @@ FRAMES_WITH_BODY: Final = (SendFrame, MessageFrame, ErrorFrame)
 COMMANDS_BYTES_LISTS: Final = [list(iter_bytes(command)) for command in COMMANDS_TO_FRAMES]
 
 
-def dump_header(key: str, value: str) -> bytes:
-    escaped_key = "".join(HEADER_ESCAPE_CHARS.get(char, char) for char in key)
-    escaped_value = "".join(HEADER_ESCAPE_CHARS.get(char, char) for char in value)
-    return f"{escaped_key}:{escaped_value}\n".encode()
+def dump_header(key: str, value: str) -> Iterator[bytes]:
+    for char in iter_bytes(key.encode()):
+        yield HEADER_ESCAPE_CHARS.get(char, char)
+
+    yield b":"
+
+    for char in iter_bytes(value.encode()):
+        yield HEADER_ESCAPE_CHARS.get(char, char)
+
+    yield NEWLINE
+
+
+def _dump_frame_iter(frame: AnyClientFrame | AnyServerFrame) -> Iterator[bytes]:
+    yield FRAMES_TO_COMMANDS[type(frame)]
+    yield NEWLINE
+    for key, value in sorted(frame.headers.items()):
+        yield from dump_header(key, cast(str, value))
+    yield NEWLINE
+    if isinstance(frame, FRAMES_WITH_BODY):
+        yield frame.body
+    yield NULL
 
 
 def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
-    lines = (
-        FRAMES_TO_COMMANDS[type(frame)],
-        NEWLINE,
-        *(dump_header(key, cast(str, value)) for key, value in sorted(frame.headers.items())),
-        NEWLINE,
-        frame.body if isinstance(frame, FRAMES_WITH_BODY) else b"",
-        NULL,
-    )
-    return b"".join(lines)
+    return b"".join(_dump_frame_iter(frame))
 
 
 def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
