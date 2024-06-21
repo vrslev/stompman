@@ -236,7 +236,7 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
 
     client = EnrichedClient(connection_class=BaseMockConnection)
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout)
 
@@ -249,7 +249,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
 
     client = EnrichedClient(connection_class=connection_class)
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
-        await client.__aenter__()
+        await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == UnsupportedProtocolVersionError(
         given_version=given_version, supported_version=client.PROTOCOL_VERSION
