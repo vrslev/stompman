@@ -149,10 +149,7 @@ class FrameParser:
         self._current_line = []
 
     def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
-        buffer = deque(iter_bytes(chunk))
-        while buffer:
-            byte = buffer.popleft()
-
+        for byte in iter_bytes(chunk):
             if byte == NULL:
                 if self._headers_processed:
                     self._lines.append(self._current_line)
