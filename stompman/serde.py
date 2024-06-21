@@ -45,8 +45,8 @@ HEADER_UNESCAPE_CHARS: Final = {
 }
 
 
-def iter_bytes(bytes_: bytes) -> Iterator[bytes]:
-    return (tup[0] for tup in struct.iter_unpack(f"{len(bytes_)!s}c", bytes_))
+def iter_bytes(bytes_: bytes) -> tuple[bytes, ...]:
+    return struct.unpack(f"{len(bytes_)}c", bytes_)
 
 
 COMMANDS_TO_FRAMES: Final[dict[bytes, type[AnyClientFrame | AnyServerFrame]]] = {
@@ -144,7 +144,7 @@ def make_frame_from_parts(command: bytes, headers: dict[str, str], body: bytes) 
 
 
 def parse_lines_into_frame(lines: deque[bytearray]) -> AnyClientFrame | AnyServerFrame:
-    command = lines.popleft()
+    command = bytes(lines.popleft())
     headers = {}
 
     while line := lines.popleft():
