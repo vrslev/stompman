@@ -1,16 +1,13 @@
 ARG PYTHON_VERSION
+FROM ghcr.io/astral-sh/uv:0.2.11 as uv
 FROM python:${PYTHON_VERSION}-slim-bullseye
 
-# hadolint ignore=DL3013, DL3042
-RUN --mount=type=cache,target=~/.cache/pip pip install uv==0.2.11
-
 WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY stompman/__init__.py stompman/__init__.py
 
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=0
-COPY pyproject.toml README.md ./
-RUN uv lock
-
-COPY stompman/__init__.py stompman/__init__.py
-RUN --mount=type=cache,target=~/.cache/uv uv sync
-
+RUN --mount=from=uv,source=/uv,target=/bin/uv \
+    --mount=type=cache,target=~/.cache/uv \
+    uv lock && uv sync
 COPY . .
