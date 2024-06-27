@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION
-FROM ghcr.io/astral-sh/uv:0.2.11 as uv
+FROM ghcr.io/astral-sh/uv:latest as uv
 FROM python:${PYTHON_VERSION}-slim-bullseye
 
 WORKDIR /app
