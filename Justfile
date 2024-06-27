@@ -5,7 +5,7 @@ install:
     uv -q sync
 
 test *args:
-    uv -q run pytest -- {{args}}
+    uv -q run pytest {{args}}
 
 lint:
     uv -q run ruff check .
@@ -30,6 +30,6 @@ test-integration *args:
 
 publish:
     rm -rf dist/*
-    uv tool run --from build python -- -m build --installer uv
+    uv tool run --from build python -m build --installer uv
     uv tool run twine check dist/*
     uv tool run twine upload dist/* --username __token__ --password $PYPI_TOKEN
