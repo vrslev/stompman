@@ -32,6 +32,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
+from stompman.processing import AsyncProcessContext
 
 
 class Heartbeat(NamedTuple):
@@ -294,6 +295,9 @@ class MessageEvent:
 
     def __post_init__(self) -> None:
         self.body = self._frame.body
+
+    def process(self, ack_on_error: bool = False) -> AsyncProcessContext:
+        return AsyncProcessContext(self, ack_on_error=ack_on_error)
 
     async def ack(self) -> None:
         if self._client._connection.active:  # noqa: SLF001
