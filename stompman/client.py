@@ -32,7 +32,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.processing import AsyncProcessContext
+from stompman.processing import AsyncProcessContext, E_co
 
 
 class Heartbeat(NamedTuple):
@@ -296,9 +296,6 @@ class MessageEvent:
     def __post_init__(self) -> None:
         self.body = self._frame.body
 
-    def process(self, ack_on_error: bool = False) -> AsyncProcessContext:
-        return AsyncProcessContext(self, ack_on_error=ack_on_error)
-
     async def ack(self) -> None:
         if self._client._connection.active:  # noqa: SLF001
             with suppress(ConnectionLostError):
@@ -327,19 +324,22 @@ class MessageEvent:
         self,
         awaitable: Awaitable[None],
         *,
-        on_suppressed_exception: Callable[[Exception, Self], Any],
+        on_suppressed_exception: Callable[[E_co, "MessageEvent"], Any],
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> None:
-        called_nack = False
-        try:
+        async with self.process(on_suppressed_exception, supressed_exception_classes):
             await awaitable
-        except supressed_exception_classes as exception:
-            await self.nack()
-            called_nack = True
-            on_suppressed_exception(exception, self)
-        finally:
-            if not called_nack:
-                await self.ack()
+
+    def process(
+        self,
+        on_suppressed_exception: Callable[[E_co, "MessageEvent"], Any],
+        supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
+    ) -> AsyncProcessContext:
+        return AsyncProcessContext(
+            self,
+            on_suppressed_exception=on_suppressed_exception,
+            supressed_exception_classes=supressed_exception_classes,
+        )
 
 
 @dataclass
