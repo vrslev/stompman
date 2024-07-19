@@ -160,6 +160,26 @@ class Client:
             timeout=self.connect_timeout,
         )
 
+    async def _wait_for_connected_frame(self) -> ConnectedFrame:
+        collected_frames = []
+
+        async def inner() -> ConnectedFrame:
+            async for frame in self._connection.read_frames(
+                max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
+            ):
+                if isinstance(frame, ConnectedFrame):
+                    return frame
+                collected_frames.append(frame)
+            msg = "unreachable"  # pragma: no cover
+            raise AssertionError(msg)  # pragma: no cover
+
+        try:
+            return await asyncio.wait_for(inner(), timeout=self.connection_confirmation_timeout)
+        except TimeoutError as exception:
+            raise ConnectionConfirmationTimeoutError(
+                timeout=self.connection_confirmation_timeout, frames=collected_frames
+            ) from exception
+
     @asynccontextmanager
     async def _connection_lifespan(self) -> AsyncGenerator[None, None]:
         # On startup:
@@ -182,15 +202,7 @@ class Client:
                 },
             )
         )
-        try:
-            connected_frame = await asyncio.wait_for(
-                self._connection.read_frame_of_type(
-                    ConnectedFrame, max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-                ),
-                timeout=self.connection_confirmation_timeout,
-            )
-        except TimeoutError as exception:
-            raise ConnectionConfirmationTimeoutError(self.connection_confirmation_timeout) from exception
+        connected_frame = await self._wait_for_connected_frame()
 
         if connected_frame.headers["version"] != self.PROTOCOL_VERSION:
             raise UnsupportedProtocolVersionError(
