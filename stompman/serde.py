@@ -156,7 +156,7 @@ def parse_lines_into_frame(lines: deque[bytearray]) -> AnyClientFrame | AnyServe
     return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
-@dataclass
+@dataclass(kw_only=True, slots=True)
 class FrameParser:
     _lines: deque[bytearray] = field(default_factory=deque, init=False)
     _current_line: bytearray = field(default_factory=bytearray, init=False)

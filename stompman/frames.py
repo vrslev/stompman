@@ -120,85 +120,85 @@ ErrorHeaders = TypedDict(
 )
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class ConnectFrame:
     headers: ConnectHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class StompFrame:
     headers: ConnectHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class ConnectedFrame:
     headers: ConnectedHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class SendFrame:
     headers: SendHeaders
     body: bytes = b""
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class SubscribeFrame:
     headers: SubscribeHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class UnsubscribeFrame:
     headers: UnsubscribeHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class AckFrame:
     headers: AckHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class NackFrame:
     headers: NackHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class BeginFrame:
     headers: BeginHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class CommitFrame:
     headers: CommitHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class AbortFrame:
     headers: AbortHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class DisconnectFrame:
     headers: DisconnectHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class ReceiptFrame:
     headers: ReceiptHeaders
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class MessageFrame:
     headers: MessageHeaders
     body: bytes
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class ErrorFrame:
     headers: ErrorHeaders
     body: bytes = b""
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class HeartbeatFrame: ...
 
 
