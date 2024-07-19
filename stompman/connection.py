@@ -12,7 +12,7 @@ from stompman.serde import NEWLINE, FrameParser, dump_frame
 FrameType = TypeVar("FrameType", bound=AnyClientFrame | AnyServerFrame)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class AbstractConnection(Protocol):
     active: bool = True
 
@@ -24,7 +24,7 @@ class AbstractConnection(Protocol):
     def read_frames(self, max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]: ...
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, slots=True)
 class Connection(AbstractConnection):
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter

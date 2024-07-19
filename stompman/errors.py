@@ -7,25 +7,25 @@ if TYPE_CHECKING:
     from stompman.client import ConnectionParameters
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class Error(Exception):
     def __str__(self) -> str:
         return self.__repr__()
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class ConnectionConfirmationTimeoutError(Error):
     timeout: int
     frames: list[MessageFrame | ReceiptFrame | ErrorFrame]
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class UnsupportedProtocolVersionError(Error):
     given_version: str
     supported_version: str
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class FailedAllConnectAttemptsError(Error):
     servers: list["ConnectionParameters"]
     retry_attempts: int
@@ -33,5 +33,5 @@ class FailedAllConnectAttemptsError(Error):
     timeout: int
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class ConnectionLostError(Error): ...

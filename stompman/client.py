@@ -54,7 +54,7 @@ class MultiHostHostLike(TypedDict):
     port: int | None
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class ConnectionParameters:
     host: str
     port: int
@@ -106,9 +106,9 @@ class ConnectionParameters:
         return servers
 
 
-@dataclass
+@dataclass(kw_only=True, slots=True)
 class Client:
-    servers: list[ConnectionParameters]
+    servers: list[ConnectionParameters] = field(kw_only=False)
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
@@ -300,7 +300,7 @@ class Client:
                     raise AssertionError(msg, frame)
 
 
-@dataclass
+@dataclass(kw_only=True, slots=True)
 class MessageEvent:
     body: bytes = field(init=False)
     _frame: MessageFrame
@@ -352,7 +352,7 @@ class MessageEvent:
                 await self.ack()
 
 
-@dataclass
+@dataclass(kw_only=True, slots=True)
 class ErrorEvent:
     message_header: str = field(init=False)
     """Short description of the error."""
@@ -366,7 +366,7 @@ class ErrorEvent:
         self.body = self._frame.body
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True, slots=True)
 class HeartbeatEvent:
     _frame: HeartbeatFrame
     _client: Client = field(repr=False)

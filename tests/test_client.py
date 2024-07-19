@@ -91,10 +91,10 @@ def assert_frames_between_lifespan_match(
     assert collected_frames[2:-2] == expected_frames
 
 
-@dataclass
+@dataclass(kw_only=True, slots=True)
 class EnrichedClient(Client):
     servers: list[ConnectionParameters] = field(
-        default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
+        default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
     )
 
 
