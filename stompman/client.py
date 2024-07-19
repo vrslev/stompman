@@ -222,9 +222,11 @@ class Client:
         if self._connection.active:
             await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
         if self._connection.active:
-            await self._connection.read_frame_of_type(
-                ReceiptFrame, max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-            )
+            async for frame in self._connection.read_frames(
+                max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
+            ):
+                if isinstance(frame, ReceiptFrame):
+                    break
 
     @asynccontextmanager
     async def enter_transaction(self) -> AsyncGenerator[str, None]:
