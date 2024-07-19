@@ -41,7 +41,6 @@ from stompman.errors import ConnectionLostError
 pytestmark = pytest.mark.anyio
 
 
-@dataclass
 class BaseMockConnection(AbstractConnection):
     @classmethod
     async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
@@ -61,7 +60,6 @@ class BaseMockConnection(AbstractConnection):
 def create_spying_connection(
     read_frames_yields: list[list[AnyServerFrame]],
 ) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
-    @dataclass
     class BaseCollectingConnection(BaseMockConnection):
         @staticmethod
         async def write_frame(frame: AnyClientFrame) -> None:
