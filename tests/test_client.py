@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable
+from collections.abc import AsyncGenerator, Coroutine
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Self
@@ -227,18 +227,28 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def timeout(future: Awaitable[Any], timeout: float) -> object:
+    async def timeout(future: Coroutine[Any, Any, Any], timeout: float) -> object:
         assert timeout == client.connection_confirmation_timeout
-        return await original_wait_for(future, 0)
+        task = asyncio.create_task(future)
+        await asyncio.sleep(0)
+        return await original_wait_for(task, 0)
 
     original_wait_for = asyncio.wait_for
     monkeypatch.setattr("asyncio.wait_for", timeout)
 
-    client = EnrichedClient(connection_class=BaseMockConnection)
+    class MockConnection(BaseMockConnection):
+        @staticmethod
+        async def read_frames(max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
+            yield ErrorFrame(headers={"message": "hi"})
+            await asyncio.sleep(0)
+
+    client = EnrichedClient(connection_class=MockConnection)
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
         await client.__aenter__()  # noqa: PLC2801
 
-    assert exc_info.value == ConnectionConfirmationTimeoutError(client.connection_confirmation_timeout)
+    assert exc_info.value == ConnectionConfirmationTimeoutError(
+        timeout=client.connection_confirmation_timeout, frames=[ErrorFrame(headers={"message": "hi"})]
+    )
 
 
 async def test_client_lifespan_unsupported_protocol_version() -> None:
