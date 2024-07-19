@@ -80,10 +80,16 @@ def dump_header(key: str, value: str) -> bytes:
 
 
 def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
+    sorted_headers = sorted(frame.headers.items())
+    dumped_headers = (
+        (f"{key}:{value}\n".encode() for key, value in sorted_headers)
+        if isinstance(frame, ConnectFrame)
+        else (dump_header(key, cast(str, value)) for key, value in sorted_headers)
+    )
     lines = (
         FRAMES_TO_COMMANDS[type(frame)],
         NEWLINE,
-        *(dump_header(key, cast(str, value)) for key, value in sorted(frame.headers.items())),
+        *dumped_headers,
         NEWLINE,
         frame.body if isinstance(frame, FRAMES_WITH_BODY) else b"",
         NULL,

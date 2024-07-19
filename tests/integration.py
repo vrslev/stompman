@@ -25,7 +25,7 @@ from stompman.serde import (
 pytestmark = pytest.mark.anyio
 
 CONNECTION_PARAMETERS: Final = stompman.ConnectionParameters(
-    host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode="%3D123"
+    host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode=":=123"
 )
 
 
@@ -163,9 +163,11 @@ headers_strategy = strategies.dictionaries(header_value_strategy, header_value_s
         if (parsed_header := parse_header(bytearray(header)))
     )
 )
+
+FRAMES_WITH_ESCAPED_HEADERS = tuple(command for command in COMMANDS_TO_FRAMES if command != b"CONNECT")
 frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
     make_frame_from_parts,
-    command=strategies.sampled_from(tuple(COMMANDS_TO_FRAMES.keys())),
+    command=strategies.sampled_from(FRAMES_WITH_ESCAPED_HEADERS),
     headers=headers_strategy,
     body=strategies.binary().filter(bytes_not_contains(NULL)),
 )
