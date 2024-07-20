@@ -1,32 +1,32 @@
 default: install lint check-types test test-integration
 
 install:
-    uv -q lock
-    uv -q sync
-
-test *args:
-    .venv/bin/pytest {{args}}
+    uv lock
+    uv sync
 
 lint:
-    uv -q run ruff check .
-    uv -q run ruff format .
+    uv run -q --frozen ruff check .
+    uv run -q --frozen ruff format .
 
 check-types:
-    uv -q run mypy .
+    uv run -q --frozen mypy .
 
-run-artemis:
-    docker compose up
-
-run-consumer:
-    ARTEMIS_HOST=0.0.0.0 uv -q run python testing/consumer.py
-
-run-producer:
-    ARTEMIS_HOST=0.0.0.0 uv -q run python testing/producer.py
+test *args:
+    uv run -q --frozen pytest {{args}}
 
 test-integration *args:
     #!/bin/bash
     trap 'echo; docker compose down --remove-orphans' EXIT
     docker compose run --build --rm app .venv/bin/pytest tests/integration.py --no-cov {{args}}
+
+run-artemis:
+    docker compose up
+
+run-consumer:
+    ARTEMIS_HOST=0.0.0.0 uv run -q --frozen python testing/consumer.py
+
+run-producer:
+    ARTEMIS_HOST=0.0.0.0 uv run -q --frozen python testing/producer.py
 
 publish:
     rm -rf dist/*
