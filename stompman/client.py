@@ -189,15 +189,6 @@ class Client:
 
     @asynccontextmanager
     async def _connection_lifespan(self) -> AsyncGenerator[None, None]:
-        # On startup:
-        # - send CONNECT frame
-        # - wait for CONNECTED frame
-        # - start heartbeats
-        # On shutdown:
-        # - stop heartbeats
-        # - send DISCONNECT frame
-        # - wait for RECEIPT frame
-
         await self._connection.write_frame(
             ConnectFrame(
                 headers={
