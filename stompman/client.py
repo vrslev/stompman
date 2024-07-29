@@ -294,7 +294,7 @@ class Client:
             )
         )
 
-    async def subscribe(
+    async def subscribe(  # noqa: PLR0913
         self,
         destination: str,
         handler: Callable[[MessageFrame], Coroutine[None, None, None]],
