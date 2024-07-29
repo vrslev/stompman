@@ -113,6 +113,8 @@ class Client:
     connect_retry_interval: int = 1
     connect_timeout: int = 2
     connection_confirmation_timeout: int = 2
+    on_error_frame: Callable[[ErrorFrame], None] | None = None
+    on_heartbeat_frame: Callable[[], None] | None = None
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
