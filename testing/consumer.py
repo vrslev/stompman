@@ -8,12 +8,11 @@ async def main() -> None:
     async with (
         stompman.Client(servers=[CONNECTION_PARAMETERS]) as client,
     ):
-        await client.subscribe("DLQ")
-        async for event in client.listen():
-            print(event)  # noqa: T201
-            match event:
-                case stompman.MessageEvent():
-                    await event.ack()
+
+        async def handle_message(frame: stompman.MessageFrame) -> None:  # noqa: RUF029
+            print(frame)  # noqa: T201
+
+        await client.subscribe("DLQ", handler=handle_message, on_suppressed_exception=print)
 
 
 if __name__ == "__main__":
