@@ -5,9 +5,7 @@ from tests.integration import CONNECTION_PARAMETERS
 
 
 async def main() -> None:
-    async with (
-        stompman.Client(servers=[CONNECTION_PARAMETERS]) as client,
-    ):
+    async with stompman.Client(servers=[CONNECTION_PARAMETERS]) as client:
 
         async def handle_message(frame: stompman.MessageFrame) -> None:  # noqa: RUF029
             print(frame)  # noqa: T201
