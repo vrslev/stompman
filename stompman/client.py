@@ -126,12 +126,10 @@ class Client:
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> Self:
-        self._task_group = await self._exit_stack.enter_async_context(asyncio.TaskGroup())
-
         await self._connect_to_any_server()
         self._exit_stack.push_async_callback(self._connection.close)
-
         await self._exit_stack.enter_async_context(self._connection_lifespan())
+        self._task_group = await self._exit_stack.enter_async_context(asyncio.TaskGroup())
         self._exit_stack.push_async_callback(self._unsubscribe_from_active_subscriptions)
         await self._add_task_to_task_group(self._listen_to_frames())
         return self
