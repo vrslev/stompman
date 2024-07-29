@@ -28,7 +28,6 @@ from stompman.frames import (
     NackFrame,
     ReceiptFrame,
     SendFrame,
-    SendHeaders,
     SubscribeFrame,
     UnsubscribeFrame,
 )
@@ -241,12 +240,12 @@ class Client:
                     break
 
     @asynccontextmanager
-    async def enter_transaction(self) -> AsyncGenerator[str, None]:
+    async def begin(self) -> AsyncGenerator["Transaction", None]:
         transaction_id = str(uuid4())
         await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
 
         try:
-            yield transaction_id
+            yield Transaction(id=transaction_id, _connection=self._connection)
         except Exception:
             if self._connection.active:
                 await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
@@ -255,22 +254,18 @@ class Client:
             if self._connection.active:
                 await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
-    async def send(  # noqa: PLR0913
+    async def send(
         self,
         body: bytes,
         destination: str,
-        transaction: str | None = None,
         content_type: str | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
-        full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
-        full_headers["destination"] = destination
-        full_headers["content-length"] = str(len(body))
-        if content_type is not None:
-            full_headers["content-type"] = content_type
-        if transaction is not None:
-            full_headers["transaction"] = transaction
-        await self._connection.write_frame(SendFrame(headers=full_headers, body=body))
+        await self._connection.write_frame(
+            SendFrame.build(
+                body=body, destination=destination, transaction=None, content_type=content_type, headers=headers
+            )
+        )
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
@@ -298,6 +293,25 @@ class Client:
                 case ConnectedFrame() | ReceiptFrame():
                     msg = "Should be unreachable! Report the issue."
                     raise AssertionError(msg, frame)
+
+
+@dataclass(kw_only=True, slots=True)
+class Transaction:
+    id: str
+    _connection: AbstractConnection
+
+    async def send(
+        self,
+        body: bytes,
+        destination: str,
+        content_type: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        await self._connection.write_frame(
+            SendFrame.build(
+                body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
+            )
+        )
 
 
 @dataclass(kw_only=True, slots=True)
