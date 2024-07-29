@@ -135,8 +135,12 @@ class Client:
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
-        await self._exit_stack.aclose()
-        await self._connection.close()
+        try:
+            if self._active_subscriptions:
+                await asyncio.Future()
+        finally:
+            await self._exit_stack.aclose()
+            await self._connection.close()
 
     async def _connect_to_one_server(
         self, server: ConnectionParameters
