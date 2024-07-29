@@ -46,9 +46,9 @@ await client.send(body=b"hi there!", destination="DLQ", headers={"persistent": "
 Or, to send messages in a transaction:
 
 ```python
-async with client.enter_transaction() as transaction:
+async with client.begin() as transaction:
     for _ in range(10):
-        await client.send(body=b"hi there!", destination="DLQ", transaction=transaction, headers={"persistent": "true"})
+        await transaction.send(body=b"hi there!", destination="DLQ", headers={"persistent": "true"})
         await asyncio.sleep(0.1)
 ```
 
@@ -108,7 +108,7 @@ async def handle_message(event: stompman.MessageEvent) -> None:
 
 ### Cleaning Up
 
-stompman takes care of cleaning up resources automatically. When you leave the context of async context managers `stompman.Client()`, `client.subscribe()`, or `client.enter_transaction()`, the necessary frames will be sent to the server.
+stompman takes care of cleaning up resources automatically. When you leave the context of async context managers `stompman.Client()`, `client.subscribe()`, or `client.begin()`, the necessary frames will be sent to the server.
 
 ### Handling Connectivity Issues
 
