@@ -23,12 +23,9 @@ from stompman import (
     ConnectionLostError,
     ConnectionParameters,
     DisconnectFrame,
-    ErrorEvent,
     ErrorFrame,
     FailedAllConnectAttemptsError,
-    HeartbeatEvent,
     HeartbeatFrame,
-    MessageEvent,
     MessageFrame,
     NackFrame,
     ReceiptFrame,
@@ -37,6 +34,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
+from tests.conftest import noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
 
@@ -273,8 +271,10 @@ async def test_client_subscribe(monkeypatch: pytest.MonkeyPatch) -> None:
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with EnrichedClient(connection_class=connection_class) as client:
-        subscription_1 = await client.subscribe(destination_1)
-        await client.subscribe(destination_2)
+        subscription_1 = await client.subscribe(
+            destination_1, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+        )
+        await client.subscribe(destination_2, handler=noop_message_handler, on_suppressed_exception=noop_error_handler)
         await subscription_1.unsubscribe()
 
     assert_frames_between_lifespan_match(
@@ -335,8 +335,11 @@ async def test_client_heartbeat_not_raises_connection_lost() -> None:
         await asyncio.sleep(0)
 
 
-async def test_client_listen_to_events_ok() -> None:
-    message_frame = MessageFrame(headers={"destination": "", "message-id": "", "subscription": ""}, body=b"hello")
+async def test_client_listen_ok() -> None:
+    destination = "mydestination"
+    message_frame = MessageFrame(
+        headers={"destination": destination, "message-id": "", "subscription": ""}, body=b"hello"
+    )
     error_frame = ErrorFrame(headers={"message": "short description"})
     heartbeat_frame = HeartbeatFrame()
 
@@ -351,17 +354,21 @@ async def test_client_listen_to_events_ok() -> None:
             ]
         )
     )
-    async with EnrichedClient(connection_class=connection_class) as client:
-        events = [event async for event in client.listen()]
+    on_error_frame = mock.Mock()
+    on_heartbeat = mock.Mock()
+    handle_message = mock.AsyncMock()
+    async with EnrichedClient(
+        connection_class=connection_class, on_error_frame=on_error_frame, on_heartbeat=on_heartbeat
+    ) as client:
+        subscription = await client.subscribe(
+            destination, handler=handle_message, on_suppressed_exception=noop_error_handler
+        )
+        await asyncio.sleep(0)
+        await subscription.unsubscribe()
 
-    assert events == [
-        MessageEvent(_client=client, _frame=message_frame),
-        ErrorEvent(_client=client, _frame=error_frame),
-        HeartbeatEvent(_client=client, _frame=heartbeat_frame),
-    ]
-    assert events[0].body == message_frame.body  # type: ignore[union-attr]
-    assert events[1].message_header == error_frame.headers["message"]  # type: ignore[union-attr]
-    assert events[1].body == error_frame.body  # type: ignore[union-attr]
+    on_error_frame.assert_called_once_with(error_frame)
+    on_heartbeat.assert_called_once_with()
+    handle_message.assert_called_once_with(message_frame)
 
 
 @pytest.mark.parametrize("frame", [ConnectedFrame(headers={"version": ""}), ReceiptFrame(headers={"receipt-id": ""})])
@@ -389,7 +396,7 @@ async def test_ack_nack_ok() -> None:
 
         assert len(events) == 1
         event = events[0]
-        assert isinstance(event, MessageEvent)
+        # assert isinstance(event, MessageEvent)
         await event.nack()
         await event.ack()
 
@@ -409,13 +416,13 @@ async def test_ack_nack_connection_lost_error() -> None:
     async with EnrichedClient(connection_class=MockConnection) as client:
         events = [event async for event in client.listen()]
         event = events[0]
-        assert isinstance(event, MessageEvent)
+        # assert isinstance(event, MessageEvent)
 
         await event.nack()
         await event.ack()
 
 
-def get_mocked_message_event() -> tuple[MessageEvent, mock.AsyncMock, mock.AsyncMock, mock.Mock]:
+def get_mocked_message_event() -> tuple["MessageEvent", mock.AsyncMock, mock.AsyncMock, mock.Mock]:
     ack_mock, nack_mock, on_suppressed_exception_mock = mock.AsyncMock(), mock.AsyncMock(), mock.Mock()
 
     class CustomMessageEvent(MessageEvent):

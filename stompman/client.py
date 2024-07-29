@@ -348,6 +348,14 @@ class Subscription:
     def __post_init__(self) -> None:
         self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
 
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        await self.unsubscribe()
+
     async def unsubscribe(self) -> None:
         del self._active_subscriptions[self.destination]
         if self._connection.active:

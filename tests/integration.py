@@ -21,6 +21,7 @@ from stompman.serde import (
     make_frame_from_parts,
     parse_header,
 )
+from tests.conftest import noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
 
@@ -96,12 +97,6 @@ async def test_not_raises_connection_lost_error_in_write_heartbeat(client: stomp
 
     with pytest.raises(ConnectionLostError):
         client._connection.write_heartbeat()
-
-
-async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
-
-
-def noop_error_handler(exception: Exception, frame: stompman.MessageFrame) -> None: ...
 
 
 async def test_not_raises_connection_lost_error_in_subscription(client: stompman.Client, destination: str) -> None:
