@@ -4,8 +4,8 @@ A Python client for STOMP asynchronous messaging protocol that is:
 
 - asynchronous,
 - not abandoned,
-- has pleasant and comprehensible API. Also: async generators, match statements, heavy typing coverage and no callbacks.
-
+- has typed, modern, comprehensible API.
+- 
 There were no such one—and now there're is.
 
 ## How To Use
