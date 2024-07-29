@@ -240,12 +240,12 @@ class Client:
                     break
 
     @asynccontextmanager
-    async def enter_transaction(self) -> AsyncGenerator[str, None]:
+    async def begin(self) -> AsyncGenerator["Transaction", None]:
         transaction_id = str(uuid4())
         await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
 
         try:
-            yield transaction_id
+            yield Transaction(id=transaction_id, _connection=self._connection)
         except Exception:
             if self._connection.active:
                 await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
@@ -254,17 +254,16 @@ class Client:
             if self._connection.active:
                 await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
-    async def send(  # noqa: PLR0913
+    async def send(
         self,
         body: bytes,
         destination: str,
-        transaction: str | None = None,
         content_type: str | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
         await self._connection.write_frame(
             SendFrame.build(
-                body=body, destination=destination, transaction=transaction, content_type=content_type, headers=headers
+                body=body, destination=destination, transaction=None, content_type=content_type, headers=headers
             )
         )
 
@@ -298,7 +297,7 @@ class Client:
 
 @dataclass(kw_only=True, slots=True)
 class Transaction:
-    _id: str
+    id: str
     _connection: AbstractConnection
 
     async def send(
@@ -310,7 +309,7 @@ class Transaction:
     ) -> None:
         await self._connection.write_frame(
             SendFrame.build(
-                body=body, destination=destination, transaction=self._id, content_type=content_type, headers=headers
+                body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
             )
         )
 

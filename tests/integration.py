@@ -50,10 +50,10 @@ def destination() -> str:
 
 async def test_ok(destination: str) -> None:
     async def produce() -> None:
-        async with producer.enter_transaction() as transaction:
+        async with producer.begin() as transaction:
             for message in messages:
-                await producer.send(
-                    body=message, destination=destination, transaction=transaction, headers={"hello": "world"}
+                await transaction.send(
+                    body=message, destination=destination, headers={"hello": "world"}
                 )
 
     async def consume() -> None:
@@ -102,19 +102,19 @@ async def test_not_raises_connection_lost_error_in_subscription(client: stompman
 
 
 async def test_not_raises_connection_lost_error_in_transaction_without_send(client: stompman.Client) -> None:
-    async with client.enter_transaction():
+    async with client.begin():
         await client._connection.close()
 
 
 async def test_not_raises_connection_lost_error_in_transaction_with_send(
     client: stompman.Client, destination: str
 ) -> None:
-    async with client.enter_transaction() as transaction:
-        await client.send(b"first", destination=destination, transaction=transaction)
+    async with client.begin() as transaction:
+        await transaction.send(b"first", destination=destination)
         await client._connection.close()
 
         with pytest.raises(ConnectionLostError):
-            await client.send(b"second", destination=destination, transaction=transaction)
+            await transaction.send(b"second", destination=destination)
 
 
 async def test_raises_connection_lost_error_in_send(client: stompman.Client, destination: str) -> None:

@@ -470,53 +470,49 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     body = b"hello"
     destination = "/queue/test"
     expires = "whatever"
-    transaction = "myid"
+    transaction_id = "myid"
     content_type = "my-content-type"
-    monkeypatch.setattr(stompman.client, "uuid4", lambda: transaction)
+    monkeypatch.setattr(stompman.client, "uuid4", lambda: transaction_id)
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with (
         EnrichedClient(connection_class=connection_class) as client,
-        client.enter_transaction() as transaction,
+        client.begin() as transaction,
     ):
-        await client.send(
-            body=body,
-            destination=destination,
-            transaction=transaction,
-            content_type=content_type,
-            headers={"expires": expires},
+        await transaction.send(
+            body=body, destination=destination, content_type=content_type, headers={"expires": expires}
         )
 
     assert_frames_between_lifespan_match(
         collected_frames,
         [
-            BeginFrame(headers={"transaction": transaction}),
+            BeginFrame(headers={"transaction": transaction_id}),
             SendFrame(
                 headers={  # type: ignore[typeddict-unknown-key]
                     "content-length": str(len(body)),
                     "content-type": content_type,
                     "destination": destination,
-                    "transaction": transaction,
+                    "transaction": transaction_id,
                     "expires": expires,
                 },
                 body=b"hello",
             ),
-            CommitFrame(headers={"transaction": transaction}),
+            CommitFrame(headers={"transaction": transaction_id}),
         ],
     )
 
 
 async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
-    transaction = "myid"
-    monkeypatch.setattr(stompman.client, "uuid4", lambda: transaction)
+    transaction_id = "myid"
+    monkeypatch.setattr(stompman.client, "uuid4", lambda: transaction_id)
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with EnrichedClient(connection_class=connection_class) as client:
         with suppress(AssertionError):
-            async with client.enter_transaction() as transaction:
+            async with client.begin() as transaction:
                 raise AssertionError
 
     assert_frames_between_lifespan_match(
         collected_frames,
-        [BeginFrame(headers={"transaction": transaction}), AbortFrame(headers={"transaction": transaction})],
+        [BeginFrame(headers={"transaction": transaction_id}), AbortFrame(headers={"transaction": transaction_id})],
     )
