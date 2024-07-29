@@ -265,25 +265,39 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
 
 
 async def test_client_subscribe(monkeypatch: pytest.MonkeyPatch) -> None:
-    destination = "/topic/test"
-    subscription_id = "myid"
-    monkeypatch.setattr(stompman.client, "uuid4", lambda: subscription_id)
+    destination_1 = "/topic/one"
+    destination_2 = "/topic/two"
+    subscription_id_1 = "id1"
+    subscription_id_2 = "id2"
+    monkeypatch.setattr(stompman.client, "uuid4", mock.Mock(side_effect=[subscription_id_1, subscription_id_2, ""]))
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
-    async with EnrichedClient(connection_class=connection_class) as client, client.subscribe(destination):
-        pass
+    async with (
+        EnrichedClient(connection_class=connection_class) as client,
+        client.subscribe(destination_1) as subscription_1,
+        client.subscribe(destination_2) as subscription_2,
+    ):
+        await subscription_1.unsubscribe()
 
     assert_frames_between_lifespan_match(
         collected_frames,
         [
             SubscribeFrame(
                 headers={
-                    "destination": destination,
-                    "id": subscription_id,
+                    "destination": destination_1,
+                    "id": subscription_id_1,
                     "ack": "client-individual",
                 }
             ),
-            UnsubscribeFrame(headers={"id": subscription_id}),
+            SubscribeFrame(
+                headers={
+                    "destination": destination_2,
+                    "id": subscription_id_2,
+                    "ack": "client-individual",
+                }
+            ),
+            UnsubscribeFrame(headers={"id": subscription_id_1}),
+            UnsubscribeFrame(headers={"id": subscription_id_2}),
         ],
     )
 

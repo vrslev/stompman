@@ -121,18 +121,20 @@ class Client:
 
     _connection: AbstractConnection = field(init=False)
     _connection_parameters: ConnectionParameters = field(init=False)
+    _active_subscriptions: set[str] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> Self:
         await self._connect_to_any_server()
+        self._exit_stack.push_async_callback(self._connection.close)
         await self._exit_stack.enter_async_context(self._connection_lifespan())
+        self._exit_stack.push_async_callback(self._unsubscribe_from_active_subscriptions)
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
         await self._exit_stack.aclose()
-        await self._connection.close()
 
     async def _connect_to_one_server(
         self, server: ConnectionParameters
@@ -268,16 +270,21 @@ class Client:
         )
 
     @asynccontextmanager
-    async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
+    async def subscribe(self, destination: str) -> AsyncGenerator["Subscription", None]:
         subscription_id = str(uuid4())
         await self._connection.write_frame(
             SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
         )
-        try:
-            yield
-        finally:
-            if self._connection.active:
-                await self._connection.write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
+        self._active_subscriptions.add(subscription_id)
+        yield Subscription(
+            id=subscription_id, _connection=self._connection, _active_subscriptions=self._active_subscriptions
+        )
+
+    async def _unsubscribe_from_active_subscriptions(self) -> None:
+        for subscription in self._active_subscriptions.copy():
+            await Subscription(
+                id=subscription, _connection=self._connection, _active_subscriptions=self._active_subscriptions
+            ).unsubscribe()
 
     async def listen(self) -> AsyncIterator["AnyListeningEvent"]:
         async for frame in self._connection.read_frames(
@@ -312,6 +319,18 @@ class Transaction:
                 body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
             )
         )
+
+
+@dataclass(kw_only=True, slots=True)
+class Subscription:
+    id: str
+    _connection: AbstractConnection
+    _active_subscriptions: set[str]
+
+    async def unsubscribe(self) -> None:
+        self._active_subscriptions.remove(self.id)
+        if self._connection.active:
+            await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
 
 @dataclass(kw_only=True, slots=True)
