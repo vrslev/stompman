@@ -114,7 +114,7 @@ class Client:
     connect_timeout: int = 2
     connection_confirmation_timeout: int = 2
     on_error_frame: Callable[[ErrorFrame], None] | None = None
-    on_heartbeat_frame: Callable[[], None] | None = None
+    on_heartbeat: Callable[[], None] | None = None
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
@@ -255,9 +255,11 @@ class Client:
                 case MessageFrame():
                     ...  # route to subscription
                 case ErrorFrame():
-                    ...  # handle the error
+                    if self.on_error_frame:
+                        self.on_error_frame(frame)
                 case HeartbeatFrame():
-                    ...  # handle heartbeat
+                    if self.on_heartbeat:
+                        self.on_heartbeat()
                 case ConnectedFrame() | ReceiptFrame():
                     pass
 
