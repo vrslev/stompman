@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -256,7 +256,7 @@ class Client:
                 match frame:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["destination"]):
-                            task_group.create_task(subscription.handler(frame))
+                            task_group.create_task(subscription._run_handler(frame))  # noqa: SLF001
                     case ErrorFrame():
                         if self.on_error_frame:
                             self.on_error_frame(frame)
@@ -282,11 +282,7 @@ class Client:
                 await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
     async def send(
-        self,
-        body: bytes,
-        destination: str,
-        content_type: str | None = None,
-        headers: dict[str, str] | None = None,
+        self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         await self._connection.write_frame(
             SendFrame.build(
@@ -295,7 +291,11 @@ class Client:
         )
 
     async def subscribe(
-        self, destination: str, handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+        self,
+        destination: str,
+        handler: Callable[[MessageFrame], Coroutine[None, None, None]],
+        on_suppressed_exception: Callable[[Exception, MessageFrame], Any],
+        supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> "Subscription":
         if destination in self._active_subscriptions:
             raise Exception  # noqa: TRY002
@@ -308,6 +308,8 @@ class Client:
             id=subscription_id,
             destination=destination,
             handler=handler,
+            on_suppressed_exception=on_suppressed_exception,
+            supressed_exception_classes=supressed_exception_classes,
             _connection=self._connection,
             _active_subscriptions=self._active_subscriptions,
         )
@@ -339,6 +341,8 @@ class Subscription:
     id: str
     destination: str
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+    on_suppressed_exception: Callable[[Exception, MessageFrame], Any]
+    supressed_exception_classes: tuple[type[Exception], ...]
     _connection: AbstractConnection
     _active_subscriptions: dict[str, "Subscription"]
 
@@ -347,77 +351,29 @@ class Subscription:
         if self._connection.active:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
-
-@dataclass(kw_only=True, slots=True)
-class MessageEvent:
-    body: bytes = field(init=False)
-    _frame: MessageFrame
-    _client: Client = field(repr=False)
-
-    def __post_init__(self) -> None:
-        self.body = self._frame.body
-
-    async def ack(self) -> None:
-        if self._client._connection.active:  # noqa: SLF001
-            with suppress(ConnectionLostError):
-                await self._client._connection.write_frame(  # noqa: SLF001
-                    AckFrame(
-                        headers={
-                            "id": self._frame.headers["message-id"],
-                            "subscription": self._frame.headers["subscription"],
-                        },
-                    )
-                )
-
-    async def nack(self) -> None:
-        if self._client._connection.active:  # noqa: SLF001
-            with suppress(ConnectionLostError):
-                await self._client._connection.write_frame(  # noqa: SLF001
-                    NackFrame(
-                        headers={
-                            "id": self._frame.headers["message-id"],
-                            "subscription": self._frame.headers["subscription"],
-                        }
-                    )
-                )
-
-    async def with_auto_ack(
-        self,
-        awaitable: Awaitable[None],
-        *,
-        on_suppressed_exception: Callable[[Exception, Self], Any],
-        supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
-    ) -> None:
+    async def _run_handler(self, frame: MessageFrame) -> None:
         called_nack = False
         try:
-            await awaitable
-        except supressed_exception_classes as exception:
-            await self.nack()
+            await self.handler(frame)
+        except self.supressed_exception_classes as exception:
+            if self._connection.active:
+                with suppress(ConnectionLostError):
+                    await self._connection.write_frame(
+                        NackFrame(
+                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
+                        )
+                    )
             called_nack = True
-            on_suppressed_exception(exception, self)
+            self.on_suppressed_exception(exception, frame)
         finally:
-            if not called_nack:
-                await self.ack()
-
-
-@dataclass(kw_only=True, slots=True)
-class ErrorEvent:
-    message_header: str = field(init=False)
-    """Short description of the error."""
-    body: bytes = field(init=False)
-    """Long description of the error."""
-    _frame: ErrorFrame
-    _client: Client = field(repr=False)
-
-    def __post_init__(self) -> None:
-        self.message_header = self._frame.headers["message"]
-        self.body = self._frame.body
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class HeartbeatEvent:
-    _frame: HeartbeatFrame
-    _client: Client = field(repr=False)
-
-
-AnyListeningEvent = MessageEvent | ErrorEvent | HeartbeatEvent
+            if not called_nack:  # noqa: SIM102
+                if self._connection.active:
+                    with suppress(ConnectionLostError):
+                        await self._connection.write_frame(
+                            AckFrame(
+                                headers={
+                                    "id": frame.headers["message-id"],
+                                    "subscription": frame.headers["subscription"],
+                                },
+                            )
+                        )
