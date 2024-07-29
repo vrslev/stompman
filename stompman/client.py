@@ -123,7 +123,7 @@ class Client:
 
     _connection: AbstractConnection = field(init=False)
     _connection_parameters: ConnectionParameters = field(init=False)
-    _active_subscriptions: set[str] = field(default_factory=set, init=False)
+    _active_subscriptions: set["Subscription"] = field(default_factory=set, init=False)
     _task_group: asyncio.TaskGroup = field(init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
@@ -227,7 +227,8 @@ class Client:
                 listen_task.cancel()
 
         if self._connection.active:
-            await self._unsubscribe_from_active_subscriptions()
+            for subscription in self._active_subscriptions.copy():
+                await subscription.unsubscribe()
         if self._connection.active:
             await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
         if self._connection.active:
@@ -296,16 +297,11 @@ class Client:
         await self._connection.write_frame(
             SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
         )
-        self._active_subscriptions.add(subscription_id)
-        return Subscription(
+        subscription = Subscription(
             id=subscription_id, _connection=self._connection, _active_subscriptions=self._active_subscriptions
         )
-
-    async def _unsubscribe_from_active_subscriptions(self) -> None:
-        for subscription in self._active_subscriptions.copy():
-            await Subscription(
-                id=subscription, _connection=self._connection, _active_subscriptions=self._active_subscriptions
-            ).unsubscribe()
+        self._active_subscriptions.add(subscription)
+        return subscription
 
 
 @dataclass(kw_only=True, slots=True)
@@ -331,10 +327,10 @@ class Transaction:
 class Subscription:
     id: str
     _connection: AbstractConnection
-    _active_subscriptions: set[str]
+    _active_subscriptions: set["Subscription"]
 
     async def unsubscribe(self) -> None:
-        self._active_subscriptions.remove(self.id)
+        self._active_subscriptions.remove(self)
         if self._connection.active:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
