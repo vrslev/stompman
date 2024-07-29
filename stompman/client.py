@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -135,14 +135,6 @@ class Client:
     ) -> None:
         await self._exit_stack.aclose()
         await self._connection.close()
-
-    async def _add_task_to_task_group(self, coro: Coroutine[Any, None, None]) -> None:
-        task = self._task_group.create_task(coro)
-
-        async def t() -> None:  # noqa: RUF029
-            task.cancel()
-
-        self._exit_stack.push_async_callback(t)
 
     async def _connect_to_one_server(
         self, server: ConnectionParameters
