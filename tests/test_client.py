@@ -519,7 +519,7 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with EnrichedClient(connection_class=connection_class) as client:
         with suppress(AssertionError):
-            async with client.begin() as transaction:
+            async with client.begin():
                 raise AssertionError
 
     assert_frames_between_lifespan_match(

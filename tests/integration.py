@@ -52,9 +52,7 @@ async def test_ok(destination: str) -> None:
     async def produce() -> None:
         async with producer.begin() as transaction:
             for message in messages:
-                await transaction.send(
-                    body=message, destination=destination, headers={"hello": "world"}
-                )
+                await transaction.send(body=message, destination=destination, headers={"hello": "world"})
 
     async def consume() -> None:
         received_messages = []
