@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, Self, TypedDict
 
 ConnectHeaders = TypedDict(
     "ConnectHeaders",
@@ -139,6 +139,25 @@ class ConnectedFrame:
 class SendFrame:
     headers: SendHeaders
     body: bytes = b""
+
+    @classmethod
+    def build(  # noqa: PLR0913
+        cls,
+        *,
+        body: bytes,
+        destination: str,
+        transaction: str | None,
+        content_type: str | None,
+        headers: dict[str, str] | None,
+    ) -> Self:
+        full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
+        full_headers["destination"] = destination
+        full_headers["content-length"] = str(len(body))
+        if content_type is not None:
+            full_headers["content-type"] = content_type
+        if transaction is not None:
+            full_headers["transaction"] = transaction
+        return cls(headers=full_headers, body=body)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

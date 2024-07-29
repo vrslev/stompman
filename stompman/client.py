@@ -28,7 +28,6 @@ from stompman.frames import (
     NackFrame,
     ReceiptFrame,
     SendFrame,
-    SendHeaders,
     SubscribeFrame,
     UnsubscribeFrame,
 )
@@ -263,14 +262,11 @@ class Client:
         content_type: str | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
-        full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
-        full_headers["destination"] = destination
-        full_headers["content-length"] = str(len(body))
-        if content_type is not None:
-            full_headers["content-type"] = content_type
-        if transaction is not None:
-            full_headers["transaction"] = transaction
-        await self._connection.write_frame(SendFrame(headers=full_headers, body=body))
+        await self._connection.write_frame(
+            SendFrame.build(
+                body=body, destination=destination, transaction=transaction, content_type=content_type, headers=headers
+            )
+        )
 
     @asynccontextmanager
     async def subscribe(self, destination: str) -> AsyncGenerator[None, None]:
@@ -298,6 +294,11 @@ class Client:
                 case ConnectedFrame() | ReceiptFrame():
                     msg = "Should be unreachable! Report the issue."
                     raise AssertionError(msg, frame)
+
+
+@dataclass(kw_only=True, slots=True)
+class Transaction:
+    def send(self): ...
 
 
 @dataclass(kw_only=True, slots=True)
