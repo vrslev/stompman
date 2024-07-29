@@ -20,6 +20,7 @@ from stompman import (
     ConnectedFrame,
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
+    ConnectionLostError,
     ConnectionParameters,
     DisconnectFrame,
     ErrorEvent,
@@ -36,7 +37,6 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.errors import ConnectionLostError
 
 pytestmark = pytest.mark.anyio
 
