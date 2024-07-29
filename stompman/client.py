@@ -127,17 +127,14 @@ class Client:
 
     async def __aenter__(self) -> Self:
         await self._connect_to_any_server()
-        self._exit_stack.push_async_callback(self._connection.close)
         await self._exit_stack.enter_async_context(self._connection_lifespan())
-        self._task_group = await self._exit_stack.enter_async_context(asyncio.TaskGroup())
-        self._exit_stack.push_async_callback(self._unsubscribe_from_active_subscriptions)
-        await self._add_task_to_task_group(self._listen_to_frames())
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
         await self._exit_stack.aclose()
+        await self._connection.close()
 
     async def _add_task_to_task_group(self, coro: Coroutine[Any, None, None]) -> None:
         task = self._task_group.create_task(coro)
@@ -236,9 +233,17 @@ class Client:
                     return
                 await asyncio.sleep(heartbeat_interval)
 
-        await self._add_task_to_task_group(send_heartbeats_forever())
-        yield
+        async with asyncio.TaskGroup() as task_group:
+            heartbeat_task = task_group.create_task(send_heartbeats_forever())
+            listen_task = task_group.create_task(self._listen_to_frames())
+            try:
+                yield
+            finally:
+                heartbeat_task.cancel()
+                listen_task.cancel()
 
+        if self._connection.active:
+            await self._unsubscribe_from_active_subscriptions()
         if self._connection.active:
             await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
         if self._connection.active:
