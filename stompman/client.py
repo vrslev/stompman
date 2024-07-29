@@ -371,10 +371,7 @@ class Subscription:
                 with suppress(ConnectionLostError):
                     await self._connection.write_frame(
                         NackFrame(
-                            headers={
-                                "id": frame.headers["message-id"],
-                                "subscription": frame.headers["subscription"],
-                            }
+                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
                         )
                     )
             called_nack = True
@@ -384,9 +381,6 @@ class Subscription:
                 with suppress(ConnectionLostError):
                     await self._connection.write_frame(
                         AckFrame(
-                            headers={
-                                "id": frame.headers["message-id"],
-                                "subscription": frame.headers["subscription"],
-                            },
+                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
                         )
                     )
