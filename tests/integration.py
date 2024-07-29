@@ -56,16 +56,19 @@ async def test_ok(destination: str) -> None:
 
     async def consume() -> None:
         received_messages = []
+        event = asyncio.Event()
+
+        async def handle_message(frame: stompman.MessageFrame) -> None:  # noqa: RUF029
+            received_messages.append(frame.body)
+            if len(received_messages) == len(messages):
+                event.set()
 
         async with asyncio.timeout(5):
-            await consumer.subscribe(destination=destination)
-            async for event in consumer.listen():
-                match event:
-                    case stompman.MessageEvent(body=body):
-                        await event.ack()
-                        received_messages.append(body)
-                        if len(received_messages) == len(messages):
-                            break
+            subscription = await consumer.subscribe(
+                destination=destination, handler=handle_message, on_suppressed_exception=print
+            )
+            await event.wait()
+            await subscription.unsubscribe()
 
         assert sorted(received_messages) == sorted(messages)
 
@@ -130,13 +133,6 @@ async def test_raises_connection_lost_error_in_send(client: stompman.Client, des
 
     with pytest.raises(ConnectionLostError):
         await client.send(b"first", destination=destination)
-
-
-async def test_raises_connection_lost_error_in_listen(client: stompman.Client) -> None:
-    await client._connection.close()
-    client.read_timeout = 0
-    with pytest.raises(ConnectionLostError):
-        [event async for event in client.listen()]
 
 
 def generate_frames(
