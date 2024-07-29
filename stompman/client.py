@@ -249,20 +249,22 @@ class Client:
             await asyncio.sleep(interval)
 
     async def _listen_to_frames(self) -> None:
-        async for frame in self._connection.read_frames(
-            max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-        ):
-            match frame:
-                case MessageFrame():
-                    ...  # route to subscription
-                case ErrorFrame():
-                    if self.on_error_frame:
-                        self.on_error_frame(frame)
-                case HeartbeatFrame():
-                    if self.on_heartbeat:
-                        self.on_heartbeat()
-                case ConnectedFrame() | ReceiptFrame():
-                    pass
+        async with asyncio.TaskGroup() as task_group:
+            async for frame in self._connection.read_frames(
+                max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
+            ):
+                match frame:
+                    case MessageFrame():
+                        if subscription := self._active_subscriptions.get(frame.headers["destination"]):
+                            task_group.create_task(subscription.handler(frame))
+                    case ErrorFrame():
+                        if self.on_error_frame:
+                            self.on_error_frame(frame)
+                    case HeartbeatFrame():
+                        if self.on_heartbeat:
+                            self.on_heartbeat()
+                    case ConnectedFrame() | ReceiptFrame():
+                        pass
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator["Transaction", None]:
