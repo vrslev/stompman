@@ -354,13 +354,13 @@ class Subscription:
     _active_subscriptions: dict[str, "Subscription"]
     _should_handle_ack_nack: bool = field(init=False)
 
+    def __post_init__(self) -> None:
+        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
+
     async def unsubscribe(self) -> None:
         del self._active_subscriptions[self.destination]
         if self._connection.active:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
-
-    def __post_init__(self) -> None:
-        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
 
     async def _run_handler(self, frame: MessageFrame) -> None:
         called_nack = False
