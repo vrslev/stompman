@@ -95,9 +95,18 @@ async def test_not_raises_connection_lost_error_in_write_heartbeat(client: stomp
         client._connection.write_heartbeat()
 
 
+async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
+
+
+def noop_error_handler(exception: Exception, frame: stompman.MessageFrame) -> None: ...
+
+
 async def test_not_raises_connection_lost_error_in_subscription(client: stompman.Client, destination: str) -> None:
-    await client.subscribe(destination)
+    subscription = await client.subscribe(
+        destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+    )
     await client._connection.close()
+    await subscription.unsubscribe()
 
 
 async def test_not_raises_connection_lost_error_in_transaction_without_send(client: stompman.Client) -> None:
