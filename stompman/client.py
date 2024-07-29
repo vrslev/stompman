@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -123,7 +123,7 @@ class Client:
 
     _connection: AbstractConnection = field(init=False)
     _connection_parameters: ConnectionParameters = field(init=False)
-    _active_subscriptions: set["Subscription"] = field(default_factory=set, init=False)
+    _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _task_group: asyncio.TaskGroup = field(init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
@@ -227,7 +227,7 @@ class Client:
                 listen_task.cancel()
 
         if self._connection.active:
-            for subscription in self._active_subscriptions.copy():
+            for subscription in self._active_subscriptions.copy().values():
                 await subscription.unsubscribe()
         if self._connection.active:
             await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
@@ -292,15 +292,24 @@ class Client:
             )
         )
 
-    async def subscribe(self, destination: str) -> "Subscription":
+    async def subscribe(
+        self, destination: str, handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+    ) -> "Subscription":
+        if destination in self._active_subscriptions:
+            raise Exception  # noqa: TRY002
+
         subscription_id = str(uuid4())
         await self._connection.write_frame(
             SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
         )
         subscription = Subscription(
-            id=subscription_id, _connection=self._connection, _active_subscriptions=self._active_subscriptions
+            id=subscription_id,
+            destination=destination,
+            handler=handler,
+            _connection=self._connection,
+            _active_subscriptions=self._active_subscriptions,
         )
-        self._active_subscriptions.add(subscription)
+        self._active_subscriptions[destination] = subscription
         return subscription
 
 
@@ -326,11 +335,13 @@ class Transaction:
 @dataclass(kw_only=True, slots=True)
 class Subscription:
     id: str
+    destination: str
+    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
     _connection: AbstractConnection
-    _active_subscriptions: set["Subscription"]
+    _active_subscriptions: dict[str, "Subscription"]
 
     async def unsubscribe(self) -> None:
-        self._active_subscriptions.remove(self)
+        del self._active_subscriptions[self.destination]
         if self._connection.active:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
