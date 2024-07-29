@@ -482,6 +482,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
         await transaction.send(
             body=body, destination=destination, content_type=content_type, headers={"expires": expires}
         )
+        await client.send(body=body, destination=destination, content_type=content_type, headers={"expires": expires})
 
     assert_frames_between_lifespan_match(
         collected_frames,
@@ -493,6 +494,15 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
                     "content-type": content_type,
                     "destination": destination,
                     "transaction": transaction_id,
+                    "expires": expires,
+                },
+                body=b"hello",
+            ),
+            SendFrame(
+                headers={  # type: ignore[typeddict-unknown-key]
+                    "content-length": str(len(body)),
+                    "content-type": content_type,
+                    "destination": destination,
                     "expires": expires,
                 },
                 body=b"hello",
