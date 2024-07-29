@@ -215,18 +215,8 @@ class Client:
             max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
         )
 
-        async def send_heartbeats_forever() -> None:
-            while self._connection.active:
-                try:
-                    self._connection.write_heartbeat()
-                except ConnectionLostError:
-                    # Avoid raising the error in an exception group.
-                    # ConnectionLostError should be raised in a way that user expects it.
-                    return
-                await asyncio.sleep(heartbeat_interval)
-
         async with asyncio.TaskGroup() as task_group:
-            heartbeat_task = task_group.create_task(send_heartbeats_forever())
+            heartbeat_task = task_group.create_task(self._send_heartbeats_forever(heartbeat_interval))
             listen_task = task_group.create_task(self._listen_to_frames())
             try:
                 yield
@@ -244,6 +234,16 @@ class Client:
             ):
                 if isinstance(frame, ReceiptFrame):
                     break
+
+    async def _send_heartbeats_forever(self, interval: float) -> None:
+        while self._connection.active:
+            try:
+                self._connection.write_heartbeat()
+            except ConnectionLostError:
+                # Avoid raising the error in an exception group.
+                # ConnectionLostError should be raised in a way that user expects it.
+                return
+            await asyncio.sleep(interval)
 
     async def _listen_to_frames(self) -> None:
         async for frame in self._connection.read_frames(
