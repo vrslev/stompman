@@ -269,14 +269,13 @@ class Client:
             )
         )
 
-    @asynccontextmanager
-    async def subscribe(self, destination: str) -> AsyncGenerator["Subscription", None]:
+    async def subscribe(self, destination: str) -> "Subscription":
         subscription_id = str(uuid4())
         await self._connection.write_frame(
             SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"})
         )
         self._active_subscriptions.add(subscription_id)
-        yield Subscription(
+        return Subscription(
             id=subscription_id, _connection=self._connection, _active_subscriptions=self._active_subscriptions
         )
 

@@ -272,11 +272,9 @@ async def test_client_subscribe(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stompman.client, "uuid4", mock.Mock(side_effect=[subscription_id_1, subscription_id_2, ""]))
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
-    async with (
-        EnrichedClient(connection_class=connection_class) as client,
-        client.subscribe(destination_1) as subscription_1,
-        client.subscribe(destination_2) as subscription_2,
-    ):
+    async with EnrichedClient(connection_class=connection_class) as client:
+        subscription_1 = await client.subscribe(destination_1)
+        await client.subscribe(destination_2)
         await subscription_1.unsubscribe()
 
     assert_frames_between_lifespan_match(

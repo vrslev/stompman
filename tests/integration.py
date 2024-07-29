@@ -57,7 +57,8 @@ async def test_ok(destination: str) -> None:
     async def consume() -> None:
         received_messages = []
 
-        async with asyncio.timeout(5), consumer.subscribe(destination=destination):
+        async with asyncio.timeout(5):
+            await consumer.subscribe(destination=destination)
             async for event in consumer.listen():
                 match event:
                     case stompman.MessageEvent(body=body):
@@ -95,8 +96,8 @@ async def test_not_raises_connection_lost_error_in_write_heartbeat(client: stomp
 
 
 async def test_not_raises_connection_lost_error_in_subscription(client: stompman.Client, destination: str) -> None:
-    async with client.subscribe(destination):
-        await client._connection.close()
+    await client.subscribe(destination)
+    await client._connection.close()
 
 
 async def test_not_raises_connection_lost_error_in_transaction_without_send(client: stompman.Client) -> None:
