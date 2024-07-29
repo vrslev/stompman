@@ -298,7 +298,21 @@ class Client:
 
 @dataclass(kw_only=True, slots=True)
 class Transaction:
-    def send(self): ...
+    _id: str
+    _connection: AbstractConnection
+
+    async def send(
+        self,
+        body: bytes,
+        destination: str,
+        content_type: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        await self._connection.write_frame(
+            SendFrame.build(
+                body=body, destination=destination, transaction=self._id, content_type=content_type, headers=headers
+            )
+        )
 
 
 @dataclass(kw_only=True, slots=True)
