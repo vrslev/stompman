@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -122,19 +122,32 @@ class Client:
     _connection: AbstractConnection = field(init=False)
     _connection_parameters: ConnectionParameters = field(init=False)
     _active_subscriptions: set[str] = field(default_factory=set, init=False)
+    _task_group: asyncio.TaskGroup = field(init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> Self:
+        self._task_group = await self._exit_stack.enter_async_context(asyncio.TaskGroup())
+
         await self._connect_to_any_server()
         self._exit_stack.push_async_callback(self._connection.close)
+
         await self._exit_stack.enter_async_context(self._connection_lifespan())
         self._exit_stack.push_async_callback(self._unsubscribe_from_active_subscriptions)
+        await self._add_task_to_task_group(self._listen_to_frames())
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
         await self._exit_stack.aclose()
+
+    async def _add_task_to_task_group(self, coro: Coroutine[Any, None, None]) -> None:
+        task = self._task_group.create_task(coro)
+
+        async def t() -> None:  # noqa: RUF029
+            task.cancel()
+
+        self._exit_stack.push_async_callback(t)
 
     async def _connect_to_one_server(
         self, server: ConnectionParameters
@@ -225,12 +238,8 @@ class Client:
                     return
                 await asyncio.sleep(heartbeat_interval)
 
-        async with asyncio.TaskGroup() as task_group:
-            task = task_group.create_task(send_heartbeats_forever())
-            try:
-                yield
-            finally:
-                task.cancel()
+        await self._add_task_to_task_group(send_heartbeats_forever())
+        yield
 
         if self._connection.active:
             await self._connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
@@ -240,6 +249,20 @@ class Client:
             ):
                 if isinstance(frame, ReceiptFrame):
                     break
+
+    async def _listen_to_frames(self) -> None:
+        async for frame in self._connection.read_frames(
+            max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
+        ):
+            match frame:
+                case MessageFrame():
+                    ...  # route to subscription
+                case ErrorFrame():
+                    ...  # handle the error
+                case HeartbeatFrame():
+                    ...  # handle heartbeat
+                case ConnectedFrame() | ReceiptFrame():
+                    pass
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator["Transaction", None]:
@@ -284,21 +307,6 @@ class Client:
             await Subscription(
                 id=subscription, _connection=self._connection, _active_subscriptions=self._active_subscriptions
             ).unsubscribe()
-
-    async def listen(self) -> AsyncIterator["AnyListeningEvent"]:
-        async for frame in self._connection.read_frames(
-            max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-        ):
-            match frame:
-                case MessageFrame():
-                    yield MessageEvent(_client=self, _frame=frame)
-                case ErrorFrame():
-                    yield ErrorEvent(_client=self, _frame=frame)
-                case HeartbeatFrame():
-                    yield HeartbeatEvent(_client=self, _frame=frame)
-                case ConnectedFrame() | ReceiptFrame():
-                    msg = "Should be unreachable! Report the issue."
-                    raise AssertionError(msg, frame)
 
 
 @dataclass(kw_only=True, slots=True)
