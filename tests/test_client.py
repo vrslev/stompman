@@ -31,6 +31,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
+from stompman.protocol import StompProtocol
 from tests.conftest import BaseMockConnection, EnrichedClient, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
