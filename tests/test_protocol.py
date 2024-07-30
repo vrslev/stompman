@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Coroutine
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, get_args
@@ -41,27 +41,27 @@ FAKER = faker.Faker()
 
 
 def create_spying_connection(
-    read_frames_yields: list[list[AnyServerFrame | HeartbeatFrame]],
-) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
+    read_frames_yields: list[list[AnyServerFrame]],
+) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame]]:
     class BaseCollectingConnection(BaseMockConnection):
         @staticmethod
         async def write_frame(frame: AnyClientFrame) -> None:
             collected_frames.append(frame)
 
         @staticmethod
-        async def read_frames() -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:
+        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
 
     read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
+    collected_frames: list[AnyClientFrame | AnyServerFrame] = []
     return BaseCollectingConnection, collected_frames
 
 
 def get_read_frames_with_lifespan(
-    read_frames: list[list[AnyServerFrame | HeartbeatFrame]],
-) -> list[list[AnyServerFrame | HeartbeatFrame]]:
+    read_frames: list[list[AnyServerFrame]],
+) -> list[list[AnyServerFrame]]:
     return [
         [ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
@@ -70,8 +70,8 @@ def get_read_frames_with_lifespan(
 
 
 def enrich_expected_frames(
-    *expected_frames: AnyClientFrame | AnyServerFrame | HeartbeatFrame,
-) -> list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
+    *expected_frames: AnyClientFrame | AnyServerFrame,
+) -> list[AnyClientFrame | AnyServerFrame]:
     return [
         ConnectFrame(
             headers={
@@ -490,3 +490,15 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
     assert collected_frames == enrich_expected_frames(
         BeginFrame(headers={"transaction": transaction_id}), AbortFrame(headers={"transaction": transaction_id})
     )
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        stompman.protocol._make_receipt_id,
+        stompman.protocol._make_subscription_id,
+        stompman.protocol._make_transaction_id,
+    ],
+)
+def test_generate_ids(func: Callable[[], str]) -> None:
+    func()
