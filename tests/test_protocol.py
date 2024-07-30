@@ -69,11 +69,31 @@ def get_read_frames_with_lifespan(
     ]
 
 
-def assert_frames_between_lifespan_match(
-    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
-    expected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
-) -> None:
-    assert collected_frames[2:-2] == expected_frames
+def enrich_expected_frames(
+    *expected_frames: AnyClientFrame | AnyServerFrame | HeartbeatFrame,
+) -> list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
+    return [
+        ConnectFrame(
+            headers={
+                "accept-version": "1.2",
+                "heart-beat": "1000,1000",
+                "host": "localhost",
+                "login": "login",
+                "passcode": "passcode",
+            },
+        ),
+        ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"}),
+        *expected_frames,
+        DisconnectFrame(headers={"receipt": ""}),
+        ReceiptFrame(headers={"receipt-id": "whatever"}),
+    ]
+
+
+# def assert_frames_between_lifespan_match(
+#     collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
+#     expected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
+# ) -> None:
+#     assert collected_frames[2:-2] == expected_frames
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -162,14 +182,11 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
         await subscription_1.unsubscribe()
         await subscription_2.unsubscribe()
 
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [
-            SubscribeFrame(headers={"destination": destination_1, "id": subscription_id_1, "ack": "client-individual"}),
-            SubscribeFrame(headers={"destination": destination_2, "id": subscription_id_2, "ack": "client-individual"}),
-            UnsubscribeFrame(headers={"id": subscription_id_1}),
-            UnsubscribeFrame(headers={"id": subscription_id_2}),
-        ],
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"destination": destination_1, "id": subscription_id_1, "ack": "client-individual"}),
+        SubscribeFrame(headers={"destination": destination_2, "id": subscription_id_2, "ack": "client-individual"}),
+        UnsubscribeFrame(headers={"id": subscription_id_1}),
+        UnsubscribeFrame(headers={"id": subscription_id_2}),
     )
 
 
@@ -196,12 +213,9 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit_indirect_erro
             task_group.create_task(raise_soon())
 
     assert exc_info.value.exceptions == (SomeError(),)
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [
-            SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
-            UnsubscribeFrame(headers={"id": subscription_id}),
-        ],
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
+        UnsubscribeFrame(headers={"id": subscription_id}),
     )
 
 
@@ -220,12 +234,9 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit_direct_error(
             await asyncio.sleep(0)
             raise SomeError
 
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [
-            SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
-            UnsubscribeFrame(headers={"id": subscription_id}),
-        ],
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
+        UnsubscribeFrame(headers={"id": subscription_id}),
     )
 
 
@@ -332,13 +343,10 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
         await subscription.unsubscribe()
 
     handle_message.assert_called_once_with(message_frame)
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [
-            SubscribeFrame(headers={"ack": ack, "destination": "", "id": subscription_id}),
-            message_frame,
-            UnsubscribeFrame(headers={"id": "id1"}),
-        ],
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"ack": ack, "destination": "", "id": subscription_id}),
+        message_frame,
+        UnsubscribeFrame(headers={"id": "id1"}),
     )
 
 
@@ -365,16 +373,13 @@ async def test_client_listen_ack_nack(
         await subscription.unsubscribe()
 
     handle_message.assert_called_once_with(message_frame)
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [
-            SubscribeFrame(headers={"ack": ack, "destination": "", "id": subscription_id}),
-            message_frame,
-            AckFrame(headers={"id": "", "subscription": subscription_id})
-            if ok
-            else NackFrame(headers={"id": "", "subscription": subscription_id}),
-            UnsubscribeFrame(headers={"id": subscription_id}),
-        ],
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"ack": ack, "destination": "", "id": subscription_id}),
+        message_frame,
+        AckFrame(headers={"id": "", "subscription": subscription_id})
+        if ok
+        else NackFrame(headers={"id": "", "subscription": subscription_id}),
+        UnsubscribeFrame(headers={"id": subscription_id}),
     )
 
 
@@ -399,13 +404,10 @@ async def test_client_listen_auto_ack_nack(
         await subscription.unsubscribe()
 
     handle_message.assert_called_once_with(message_frame)
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [
-            SubscribeFrame(headers={"ack": "auto", "destination": "", "id": subscription_id}),
-            message_frame,
-            UnsubscribeFrame(headers={"id": subscription_id}),
-        ],
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"ack": "auto", "destination": "", "id": subscription_id}),
+        message_frame,
+        UnsubscribeFrame(headers={"id": subscription_id}),
     )
 
 
@@ -413,9 +415,8 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     body = b"hello"
     destination = "/queue/test"
     expires = "whatever"
-    transaction_id = "myid"
     content_type = "my-content-type"
-    monkeypatch.setattr(stompman.protocol, "uuid4", lambda: transaction_id)
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[(transaction_id := "myid"), ""]))
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with EnrichedClient(connection_class=connection_class) as client, client.begin() as transaction:
@@ -424,45 +425,41 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
         )
         await client.send(body=body, destination=destination, content_type=content_type, headers={"expires": expires})
 
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [
-            BeginFrame(headers={"transaction": transaction_id}),
-            SendFrame(
-                headers={  # type: ignore[typeddict-unknown-key]
-                    "content-length": str(len(body)),
-                    "content-type": content_type,
-                    "destination": destination,
-                    "transaction": transaction_id,
-                    "expires": expires,
-                },
-                body=b"hello",
-            ),
-            SendFrame(
-                headers={  # type: ignore[typeddict-unknown-key]
-                    "content-length": str(len(body)),
-                    "content-type": content_type,
-                    "destination": destination,
-                    "expires": expires,
-                },
-                body=b"hello",
-            ),
-            CommitFrame(headers={"transaction": transaction_id}),
-        ],
+    assert collected_frames == enrich_expected_frames(
+        BeginFrame(headers={"transaction": transaction_id}),
+        SendFrame(
+            headers={  # type: ignore[typeddict-unknown-key]
+                "content-length": str(len(body)),
+                "content-type": content_type,
+                "destination": destination,
+                "transaction": transaction_id,
+                "expires": expires,
+            },
+            body=b"hello",
+        ),
+        SendFrame(
+            headers={  # type: ignore[typeddict-unknown-key]
+                "content-length": str(len(body)),
+                "content-type": content_type,
+                "destination": destination,
+                "expires": expires,
+            },
+            body=b"hello",
+        ),
+        CommitFrame(headers={"transaction": transaction_id}),
     )
 
 
 async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
-    transaction_id = "myid"
-    monkeypatch.setattr(stompman.protocol, "uuid4", lambda: transaction_id)
-
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[(transaction_id := "myid"), ""]))
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
+
     async with EnrichedClient(connection_class=connection_class) as client:
         with suppress(AssertionError):
             async with client.begin():
                 raise AssertionError
 
-    assert_frames_between_lifespan_match(
-        collected_frames,
-        [BeginFrame(headers={"transaction": transaction_id}), AbortFrame(headers={"transaction": transaction_id})],
+    assert collected_frames == enrich_expected_frames(
+        BeginFrame(headers={"transaction": transaction_id}),
+        AbortFrame(headers={"transaction": transaction_id}),
     )
