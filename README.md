@@ -24,6 +24,12 @@ async with stompman.Client(
         stompman.ConnectionParameters(host="171.0.0.1", port=61616, login="user1", passcode="passcode1"),
         stompman.ConnectionParameters(host="172.0.0.1", port=61616, login="user2", passcode="passcode2"),
     ],
+
+    # Handlers:
+    on_error_frame=lambda error_frame: print(error_frame.body),
+    on_unhandled_message_frame=lambda message_frame: print(message_frame.body),
+    on_heartbeat=lambda: print("Server sent a heartbeat"),
+
     # Optional parameters with sensible defaults:
     heartbeat=stompman.Heartbeat(will_send_interval_ms=1000, want_to_receive_interval_ms=1000),
     connect_retry_attempts=3,
@@ -40,7 +46,7 @@ async with stompman.Client(
 To send a message, use the following code:
 
 ```python
-await client.send(body=b"hi there!", destination="DLQ", headers={"persistent": "true"})
+await client.send(b"hi there!", destination="DLQ", headers={"persistent": "true"})
 ```
 
 Or, to send messages in a transaction:
