@@ -128,9 +128,11 @@ class StompProtocol:
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
         try:
-            if self._active_subscriptions:
+            if self._active_subscriptions and not exc_value:
+                print("has active")
                 await asyncio.Future()
         finally:
+            print("closing")
             await self._exit_stack.aclose()
             await self.connection.close()
 
