@@ -81,35 +81,35 @@ async def test_ok(destination: str) -> None:
 
 
 async def test_not_raises_connection_lost_error_in_aexit(client: stompman.Client) -> None:
-    await client._protocol.connection.close()
+    await client._connection.close()
 
 
 async def test_not_raises_connection_lost_error_in_write_frame(client: stompman.Client) -> None:
-    await client._protocol.connection.close()
+    await client._connection.close()
 
     with pytest.raises(ConnectionLostError):
-        await client._protocol.connection.write_frame(build_dataclass(stompman.ConnectFrame))
+        await client._connection.write_frame(build_dataclass(stompman.ConnectFrame))
 
 
 @pytest.mark.parametrize("anyio_backend", [("asyncio", {"use_uvloop": True})])
 async def test_not_raises_connection_lost_error_in_write_heartbeat(client: stompman.Client) -> None:
-    await client._protocol.connection.close()
+    await client._connection.close()
 
     with pytest.raises(ConnectionLostError):
-        client._protocol.connection.write_heartbeat()
+        client._connection.write_heartbeat()
 
 
 async def test_not_raises_connection_lost_error_in_subscription(client: stompman.Client, destination: str) -> None:
     subscription = await client.subscribe(
         destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
     )
-    await client._protocol.connection.close()
+    await client._connection.close()
     await subscription.unsubscribe()
 
 
 async def test_not_raises_connection_lost_error_in_transaction_without_send(client: stompman.Client) -> None:
     async with client.begin():
-        await client._protocol.connection.close()
+        await client._connection.close()
 
 
 async def test_not_raises_connection_lost_error_in_transaction_with_send(
@@ -117,14 +117,14 @@ async def test_not_raises_connection_lost_error_in_transaction_with_send(
 ) -> None:
     async with client.begin() as transaction:
         await transaction.send(b"first", destination=destination)
-        await client._protocol.connection.close()
+        await client._connection.close()
 
         with pytest.raises(ConnectionLostError):
             await transaction.send(b"second", destination=destination)
 
 
 async def test_raises_connection_lost_error_in_send(client: stompman.Client, destination: str) -> None:
-    await client._protocol.connection.close()
+    await client._connection.close()
 
     with pytest.raises(ConnectionLostError):
         await client.send(b"first", destination=destination)

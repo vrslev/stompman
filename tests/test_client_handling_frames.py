@@ -8,7 +8,7 @@ from unittest import mock
 import faker
 import pytest
 
-import stompman.protocol
+import stompman.client
 from stompman import (
     AbortFrame,
     AbstractConnection,
@@ -33,7 +33,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.protocol import AckMode, StompProtocol
+from stompman.client import AckMode, Client
 from tests.conftest import BaseMockConnection, EnrichedClient, build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
@@ -63,7 +63,7 @@ def get_read_frames_with_lifespan(
     read_frames: list[list[AnyServerFrame]],
 ) -> list[list[AnyServerFrame]]:
     return [
-        [ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})],
+        [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
         [ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
     ]
@@ -75,14 +75,14 @@ def enrich_expected_frames(
     return [
         ConnectFrame(
             headers={
-                "accept-version": StompProtocol.PROTOCOL_VERSION,
+                "accept-version": Client.PROTOCOL_VERSION,
                 "heart-beat": "1000,1000",
                 "host": "localhost",
                 "login": "login",
                 "passcode": "passcode",
             },
         ),
-        ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"}),
+        ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"}),
         *expected_frames,
         DisconnectFrame(headers={"receipt": "receipt-id-1"}),
         ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
@@ -91,7 +91,7 @@ def enrich_expected_frames(
 
 @pytest.fixture(autouse=True)
 def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(stompman.protocol, "_make_receipt_id", lambda: "receipt-id-1")
+    monkeypatch.setattr(stompman.client, "_make_receipt_id", lambda: "receipt-id-1")
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -100,7 +100,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
             [
                 (
                     connected_frame := build_dataclass(
-                        ConnectedFrame, headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"}
+                        ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"}
                     )
                 )
             ],
@@ -109,7 +109,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         ]
     )
     connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
-    monkeypatch.setattr(stompman.protocol, "_make_receipt_id", mock.Mock(return_value=(receipt_id := FAKER.pystr())))
+    monkeypatch.setattr(stompman.client, "_make_receipt_id", mock.Mock(return_value=(receipt_id := FAKER.pystr())))
 
     async with EnrichedClient(
         [ConnectionParameters("localhost", 10, "login", "%3Dpasscode")], connection_class=connection_class
@@ -120,7 +120,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         ConnectFrame(
             headers={
                 "host": "localhost",
-                "accept-version": StompProtocol.PROTOCOL_VERSION,
+                "accept-version": Client.PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
                 "login": "login",
                 "passcode": "=passcode",
@@ -170,7 +170,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
         await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == UnsupportedProtocolVersionError(
-        given_version=given_version, supported_version=StompProtocol.PROTOCOL_VERSION
+        given_version=given_version, supported_version=Client.PROTOCOL_VERSION
     )
 
 
@@ -206,7 +206,7 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
     first_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
     second_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
     monkeypatch.setattr(
-        stompman.protocol,
+        stompman.client,
         "_make_subscription_id",
         mock.Mock(side_effect=[first_subscribe_frame.headers["id"], second_subscribe_frame.headers["id"]]),
     )
@@ -253,9 +253,7 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
     ack: AckMode,
 ) -> None:
     subscribe_frame = SubscribeFrame(headers={"destination": FAKER.pystr(), "id": FAKER.pystr(), "ack": ack})
-    monkeypatch.setattr(
-        stompman.protocol, "_make_subscription_id", mock.Mock(return_value=subscribe_frame.headers["id"])
-    )
+    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscribe_frame.headers["id"]))
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
 
     if direct_error:
@@ -288,7 +286,7 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
 
 async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        stompman.protocol,
+        stompman.client,
         "_make_subscription_id",
         mock.Mock(side_effect=[(first_subscription_id := FAKER.pystr()), (second_subscription_id := FAKER.pystr())]),
     )
@@ -351,7 +349,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
     monkeypatch: pytest.MonkeyPatch, ack: AckMode, side_effect: object
 ) -> None:
     monkeypatch.setattr(
-        stompman.protocol, "_make_subscription_id", mock.Mock(return_value=(subscription_id := FAKER.pystr()))
+        stompman.client, "_make_subscription_id", mock.Mock(return_value=(subscription_id := FAKER.pystr()))
     )
     message_frame = build_dataclass(MessageFrame, headers={"subscription": subscription_id})
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
@@ -377,7 +375,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
 async def test_client_listen_ack_nack(monkeypatch: pytest.MonkeyPatch, ack: AckMode, ok: bool) -> None:  # noqa: FBT001
     monkeypatch.setattr(
-        stompman.protocol, "_make_subscription_id", mock.Mock(return_value=(subscription_id := FAKER.pystr()))
+        stompman.client, "_make_subscription_id", mock.Mock(return_value=(subscription_id := FAKER.pystr()))
     )
     message_id = FAKER.pystr()
     destination = FAKER.pystr()
@@ -409,7 +407,7 @@ async def test_client_listen_ack_nack(monkeypatch: pytest.MonkeyPatch, ack: AckM
 @pytest.mark.parametrize("ok", [True, False])
 async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, ok: bool) -> None:  # noqa: FBT001
     monkeypatch.setattr(
-        stompman.protocol, "_make_subscription_id", mock.Mock(return_value=(subscription_id := FAKER.pystr()))
+        stompman.client, "_make_subscription_id", mock.Mock(return_value=(subscription_id := FAKER.pystr()))
     )
     message_id = FAKER.pystr()
     destination = FAKER.pystr()
@@ -441,7 +439,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     expires = FAKER.pystr()
     content_type = FAKER.pystr()
     monkeypatch.setattr(
-        stompman.protocol, "_make_transaction_id", mock.Mock(return_value=(transaction_id := FAKER.pystr()))
+        stompman.client, "_make_transaction_id", mock.Mock(return_value=(transaction_id := FAKER.pystr()))
     )
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
 
@@ -478,7 +476,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
 
 async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        stompman.protocol, "_make_transaction_id", mock.Mock(return_value=(transaction_id := FAKER.pystr()))
+        stompman.client, "_make_transaction_id", mock.Mock(return_value=(transaction_id := FAKER.pystr()))
     )
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
 
@@ -495,9 +493,9 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
 @pytest.mark.parametrize(
     "func",
     [
-        stompman.protocol._make_receipt_id,
-        stompman.protocol._make_subscription_id,
-        stompman.protocol._make_transaction_id,
+        stompman.client._make_receipt_id,
+        stompman.client._make_subscription_id,
+        stompman.client._make_transaction_id,
     ],
 )
 def test_generate_ids(func: Callable[[], str]) -> None:

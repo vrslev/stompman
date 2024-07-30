@@ -1,18 +1,186 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Self
+from typing import ClassVar, Literal, NamedTuple, Self, TypedDict
+from urllib.parse import unquote
+from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection
-from stompman.errors import FailedAllConnectAttemptsError
-from stompman.frames import ErrorFrame, MessageFrame
-from stompman.protocol import AckMode, ConnectionParameters, Heartbeat, StompProtocol, Subscription, Transaction
+from stompman.errors import (
+    ConnectionConfirmationTimeoutError,
+    ConnectionLostError,
+    FailedAllConnectAttemptsError,
+    UnsupportedProtocolVersionError,
+)
+from stompman.frames import (
+    AbortFrame,
+    AckFrame,
+    BeginFrame,
+    CommitFrame,
+    ConnectedFrame,
+    ConnectFrame,
+    DisconnectFrame,
+    ErrorFrame,
+    HeartbeatFrame,
+    MessageFrame,
+    NackFrame,
+    ReceiptFrame,
+    SendFrame,
+    SubscribeFrame,
+    UnsubscribeFrame,
+)
+
+
+class Heartbeat(NamedTuple):
+    will_send_interval_ms: int
+    want_to_receive_interval_ms: int
+
+    def to_header(self) -> str:
+        return f"{self.will_send_interval_ms},{self.want_to_receive_interval_ms}"
+
+    @classmethod
+    def from_header(cls, header: str) -> Self:
+        first, second = header.split(",", maxsplit=1)
+        return cls(int(first), int(second))
+
+
+class MultiHostHostLike(TypedDict):
+    username: str | None
+    password: str | None
+    host: str | None
+    port: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectionParameters:
+    host: str
+    port: int
+    login: str
+    passcode: str = field(repr=False)
+
+    @property
+    def unescaped_passcode(self) -> str:
+        return unquote(self.passcode)
+
+    @classmethod
+    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
+        """Create connection parameters from a list of `MultiHostUrl` objects.
+
+        .. code-block:: python
+        import stompman.
+
+        ArtemisDsn = typing.Annotated[
+            pydantic_core.MultiHostUrl,
+            pydantic.UrlConstraints(
+                host_required=True,
+                allowed_schemes=["tcp"],
+            ),
+        ]
+
+        async with stompman.Client(
+            servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+                ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
+            ),
+        ):
+            ...
+        """
+        servers: list[Self] = []
+        for host in hosts:
+            if host["host"] is None:
+                msg = "host must be set"
+                raise ValueError(msg)
+            if host["port"] is None:
+                msg = "port must be set"
+                raise ValueError(msg)
+            if host["username"] is None:
+                msg = "username must be set"
+                raise ValueError(msg)
+            if host["password"] is None:
+                msg = "password must be set"
+                raise ValueError(msg)
+
+            servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
+        return servers
+
+
+@dataclass(kw_only=True, slots=True)
+class Transaction:
+    id: str
+    _connection: AbstractConnection
+
+    async def send(
+        self,
+        body: bytes,
+        destination: str,
+        content_type: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        await self._connection.write_frame(
+            SendFrame.build(
+                body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
+            )
+        )
+
+
+AckMode = Literal["client", "client-individual", "auto"]
+
+
+@dataclass(kw_only=True, slots=True)
+class Subscription:
+    id: str
+    destination: str
+    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+    ack: AckMode
+    on_suppressed_exception: Callable[[Exception, MessageFrame], None]
+    supressed_exception_classes: tuple[type[Exception], ...]
+
+    _connection: AbstractConnection
+    _active_subscriptions: dict[str, "Subscription"]
+    _should_handle_ack_nack: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
+
+    async def unsubscribe(self) -> None:
+        del self._active_subscriptions[self.id]
+        if self._connection.active:
+            await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
+
+    async def _run_handler(self, frame: MessageFrame) -> None:
+        called_nack = False
+        try:
+            await self.handler(frame)
+        except self.supressed_exception_classes as exception:
+            if self._should_handle_ack_nack and self._connection.active and self.id in self._active_subscriptions:
+                with suppress(ConnectionLostError):
+                    await self._connection.write_frame(
+                        NackFrame(
+                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
+                        )
+                    )
+            called_nack = True
+            self.on_suppressed_exception(exception, frame)
+        finally:
+            if (
+                not called_nack
+                and self._should_handle_ack_nack
+                and self._connection.active
+                and self.id in self._active_subscriptions
+            ):
+                with suppress(ConnectionLostError):
+                    await self._connection.write_frame(
+                        AckFrame(
+                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
+                        )
+                    )
 
 
 @dataclass(kw_only=True, slots=True)
 class Client:
+    PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
+
     servers: list[ConnectionParameters] = field(kw_only=False)
     on_error_frame: Callable[[ErrorFrame], None] | None = None
     on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
@@ -28,25 +196,24 @@ class Client:
     read_max_chunk_size: int = 1024 * 1024
 
     connection_class: type[AbstractConnection] = Connection
-    _protocol: StompProtocol = field(init=False)
+    _connection: AbstractConnection = field(init=False)
+    _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
+    _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> Self:
-        connection, connection_parameters = await self._connect_to_any_server()
-        self._protocol = await StompProtocol(
-            connection=connection,
-            connection_parameters=connection_parameters,
-            heartbeat=self.heartbeat,
-            connection_confirmation_timeout=self.connection_confirmation_timeout,
-            on_error_frame=self.on_error_frame,
-            on_unhandled_message_frame=self.on_unhandled_message_frame,
-            on_heartbeat=self.on_heartbeat,
-        ).__aenter__()
+        self._connection, connection_parameters = await self._connect_to_any_server()
+        await self._exit_stack.enter_async_context(self._lifespan(connection_parameters))
         return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
-        await self._protocol.__aexit__(exc_type, exc_value, traceback)
+        try:
+            if self._active_subscriptions and not exc_value:
+                await asyncio.Future()
+        finally:
+            await self._exit_stack.aclose()
+            await self._connection.close()
 
     async def _connect_to_one_server(
         self, server: ConnectionParameters
@@ -76,15 +243,119 @@ class Client:
             timeout=self.connect_timeout,
         )
 
+    async def _wait_for_connected_frame(self) -> ConnectedFrame:
+        collected_frames = []
+
+        async def inner() -> ConnectedFrame:
+            async for frame in self._connection.read_frames():
+                if isinstance(frame, ConnectedFrame):
+                    return frame
+                collected_frames.append(frame)
+            msg = "unreachable"  # pragma: no cover
+            raise AssertionError(msg)  # pragma: no cover
+
+        try:
+            return await asyncio.wait_for(inner(), timeout=self.connection_confirmation_timeout)
+        except TimeoutError as exception:
+            raise ConnectionConfirmationTimeoutError(
+                timeout=self.connection_confirmation_timeout, frames=collected_frames
+            ) from exception
+
     @asynccontextmanager
-    async def begin(self) -> AsyncGenerator[Transaction, None]:
-        async with self._protocol.begin() as transaction:
-            yield transaction
+    async def _lifespan(self, connection_parameters: ConnectionParameters) -> AsyncGenerator[None, None]:
+        await self._connection.write_frame(
+            ConnectFrame(
+                headers={
+                    "accept-version": self.PROTOCOL_VERSION,
+                    "heart-beat": self.heartbeat.to_header(),
+                    "host": connection_parameters.host,
+                    "login": connection_parameters.login,
+                    "passcode": connection_parameters.unescaped_passcode,
+                },
+            )
+        )
+        connected_frame = await self._wait_for_connected_frame()
+
+        if connected_frame.headers["version"] != self.PROTOCOL_VERSION:
+            raise UnsupportedProtocolVersionError(
+                given_version=connected_frame.headers["version"], supported_version=self.PROTOCOL_VERSION
+            )
+
+        server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
+        heartbeat_interval = (
+            max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
+        )
+
+        async with asyncio.TaskGroup() as task_group:
+            heartbeat_task = task_group.create_task(self._send_heartbeats_forever(heartbeat_interval))
+            listen_task = task_group.create_task(self._listen_to_frames())
+            try:
+                yield
+            finally:
+                heartbeat_task.cancel()
+                listen_task.cancel()
+
+        if self._connection.active:
+            for subscription in self._active_subscriptions.copy().values():
+                await subscription.unsubscribe()
+        if self._connection.active:
+            await self._connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
+        if self._connection.active:
+            async for frame in self._connection.read_frames():
+                if isinstance(frame, ReceiptFrame):
+                    break
+
+    async def _send_heartbeats_forever(self, interval: float) -> None:
+        while self._connection.active:
+            try:
+                self._connection.write_heartbeat()
+            except ConnectionLostError:
+                # Avoid raising the error in an exception group.
+                # ConnectionLostError should be raised in a way that user expects it.
+                return
+            await asyncio.sleep(interval)
+
+    async def _listen_to_frames(self) -> None:
+        async with asyncio.TaskGroup() as task_group:
+            async for frame in self._connection.read_frames():
+                match frame:
+                    case MessageFrame():
+                        if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
+                            task_group.create_task(subscription._run_handler(frame))  # noqa: SLF001
+                        elif self.on_unhandled_message_frame:
+                            self.on_unhandled_message_frame(frame)
+                    case ErrorFrame():
+                        if self.on_error_frame:
+                            self.on_error_frame(frame)
+                    case HeartbeatFrame():
+                        if self.on_heartbeat:
+                            self.on_heartbeat()
+                    case ConnectedFrame() | ReceiptFrame():
+                        pass
+
+    @asynccontextmanager
+    async def begin(self) -> AsyncGenerator["Transaction", None]:
+        transaction_id = _make_transaction_id()
+        await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
+
+        try:
+            yield Transaction(id=transaction_id, _connection=self._connection)
+        except Exception:
+            if self._connection.active:
+                await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
+            raise
+        else:
+            if self._connection.active:
+                await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
-        return await self._protocol.send(body=body, destination=destination, content_type=content_type, headers=headers)
+        await self._connection.write_frame(
+            SendFrame.build(
+                body=body, destination=destination, transaction=None, content_type=content_type, headers=headers
+            )
+        )
 
     async def subscribe(  # noqa: PLR0913
         self,
@@ -94,11 +365,32 @@ class Client:
         ack: AckMode = "client-individual",
         on_suppressed_exception: Callable[[Exception, MessageFrame], None],
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
-    ) -> Subscription:
-        return await self._protocol.subscribe(
+    ) -> "Subscription":
+        subscription_id = _make_subscription_id()
+        await self._connection.write_frame(
+            SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": ack})
+        )
+        subscription = Subscription(
+            id=subscription_id,
             destination=destination,
             handler=handler,
             ack=ack,
             on_suppressed_exception=on_suppressed_exception,
             supressed_exception_classes=supressed_exception_classes,
+            _connection=self._connection,
+            _active_subscriptions=self._active_subscriptions,
         )
+        self._active_subscriptions[subscription_id] = subscription
+        return subscription
+
+
+def _make_receipt_id() -> str:
+    return str(uuid4())
+
+
+def _make_transaction_id() -> str:
+    return str(uuid4())
+
+
+def _make_subscription_id() -> str:
+    return str(uuid4())

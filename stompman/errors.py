@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from stompman.frames import ErrorFrame, HeartbeatFrame, MessageFrame, ReceiptFrame
 
 if TYPE_CHECKING:
-    from stompman.protocol import ConnectionParameters
+    from stompman.client import ConnectionParameters
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
