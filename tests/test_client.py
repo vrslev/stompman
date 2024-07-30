@@ -6,7 +6,6 @@ from unittest import mock
 
 import pytest
 
-import stompman.client
 from stompman import (
     AbortFrame,
     AbstractConnection,
@@ -32,6 +31,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
+import stompman.protocol
 from tests.conftest import BaseMockConnection, EnrichedClient, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
@@ -85,7 +85,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         write_heartbeat = write_heartbeat_mock
 
     receipt_id = "myid"
-    monkeypatch.setattr(stompman.client, "uuid4", lambda: receipt_id)
+    monkeypatch.setattr(stompman.protocol, "uuid4", lambda: receipt_id)
 
     login = "login"
     async with EnrichedClient(
@@ -96,7 +96,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert collected_frames == [
         ConnectFrame(
             headers={
-                "host": client._connection_parameters.host,
+                "host": client._protocol.connection_parameters.host,
                 "accept-version": client.PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
                 "login": login,
@@ -155,7 +155,7 @@ async def test_client_subscribe(monkeypatch: pytest.MonkeyPatch) -> None:
     destination_2 = "/topic/two"
     subscription_id_1 = "id1"
     subscription_id_2 = "id2"
-    monkeypatch.setattr(stompman.client, "uuid4", mock.Mock(side_effect=[subscription_id_1, subscription_id_2, ""]))
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id_1, subscription_id_2, ""]))
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with EnrichedClient(connection_class=connection_class) as client:
@@ -379,7 +379,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     expires = "whatever"
     transaction_id = "myid"
     content_type = "my-content-type"
-    monkeypatch.setattr(stompman.client, "uuid4", lambda: transaction_id)
+    monkeypatch.setattr(stompman.protocol, "uuid4", lambda: transaction_id)
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with (
@@ -421,7 +421,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
 
 async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
     transaction_id = "myid"
-    monkeypatch.setattr(stompman.client, "uuid4", lambda: transaction_id)
+    monkeypatch.setattr(stompman.protocol, "uuid4", lambda: transaction_id)
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with EnrichedClient(connection_class=connection_class) as client:

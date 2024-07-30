@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from typing import Self
 
 import pytest
 
