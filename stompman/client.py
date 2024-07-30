@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Any, Self
+from typing import Self
 
 from stompman.connection import AbstractConnection, Connection
 from stompman.errors import FailedAllConnectAttemptsError
@@ -93,7 +93,7 @@ class Client:
         handler: Callable[[MessageFrame], Coroutine[None, None, None]],
         *,
         ack: AckMode = "client-individual",
-        on_suppressed_exception: Callable[[Exception, MessageFrame], Any],
+        on_suppressed_exception: Callable[[Exception, MessageFrame], None],
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> Subscription:
         return await self._protocol.subscribe(

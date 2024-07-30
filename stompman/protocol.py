@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Any, ClassVar, Literal, NamedTuple, Self, TypedDict
+from typing import ClassVar, Literal, NamedTuple, Self, TypedDict
 from urllib.parse import unquote
 from uuid import uuid4
 
@@ -132,8 +132,9 @@ class Subscription:
     destination: str
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
     ack: AckMode
-    on_suppressed_exception: Callable[[Exception, MessageFrame], Any]
+    on_suppressed_exception: Callable[[Exception, MessageFrame], None]
     supressed_exception_classes: tuple[type[Exception], ...]
+
     _connection: AbstractConnection
     _active_subscriptions: dict[str, "Subscription"]
     _should_handle_ack_nack: bool = field(init=False)
@@ -325,7 +326,7 @@ class StompProtocol:
         handler: Callable[[MessageFrame], Coroutine[None, None, None]],
         *,
         ack: "AckMode",
-        on_suppressed_exception: Callable[[Exception, MessageFrame], Any],
+        on_suppressed_exception: Callable[[Exception, MessageFrame], None],
         supressed_exception_classes: tuple[type[Exception], ...],
     ) -> "Subscription":
         subscription_id = _make_subscription_id()
