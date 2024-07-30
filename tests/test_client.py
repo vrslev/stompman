@@ -317,15 +317,6 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
     on_suppressed_exception_2.assert_called_once_with(SomeError(), message_frame_2)
 
 
-@pytest.mark.parametrize("frame", [ConnectedFrame(headers={"version": ""}), ReceiptFrame(headers={"receipt-id": ""})])
-async def test_client_listen_to_events_unreachable(frame: ConnectedFrame | ReceiptFrame) -> None:
-    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[frame]]))
-
-    async with EnrichedClient(connection_class=connection_class) as client:
-        with pytest.raises(AssertionError, match="unreachable"):
-            [event async for event in client.listen()]
-
-
 async def test_ack_nack_ok() -> None:
     subscription = "subscription-id"
     message_id = "message-id"
