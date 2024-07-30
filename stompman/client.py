@@ -334,7 +334,7 @@ class Client:
                         pass
 
     @asynccontextmanager
-    async def begin(self) -> AsyncGenerator["Transaction", None]:
+    async def begin(self) -> AsyncGenerator[Transaction, None]:
         transaction_id = _make_transaction_id()
         await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
 
