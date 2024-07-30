@@ -212,14 +212,13 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit_direct_error(
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
 
     @dataclass
-    class SomeError(Exception): ...# TODO
+    class SomeError(Exception): ...  # TODO
 
     async with EnrichedClient(connection_class=connection_class) as client:
         await client.subscribe(
             destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
         )
         await asyncio.sleep(1)
-
 
     assert_frames_between_lifespan_match(
         collected_frames,
