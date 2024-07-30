@@ -306,8 +306,9 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
                         )
                     ),
                     (error_frame := build_dataclass(ErrorFrame)),
+                    (second_message_frame := build_dataclass(MessageFrame)),
                     (
-                        second_message_frame := build_dataclass(
+                        third_message_frame := build_dataclass(
                             MessageFrame, headers={"subscription": second_subscription_id}
                         )
                     ),
@@ -325,6 +326,7 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
         connection_class=connection_class,
         on_error_frame=(on_error_frame := mock.Mock()),
         on_heartbeat=(on_heartbeat := mock.Mock()),
+        on_unhandled_message_frame=(on_unhandled_message_frame := mock.Mock()),
     ) as client:
         first_subscription = await client.subscribe(
             FAKER.pystr(), handler=first_handler, on_suppressed_exception=first_on_suppressed_exception
@@ -338,10 +340,11 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
 
     on_error_frame.assert_called_once_with(error_frame)
     on_heartbeat.assert_called_once_with()
+    on_unhandled_message_frame.assert_called_once_with(second_message_frame)
     first_handler.assert_called_once_with(first_message_frame)
-    second_handle_message.assert_called_once_with(second_message_frame)
+    second_handle_message.assert_called_once_with(third_message_frame)
     first_on_suppressed_exception.assert_not_called()
-    second_on_suppressed_exception.assert_called_once_with(SomeError(), second_message_frame)
+    second_on_suppressed_exception.assert_called_once_with(SomeError(), third_message_frame)
 
 
 @pytest.mark.parametrize("side_effect", [None, SomeError])

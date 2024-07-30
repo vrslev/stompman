@@ -21,6 +21,7 @@ class Client:
     connection_confirmation_timeout: int = 2
     on_error_frame: Callable[[ErrorFrame], None] | None = None
     on_heartbeat: Callable[[], None] | None = None
+    on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
@@ -36,6 +37,7 @@ class Client:
             connection_confirmation_timeout=self.connection_confirmation_timeout,
             on_error_frame=self.on_error_frame,
             on_heartbeat=self.on_heartbeat,
+            on_unhandled_message_frame=self.on_unhandled_message_frame,
             read_timeout=self.read_timeout,
             read_max_chunk_size=self.read_max_chunk_size,
         ).__aenter__()

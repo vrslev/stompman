@@ -112,6 +112,7 @@ class StompProtocol:
     connection_confirmation_timeout: int
     on_error_frame: Callable[[ErrorFrame], None] | None
     on_heartbeat: Callable[[], None] | None
+    on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
     read_timeout: int
     read_max_chunk_size: int
 
@@ -219,6 +220,8 @@ class StompProtocol:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
                             task_group.create_task(subscription._run_handler(frame))  # noqa: SLF001
+                        elif self.on_unhandled_message_frame:
+                            self.on_unhandled_message_frame(frame)
                     case ErrorFrame():
                         if self.on_error_frame:
                             self.on_error_frame(frame)
