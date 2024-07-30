@@ -36,12 +36,18 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
+        async def connect(  # noqa: PLR0913
+            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        ) -> Self | None:
             assert (host, port) == (client.servers[0].host, client.servers[0].port)
             nonlocal attempts
             attempts += 1
 
-            return await super().connect(host, port, timeout) if attempts == ok_on_attempt else None
+            return (
+                await super().connect(host, port, timeout, read_max_chunk_size, read_timeout)
+                if attempts == ok_on_attempt
+                else None
+            )
 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
@@ -54,7 +60,9 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 async def test_client_connect_to_one_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
+        async def connect(  # noqa: PLR0913
+            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        ) -> Self | None:
             return None
 
     client = EnrichedClient(connection_class=MockConnection)
@@ -65,8 +73,14 @@ async def test_client_connect_to_one_server_fails() -> None:
 async def test_client_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
-            return await super().connect(host, port, timeout) if port == successful_server.port else None
+        async def connect(  # noqa: PLR0913
+            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        ) -> Self | None:
+            return (
+                await super().connect(host, port, timeout, read_max_chunk_size, read_timeout)
+                if port == successful_server.port
+                else None
+            )
 
     successful_server = build_dataclass(stompman.ConnectionParameters)
     client = stompman.Client(
@@ -87,7 +101,9 @@ async def test_client_connect_to_any_server_ok() -> None:
 async def test_client_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
+        async def connect(  # noqa: PLR0913
+            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        ) -> Self | None:
             return None
 
     client = EnrichedClient(

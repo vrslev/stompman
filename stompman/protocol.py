@@ -113,8 +113,6 @@ class StompProtocol:
     on_error_frame: Callable[[ErrorFrame], None] | None
     on_heartbeat: Callable[[], None] | None
     on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
-    read_timeout: int
-    read_max_chunk_size: int
 
     PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
 
@@ -139,9 +137,7 @@ class StompProtocol:
         collected_frames = []
 
         async def inner() -> ConnectedFrame:
-            async for frame in self.connection.read_frames(
-                max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-            ):
+            async for frame in self.connection.read_frames():
                 if isinstance(frame, ConnectedFrame):
                     return frame
                 collected_frames.append(frame)
@@ -195,9 +191,7 @@ class StompProtocol:
         if self.connection.active:
             await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
         if self.connection.active:
-            async for frame in self.connection.read_frames(
-                max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-            ):
+            async for frame in self.connection.read_frames():
                 if isinstance(frame, ReceiptFrame):
                     break
 
@@ -213,9 +207,7 @@ class StompProtocol:
 
     async def _listen_to_frames(self) -> None:
         async with asyncio.TaskGroup() as task_group:
-            async for frame in self.connection.read_frames(
-                max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
-            ):
+            async for frame in self.connection.read_frames():
                 match frame:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["subscription"]):

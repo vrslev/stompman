@@ -30,16 +30,16 @@ def noop_error_handler(exception: Exception, frame: stompman.MessageFrame) -> No
 
 class BaseMockConnection(AbstractConnection):
     @classmethod
-    async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
+    async def connect(  # noqa: PLR0913
+        cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+    ) -> Self | None:
         return cls()
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
     @staticmethod
-    async def read_frames(
-        max_chunk_size: int, timeout: int
-    ) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:  # pragma: no cover
+    async def read_frames() -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
 

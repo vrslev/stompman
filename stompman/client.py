@@ -38,8 +38,6 @@ class Client:
             on_error_frame=self.on_error_frame,
             on_heartbeat=self.on_heartbeat,
             on_unhandled_message_frame=self.on_unhandled_message_frame,
-            read_timeout=self.read_timeout,
-            read_max_chunk_size=self.read_max_chunk_size,
         ).__aenter__()
         return self
 
@@ -53,7 +51,11 @@ class Client:
     ) -> tuple[AbstractConnection, ConnectionParameters] | None:
         for attempt in range(self.connect_retry_attempts):
             if connection := await self.connection_class.connect(
-                host=server.host, port=server.port, timeout=self.connect_timeout
+                host=server.host,
+                port=server.port,
+                timeout=self.connect_timeout,
+                read_max_chunk_size=self.read_max_chunk_size,
+                read_timeout=self.read_timeout,
             ):
                 return connection, server
             await asyncio.sleep(self.connect_retry_interval * (attempt + 1))

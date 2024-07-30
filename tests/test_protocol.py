@@ -49,9 +49,7 @@ def create_spying_connection(
             collected_frames.append(frame)
 
         @staticmethod
-        async def read_frames(
-            max_chunk_size: int, timeout: int
-        ) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:
+        async def read_frames() -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
@@ -144,7 +142,7 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
 
     class MockConnection(BaseMockConnection):
         @staticmethod
-        async def read_frames(max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
+        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
             yield error_frame
             await asyncio.sleep(0)
 

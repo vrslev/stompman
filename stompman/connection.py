@@ -17,28 +17,32 @@ class AbstractConnection(Protocol):
     active: bool = True
 
     @classmethod
-    async def connect(cls, host: str, port: int, timeout: int) -> Self | None: ...
+    async def connect(  # noqa: PLR0913
+        cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+    ) -> Self | None: ...
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
-    def read_frames(
-        self, max_chunk_size: int, timeout: int
-    ) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]: ...
+    def read_frames(self) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]: ...
 
 
 @dataclass(kw_only=True, slots=True)
 class Connection(AbstractConnection):
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
+    read_max_chunk_size: int
+    read_timeout: int
 
     @classmethod
-    async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
+    async def connect(  # noqa: PLR0913
+        cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+    ) -> Self | None:
         try:
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
         except (TimeoutError, ConnectionError, socket.gaierror):
             return None
         else:
-            return cls(reader=reader, writer=writer)
+            return cls(reader=reader, writer=writer, read_max_chunk_size=read_max_chunk_size, read_timeout=read_timeout)
 
     async def close(self) -> None:
         self.writer.close()
@@ -69,14 +73,14 @@ class Connection(AbstractConnection):
             await asyncio.sleep(0)
         return chunk
 
-    async def read_frames(
-        self, max_chunk_size: int, timeout: int
-    ) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:
+    async def read_frames(self) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:
         parser = FrameParser()
 
         while True:
             with self._reraise_connection_lost(ConnectionError, TimeoutError):
-                raw_frames = await asyncio.wait_for(self._read_non_empty_bytes(max_chunk_size), timeout=timeout)
+                raw_frames = await asyncio.wait_for(
+                    self._read_non_empty_bytes(self.read_max_chunk_size), timeout=self.read_timeout
+                )
 
             for frame in cast(Iterator[AnyServerFrame | HeartbeatFrame], parser.parse_frames_from_chunk(raw_frames)):
                 yield frame
