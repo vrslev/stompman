@@ -192,7 +192,7 @@ class StompProtocol:
             for subscription in self._active_subscriptions.copy().values():
                 await subscription.unsubscribe()
         if self.connection.active:
-            await self.connection.write_frame(DisconnectFrame(headers={"receipt": str(uuid4())}))
+            await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
         if self.connection.active:
             async for frame in self.connection.read_frames(
                 max_chunk_size=self.read_max_chunk_size, timeout=self.read_timeout
@@ -230,7 +230,7 @@ class StompProtocol:
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator["Transaction", None]:
-        transaction_id = str(uuid4())
+        transaction_id = _make_transaction_id()
         await self.connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
 
         try:
@@ -260,7 +260,7 @@ class StompProtocol:
         supressed_exception_classes: tuple[type[Exception], ...],
         ack: Literal["client", "client-individual", "auto"],
     ) -> "Subscription":
-        subscription_id = str(uuid4())
+        subscription_id = _make_subscription_id()
         await self.connection.write_frame(
             SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": ack})
         )
@@ -276,6 +276,18 @@ class StompProtocol:
         )
         self._active_subscriptions[subscription_id] = subscription
         return subscription
+
+
+def _make_receipt_id() -> str:
+    return str(uuid4())
+
+
+def _make_transaction_id() -> str:
+    return str(uuid4())
+
+
+def _make_subscription_id() -> str:
+    return str(uuid4())
 
 
 @dataclass(kw_only=True, slots=True)

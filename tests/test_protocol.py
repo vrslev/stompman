@@ -90,24 +90,34 @@ def enrich_expected_frames(
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    connected_frame = ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})
-    receipt_frame = ReceiptFrame(headers={"receipt-id": "whatever"})
-    connection_class, collected_frames = create_spying_connection([[connected_frame], [], [receipt_frame]])
+    connection_class, collected_frames = create_spying_connection(
+        [
+            [
+                (
+                    connected_frame := ConnectedFrame(
+                        headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"}
+                    )
+                )
+            ],
+            [],
+            [(receipt_frame := ReceiptFrame(headers={"receipt-id": "whatever"}))],
+        ]
+    )
     connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
-    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(return_value=(receipt_id := "myid")))
+    monkeypatch.setattr(stompman.protocol, "_make_receipt_id", mock.Mock(return_value=(receipt_id := "myid")))
 
     async with EnrichedClient(
-        [ConnectionParameters("localhost", 10, (login := "login"), "%3Dpasscode")], connection_class=connection_class
+        [ConnectionParameters("localhost", 10, "login", "%3Dpasscode")], connection_class=connection_class
     ) as client:
         await asyncio.sleep(0)
 
     assert collected_frames == [
         ConnectFrame(
             headers={
-                "host": client._protocol.connection_parameters.host,
+                "host": "localhost",
                 "accept-version": StompProtocol.PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
-                "login": login,
+                "login": "login",
                 "passcode": "=passcode",
             }
         ),
@@ -183,6 +193,33 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
     )
 
 
+async def test_client_start_sending_heartbeats(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def mock_sleep(delay: float) -> None:
+        await real_sleep(0)
+        sleep_calls.append(delay)
+
+    real_sleep = asyncio.sleep
+    sleep_calls: list[float] = []
+    monkeypatch.setattr("asyncio.sleep", mock_sleep)
+    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[]]))
+    connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
+
+    async with EnrichedClient(connection_class=connection_class):
+        await real_sleep(0)
+        await real_sleep(0)
+        await real_sleep(0)
+
+    assert sleep_calls == [1, 1]
+    assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
+
+
+async def test_client_heartbeat_not_raises_connection_lost() -> None:
+    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[]]))
+    connection_class.write_heartbeat = mock.Mock(side_effect=ConnectionLostError)  # type: ignore[method-assign]
+    async with EnrichedClient(connection_class=connection_class):
+        await asyncio.sleep(0)
+
+
 @dataclass
 class SomeError(Exception): ...
 
@@ -231,33 +268,6 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit_direct_error(
         SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
         UnsubscribeFrame(headers={"id": subscription_id}),
     )
-
-
-async def test_client_start_sending_heartbeats(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def mock_sleep(delay: float) -> None:
-        await real_sleep(0)
-        sleep_calls.append(delay)
-
-    real_sleep = asyncio.sleep
-    sleep_calls: list[float] = []
-    monkeypatch.setattr("asyncio.sleep", mock_sleep)
-    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[]]))
-    connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
-
-    async with EnrichedClient(connection_class=connection_class):
-        await real_sleep(0)
-        await real_sleep(0)
-        await real_sleep(0)
-
-    assert sleep_calls == [1, 1]
-    assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
-
-
-async def test_client_heartbeat_not_raises_connection_lost() -> None:
-    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[]]))
-    connection_class.write_heartbeat = mock.Mock(side_effect=ConnectionLostError)  # type: ignore[method-assign]
-    async with EnrichedClient(connection_class=connection_class):
-        await asyncio.sleep(0)
 
 
 async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None:
