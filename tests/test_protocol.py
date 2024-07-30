@@ -215,21 +215,21 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
-        subscription_1 = await client.subscribe(
+        first_subscription = await client.subscribe(
             first_subscribe_frame.headers["destination"],
             handler=noop_message_handler,
             on_suppressed_exception=noop_error_handler,
             ack=ack,
         )
-        subscription_2 = await client.subscribe(
+        second_subscription = await client.subscribe(
             second_subscribe_frame.headers["destination"],
             handler=noop_message_handler,
             on_suppressed_exception=noop_error_handler,
             ack=ack,
         )
         await asyncio.sleep(0)
-        await subscription_1.unsubscribe()
-        await subscription_2.unsubscribe()
+        await first_subscription.unsubscribe()
+        await second_subscription.unsubscribe()
 
     assert collected_frames == enrich_expected_frames(
         first_subscribe_frame,
@@ -292,25 +292,23 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(
         stompman.protocol,
         "_make_subscription_id",
-        mock.Mock(side_effect=[(subscription_id_1 := "sub-id-1"), (subscription_id_2 := "sub-id-2")]),
+        mock.Mock(side_effect=[(first_subscription_id := "sub-id-1"), (second_subscription_id := "sub-id-2")]),
     )
     connection_class, _ = create_spying_connection(
         get_read_frames_with_lifespan(
             [
                 [
-                    ConnectedFrame(headers={"version": ""}),
-                    ReceiptFrame(headers={"receipt-id": ""}),
+                    build_dataclass(ConnectedFrame),
+                    build_dataclass(ReceiptFrame),
                     (
-                        message_frame_1 := MessageFrame(
-                            headers={"destination": "whatever-1", "message-id": "", "subscription": subscription_id_1},
-                            body=b"hello",
+                        first_message_frame := build_dataclass(
+                            MessageFrame, headers={"subscription": first_subscription_id}
                         )
                     ),
-                    (error_frame := ErrorFrame(headers={"message": "short description here"})),
+                    (error_frame := build_dataclass(ErrorFrame)),
                     (
-                        message_frame_2 := MessageFrame(
-                            headers={"destination": "whatever-2", "message-id": "", "subscription": subscription_id_2},
-                            body=b"hello again",
+                        second_message_frame := build_dataclass(
+                            MessageFrame, headers={"subscription": second_subscription_id}
                         )
                     ),
                     HeartbeatFrame(),
@@ -318,32 +316,32 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
             ]
         )
     )
-    handle_message_1 = mock.AsyncMock(return_value=None)
-    handle_message_2 = mock.AsyncMock(side_effect=SomeError)
-    on_suppressed_exception_1 = mock.Mock()
-    on_suppressed_exception_2 = mock.Mock()
+    first_handler = mock.AsyncMock(return_value=None)
+    second_handle_message = mock.AsyncMock(side_effect=SomeError)
+    first_on_suppressed_exception = mock.Mock()
+    second_on_suppressed_exception = mock.Mock()
 
     async with EnrichedClient(
         connection_class=connection_class,
         on_error_frame=(on_error_frame := mock.Mock()),
         on_heartbeat=(on_heartbeat := mock.Mock()),
     ) as client:
-        subscription_1 = await client.subscribe(
-            "whatev", handler=handle_message_1, on_suppressed_exception=on_suppressed_exception_1
+        first_subscription = await client.subscribe(
+            FAKER.pystr(), handler=first_handler, on_suppressed_exception=first_on_suppressed_exception
         )
-        subscription_2 = await client.subscribe(
-            "whatev", handler=handle_message_2, on_suppressed_exception=on_suppressed_exception_2
+        second_subscription = await client.subscribe(
+            FAKER.pystr(), handler=second_handle_message, on_suppressed_exception=second_on_suppressed_exception
         )
         await asyncio.sleep(0)
-        await subscription_1.unsubscribe()
-        await subscription_2.unsubscribe()
+        await first_subscription.unsubscribe()
+        await second_subscription.unsubscribe()
 
     on_error_frame.assert_called_once_with(error_frame)
     on_heartbeat.assert_called_once_with()
-    handle_message_1.assert_called_once_with(message_frame_1)
-    handle_message_2.assert_called_once_with(message_frame_2)
-    on_suppressed_exception_1.assert_not_called()
-    on_suppressed_exception_2.assert_called_once_with(SomeError(), message_frame_2)
+    first_handler.assert_called_once_with(first_message_frame)
+    second_handle_message.assert_called_once_with(second_message_frame)
+    first_on_suppressed_exception.assert_not_called()
+    second_on_suppressed_exception.assert_called_once_with(SomeError(), second_message_frame)
 
 
 @pytest.mark.parametrize("side_effect", [None, SomeError])
