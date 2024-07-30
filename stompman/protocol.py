@@ -258,7 +258,7 @@ class StompProtocol:
         handler: Callable[[MessageFrame], Coroutine[None, None, None]],
         on_suppressed_exception: Callable[[Exception, MessageFrame], Any],
         supressed_exception_classes: tuple[type[Exception], ...],
-        ack: Literal["client", "client-individual", "auto"],
+        ack: "AckMode",
     ) -> "Subscription":
         subscription_id = _make_subscription_id()
         await self.connection.write_frame(
@@ -309,12 +309,15 @@ class Transaction:
         )
 
 
+AckMode = Literal["client", "client-individual", "auto"]
+
+
 @dataclass(kw_only=True, slots=True)
 class Subscription:
     id: str
     destination: str
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
-    ack: Literal["client", "client-individual", "auto"]
+    ack: AckMode
     on_suppressed_exception: Callable[[Exception, MessageFrame], Any]
     supressed_exception_classes: tuple[type[Exception], ...]
     _connection: AbstractConnection

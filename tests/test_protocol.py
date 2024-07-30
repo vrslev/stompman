@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Coroutine
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 from unittest import mock
 
 import faker
@@ -33,7 +33,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.protocol import StompProtocol
+from stompman.protocol import AckMode, StompProtocol
 from tests.conftest import BaseMockConnection, EnrichedClient, build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
@@ -203,10 +203,8 @@ async def test_client_heartbeat_not_raises_connection_lost() -> None:
         await asyncio.sleep(0)
 
 
-@pytest.mark.parametrize("ack", ["client", "client-individual", "auto"])
-async def test_client_subscribe_lifespan_no_active_subs_in_aexit(
-    monkeypatch: pytest.MonkeyPatch, ack: Literal["client", "client-individual", "auto"]
-) -> None:
+@pytest.mark.parametrize("ack", get_args(AckMode))
+async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch, ack: AckMode) -> None:
     first_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
     second_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
     monkeypatch.setattr(
@@ -277,7 +275,6 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
                 task_group.create_task(SomeError.raise_after_tick())
 
         assert exc_info.value.exceptions == (SomeError(),)
-
 
     assert collected_frames == enrich_expected_frames(
         subscribe_frame,
