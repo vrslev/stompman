@@ -14,12 +14,11 @@ from stompman.protocol import AckMode, ConnectionParameters, Heartbeat, StompPro
 @dataclass(kw_only=True, slots=True)
 class Client:
     servers: list[ConnectionParameters] = field(kw_only=False)
-    heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
-
     on_error_frame: Callable[[ErrorFrame], None] | None = None
     on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
     on_heartbeat: Callable[[], None] | None = None
 
+    heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 2
@@ -39,8 +38,8 @@ class Client:
             heartbeat=self.heartbeat,
             connection_confirmation_timeout=self.connection_confirmation_timeout,
             on_error_frame=self.on_error_frame,
-            on_heartbeat=self.on_heartbeat,
             on_unhandled_message_frame=self.on_unhandled_message_frame,
+            on_heartbeat=self.on_heartbeat,
         ).__aenter__()
         return self
 
