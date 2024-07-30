@@ -88,14 +88,15 @@ class Client:
         self,
         destination: str,
         handler: Callable[[MessageFrame], Coroutine[None, None, None]],
+        *,
+        ack: AckMode = "client-individual",
         on_suppressed_exception: Callable[[Exception, MessageFrame], Any],
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
-        ack: AckMode = "client-individual",
     ) -> Subscription:
         return await self._protocol.subscribe(
             destination=destination,
             handler=handler,
+            ack=ack,
             on_suppressed_exception=on_suppressed_exception,
             supressed_exception_classes=supressed_exception_classes,
-            ack=ack,
         )
