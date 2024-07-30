@@ -1,10 +1,11 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Self
+from typing import Any, Self, TypeVar
 from unittest import mock
 
 import pytest
+from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
 from stompman import AbstractConnection, Client, ConnectionParameters
@@ -53,3 +54,10 @@ class EnrichedClient(Client):
 @pytest.fixture()
 def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
     monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())
+
+
+DataclassType = TypeVar("DataclassType")
+
+
+def build_dataclass(dataclass: type[DataclassType], **kwargs: Any) -> DataclassType:  # noqa: ANN401
+    return DataclassFactory.create_factory(dataclass).build(**kwargs)
