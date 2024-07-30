@@ -217,7 +217,7 @@ class StompProtocol:
             ):
                 match frame:
                     case MessageFrame():
-                        if subscription := self._active_subscriptions.get(frame.headers["destination"]):
+                        if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
                             task_group.create_task(subscription._run_handler(frame))  # noqa: SLF001
                     case ErrorFrame():
                         if self.on_error_frame:
@@ -260,9 +260,6 @@ class StompProtocol:
         supressed_exception_classes: tuple[type[Exception], ...],
         ack: Literal["client", "client-individual", "auto"],
     ) -> "Subscription":
-        if destination in self._active_subscriptions:
-            raise Exception  # noqa: TRY002
-
         subscription_id = str(uuid4())
         await self.connection.write_frame(
             SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": ack})
@@ -277,7 +274,7 @@ class StompProtocol:
             _connection=self.connection,
             _active_subscriptions=self._active_subscriptions,
         )
-        self._active_subscriptions[destination] = subscription
+        self._active_subscriptions[subscription_id] = subscription
         return subscription
 
 
@@ -316,7 +313,7 @@ class Subscription:
         self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
 
     async def unsubscribe(self) -> None:
-        del self._active_subscriptions[self.destination]
+        del self._active_subscriptions[self.id]
         if self._connection.active:
             await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
 

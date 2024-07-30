@@ -144,38 +144,28 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
     )
 
 
-async def test_client_subscribe(monkeypatch: pytest.MonkeyPatch) -> None:
-    destination_1 = "/topic/one"
-    destination_2 = "/topic/two"
-    subscription_id_1 = "id1"
-    subscription_id_2 = "id2"
+async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
+    destination_1, subscription_id_1 = "/topic/one", "id1"
+    destination_2, subscription_id_2 = "/topic/two", "id2"
     monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id_1, subscription_id_2, ""]))
+    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
 
-    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
     async with EnrichedClient(connection_class=connection_class) as client:
         subscription_1 = await client.subscribe(
             destination_1, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
         )
-        await client.subscribe(destination_2, handler=noop_message_handler, on_suppressed_exception=noop_error_handler)
+        subscription_2 = await client.subscribe(
+            destination_2, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+        )
+        await asyncio.sleep(0)
         await subscription_1.unsubscribe()
+        await subscription_2.unsubscribe()
 
     assert_frames_between_lifespan_match(
         collected_frames,
         [
-            SubscribeFrame(
-                headers={
-                    "destination": destination_1,
-                    "id": subscription_id_1,
-                    "ack": "client-individual",
-                }
-            ),
-            SubscribeFrame(
-                headers={
-                    "destination": destination_2,
-                    "id": subscription_id_2,
-                    "ack": "client-individual",
-                }
-            ),
+            SubscribeFrame(headers={"destination": destination_1, "id": subscription_id_1, "ack": "client-individual"}),
+            SubscribeFrame(headers={"destination": destination_2, "id": subscription_id_2, "ack": "client-individual"}),
             UnsubscribeFrame(headers={"id": subscription_id_1}),
             UnsubscribeFrame(headers={"id": subscription_id_2}),
         ],
