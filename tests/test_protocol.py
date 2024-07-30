@@ -75,7 +75,7 @@ def enrich_expected_frames(
     return [
         ConnectFrame(
             headers={
-                "accept-version": "1.2",
+                "accept-version": StompProtocol.PROTOCOL_VERSION,
                 "heart-beat": "1000,1000",
                 "host": "localhost",
                 "login": "login",
@@ -87,13 +87,6 @@ def enrich_expected_frames(
         DisconnectFrame(headers={"receipt": ""}),
         ReceiptFrame(headers={"receipt-id": "whatever"}),
     ]
-
-
-# def assert_frames_between_lifespan_match(
-#     collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
-#     expected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
-# ) -> None:
-#     assert collected_frames[2:-2] == expected_frames
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
