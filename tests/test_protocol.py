@@ -176,43 +176,6 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
     )
 
 
-async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
-    first_subscribe_frame = SubscribeFrame(
-        headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": "client-individual"}
-    )
-    second_subscribe_frame = SubscribeFrame(
-        headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": "client-individual"}
-    )
-    monkeypatch.setattr(
-        stompman.protocol,
-        "_make_subscription_id",
-        mock.Mock(side_effect=[first_subscribe_frame.headers["id"], second_subscribe_frame.headers["id"]]),
-    )
-    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
-
-    async with EnrichedClient(connection_class=connection_class) as client:
-        subscription_1 = await client.subscribe(
-            first_subscribe_frame.headers["destination"],
-            handler=noop_message_handler,
-            on_suppressed_exception=noop_error_handler,
-        )
-        subscription_2 = await client.subscribe(
-            second_subscribe_frame.headers["destination"],
-            handler=noop_message_handler,
-            on_suppressed_exception=noop_error_handler,
-        )
-        await asyncio.sleep(0)
-        await subscription_1.unsubscribe()
-        await subscription_2.unsubscribe()
-
-    assert collected_frames == enrich_expected_frames(
-        first_subscribe_frame,
-        second_subscribe_frame,
-        UnsubscribeFrame(headers={"id": first_subscribe_frame.headers["id"]}),
-        UnsubscribeFrame(headers={"id": second_subscribe_frame.headers["id"]}),
-    )
-
-
 async def test_client_start_sending_heartbeats(monkeypatch: pytest.MonkeyPatch) -> None:
     async def mock_sleep(delay: float) -> None:
         await real_sleep(0)
@@ -238,6 +201,45 @@ async def test_client_heartbeat_not_raises_connection_lost() -> None:
     connection_class.write_heartbeat = mock.Mock(side_effect=ConnectionLostError)  # type: ignore[method-assign]
     async with EnrichedClient(connection_class=connection_class):
         await asyncio.sleep(0)
+
+
+@pytest.mark.parametrize("ack", ["client", "client-individual", "auto"])
+async def test_client_subscribe_lifespan_no_active_subs_in_aexit(
+    monkeypatch: pytest.MonkeyPatch, ack: Literal["client", "client-individual", "auto"]
+) -> None:
+    first_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
+    second_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
+    monkeypatch.setattr(
+        stompman.protocol,
+        "_make_subscription_id",
+        mock.Mock(side_effect=[first_subscribe_frame.headers["id"], second_subscribe_frame.headers["id"]]),
+    )
+    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
+
+    async with EnrichedClient(connection_class=connection_class) as client:
+        subscription_1 = await client.subscribe(
+            first_subscribe_frame.headers["destination"],
+            handler=noop_message_handler,
+            on_suppressed_exception=noop_error_handler,
+            ack=ack,
+        )
+        subscription_2 = await client.subscribe(
+            second_subscribe_frame.headers["destination"],
+            handler=noop_message_handler,
+            on_suppressed_exception=noop_error_handler,
+            ack=ack,
+        )
+        await asyncio.sleep(0)
+        await subscription_1.unsubscribe()
+        await subscription_2.unsubscribe()
+
+    assert collected_frames == enrich_expected_frames(
+        first_subscribe_frame,
+        second_subscribe_frame,
+        UnsubscribeFrame(headers={"id": first_subscribe_frame.headers["id"]}),
+        UnsubscribeFrame(headers={"id": second_subscribe_frame.headers["id"]}),
+    )
+
 
 
 @dataclass
