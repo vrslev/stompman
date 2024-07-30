@@ -241,7 +241,6 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(
     )
 
 
-
 @dataclass
 class SomeError(Exception):
     @classmethod
@@ -255,6 +254,9 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
     direct_error: bool,  # noqa: FBT001
 ) -> None:
+    subscribe_frame = SubscribeFrame(
+        headers={"destination": FAKER.pystr(), "id": FAKER.pystr(), "ack": "client-individual"}
+    )
     destination, subscription_id = "/topic/one", "id1"
     monkeypatch.setattr(stompman.protocol, "_make_subscription_id", mock.Mock(return_value=subscription_id))
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
@@ -276,8 +278,9 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
 
         assert exc_info.value.exceptions == (SomeError(),)
 
+
     assert collected_frames == enrich_expected_frames(
-        SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
+        subscribe_frame,
         UnsubscribeFrame(headers={"id": subscription_id}),
     )
 
