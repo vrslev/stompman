@@ -247,38 +247,44 @@ class SomeError(Exception):
         raise cls
 
 
+@pytest.mark.parametrize("ack", get_args(AckMode))
 @pytest.mark.parametrize("direct_error", [True, False])
 async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
     direct_error: bool,  # noqa: FBT001
+    ack: AckMode,
 ) -> None:
-    subscribe_frame = SubscribeFrame(
-        headers={"destination": FAKER.pystr(), "id": FAKER.pystr(), "ack": "client-individual"}
+    subscribe_frame = SubscribeFrame(headers={"destination": FAKER.pystr(), "id": FAKER.pystr(), "ack": ack})
+    monkeypatch.setattr(
+        stompman.protocol, "_make_subscription_id", mock.Mock(return_value=subscribe_frame.headers["id"])
     )
-    destination, subscription_id = "/topic/one", "id1"
-    monkeypatch.setattr(stompman.protocol, "_make_subscription_id", mock.Mock(return_value=subscription_id))
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
 
     if direct_error:
         with pytest.raises(SomeError):  # noqa: PT012
             async with EnrichedClient(connection_class=connection_class) as client:
                 await client.subscribe(
-                    destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+                    subscribe_frame.headers["destination"],
+                    handler=noop_message_handler,
+                    on_suppressed_exception=noop_error_handler,
+                    ack=ack,
                 )
                 await SomeError.raise_after_tick()
     else:
         with pytest.raises(ExceptionGroup) as exc_info:  # noqa: PT012
             async with asyncio.TaskGroup() as task_group, EnrichedClient(connection_class=connection_class) as client:
                 await client.subscribe(
-                    destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+                    subscribe_frame.headers["destination"],
+                    handler=noop_message_handler,
+                    on_suppressed_exception=noop_error_handler,
+                    ack=ack,
                 )
                 task_group.create_task(SomeError.raise_after_tick())
 
         assert exc_info.value.exceptions == (SomeError(),)
 
     assert collected_frames == enrich_expected_frames(
-        subscribe_frame,
-        UnsubscribeFrame(headers={"id": subscription_id}),
+        subscribe_frame, UnsubscribeFrame(headers={"id": subscribe_frame.headers["id"]})
     )
 
 
