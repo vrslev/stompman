@@ -350,7 +350,9 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 @pytest.mark.parametrize("ok", [True, False])
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
 async def test_client_listen_ack_nack(
-    monkeypatch: pytest.MonkeyPatch, ack: Literal["client", "client-individual"], ok: bool  # noqa: FBT001
+    monkeypatch: pytest.MonkeyPatch,
+    ack: Literal["client", "client-individual"],
+    ok: bool,  # noqa: FBT001
 ) -> None:
     monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[(subscription_id := "id1"), ""]))
     message_frame = MessageFrame(
@@ -381,109 +383,35 @@ async def test_client_listen_ack_nack(
     )
 
 
-async def test_ack_nack_ok() -> None:
-    subscription = "subscription-id"
-    message_id = "message-id"
-
+@pytest.mark.parametrize("ok", [True, False])
+async def test_client_listen_auto_ack_nack(
+    monkeypatch: pytest.MonkeyPatch,
+    ok: bool,  # noqa: FBT001
+) -> None:
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[(subscription_id := "id1"), ""]))
     message_frame = MessageFrame(
-        headers={"subscription": subscription, "message-id": message_id, "destination": "whatever"}, body=b"hello"
+        headers={"destination": "", "message-id": "", "subscription": subscription_id}, body=b""
     )
-    nack_frame = NackFrame(headers={"id": message_id, "subscription": subscription})
-    ack_frame = AckFrame(headers={"id": message_id, "subscription": subscription})
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
+    handle_message = mock.AsyncMock(side_effect=None if ok else SomeError)
     async with EnrichedClient(connection_class=connection_class) as client:
-        events = [event async for event in client.listen()]
-
-        assert len(events) == 1
-        event = events[0]
-        # assert isinstance(event, MessageEvent)
-        await event.nack()
-        await event.ack()
-
-    assert_frames_between_lifespan_match(collected_frames, [message_frame, nack_frame, ack_frame])
-
-
-async def test_ack_nack_connection_lost_error() -> None:
-    message_frame = MessageFrame(headers={"subscription": "", "message-id": "", "destination": ""}, body=b"")
-    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
-
-    class MockConnection(connection_class):  # type: ignore[valid-type, misc]
-        @staticmethod
-        async def write_frame(frame: AnyClientFrame) -> None:
-            if isinstance(frame, AckFrame | NackFrame):
-                raise ConnectionLostError
-
-    async with EnrichedClient(connection_class=MockConnection) as client:
-        events = [event async for event in client.listen()]
-        event = events[0]
-        # assert isinstance(event, MessageEvent)
-
-        await event.nack()
-        await event.ack()
-
-
-def get_mocked_message_event() -> tuple["MessageEvent", mock.AsyncMock, mock.AsyncMock, mock.Mock]:
-    ack_mock, nack_mock, on_suppressed_exception_mock = mock.AsyncMock(), mock.AsyncMock(), mock.Mock()
-
-    class CustomMessageEvent(MessageEvent):
-        ack = ack_mock
-        nack = nack_mock
-
-    return (
-        CustomMessageEvent(
-            _frame=MessageFrame(
-                headers={"destination": "destination", "message-id": "message-id", "subscription": "subscription"},
-                body=b"",
-            ),
-            _client=mock.Mock(),
-        ),
-        ack_mock,
-        nack_mock,
-        on_suppressed_exception_mock,
-    )
-
-
-async def test_message_event_with_auto_ack_nack() -> None:
-    event, ack, nack, on_suppressed_exception = get_mocked_message_event()
-    exception = RuntimeError()
-
-    async def raises_runtime_error() -> None:  # noqa: RUF029
-        raise exception
-
-    await event.with_auto_ack(
-        raises_runtime_error(),
-        supressed_exception_classes=(Exception,),
-        on_suppressed_exception=on_suppressed_exception,
-    )
-
-    ack.assert_not_called()
-    nack.assert_called_once_with()
-    on_suppressed_exception.assert_called_once_with(exception, event)
-
-
-async def test_message_event_with_auto_ack_ack_raises() -> None:
-    event, ack, nack, on_suppressed_exception = get_mocked_message_event()
-
-    async def func() -> None:  # noqa: RUF029
-        raise ImportError
-
-    with suppress(ImportError):
-        await event.with_auto_ack(
-            func(), supressed_exception_classes=(ModuleNotFoundError,), on_suppressed_exception=on_suppressed_exception
+        subscription = await client.subscribe(
+            "", handler=handle_message, on_suppressed_exception=noop_error_handler, ack="auto"
         )
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await subscription.unsubscribe()
 
-    ack.assert_called_once_with()
-    nack.assert_not_called()
-    on_suppressed_exception.assert_not_called()
-
-
-async def test_message_event_with_auto_ack_ack_ok() -> None:
-    event, ack, nack, on_suppressed_exception = get_mocked_message_event()
-    await event.with_auto_ack(mock.AsyncMock()(), on_suppressed_exception=on_suppressed_exception)
-    ack.assert_called_once_with()
-    nack.assert_not_called()
-    on_suppressed_exception.assert_not_called()
+    handle_message.assert_called_once_with(message_frame)
+    assert_frames_between_lifespan_match(
+        collected_frames,
+        [
+            SubscribeFrame(headers={"ack": "auto", "destination": "", "id": subscription_id}),
+            message_frame,
+            UnsubscribeFrame(headers={"id": subscription_id}),
+        ],
+    )
 
 
 async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -495,10 +423,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(stompman.protocol, "uuid4", lambda: transaction_id)
 
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
-    async with (
-        EnrichedClient(connection_class=connection_class) as client,
-        client.begin() as transaction,
-    ):
+    async with EnrichedClient(connection_class=connection_class) as client, client.begin() as transaction:
         await transaction.send(
             body=body, destination=destination, content_type=content_type, headers={"expires": expires}
         )
