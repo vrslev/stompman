@@ -239,7 +239,7 @@ class StompProtocol:
                 await self.connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
     async def send(
-        self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
+        self, body: bytes, destination: str, content_type: str | None, headers: dict[str, str] | None
     ) -> None:
         await self.connection.write_frame(
             SendFrame.build(
