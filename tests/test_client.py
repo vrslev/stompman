@@ -39,25 +39,29 @@ pytestmark = pytest.mark.anyio
 
 
 def create_spying_connection(
-    read_frames_yields: list[list[AnyServerFrame]],
-) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame]]:
+    read_frames_yields: list[list[AnyServerFrame | HeartbeatFrame]],
+) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
     class BaseCollectingConnection(BaseMockConnection):
         @staticmethod
         async def write_frame(frame: AnyClientFrame) -> None:
             collected_frames.append(frame)
 
         @staticmethod
-        async def read_frames(max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
+        async def read_frames(
+            max_chunk_size: int, timeout: int
+        ) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
 
     read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[AnyClientFrame | AnyServerFrame] = []
+    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame] = []
     return BaseCollectingConnection, collected_frames
 
 
-def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> list[list[AnyServerFrame]]:
+def get_read_frames_with_lifespan(
+    read_frames: list[list[AnyServerFrame | HeartbeatFrame]],
+) -> list[list[AnyServerFrame | HeartbeatFrame]]:
     return [
         [ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
@@ -66,7 +70,8 @@ def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> li
 
 
 def assert_frames_between_lifespan_match(
-    collected_frames: list[AnyClientFrame | AnyServerFrame], expected_frames: list[AnyClientFrame | AnyServerFrame]
+    collected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
+    expected_frames: list[AnyClientFrame | AnyServerFrame | HeartbeatFrame],
 ) -> None:
     assert collected_frames[2:-2] == expected_frames
 
@@ -273,10 +278,12 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
         get_read_frames_with_lifespan(
             [
                 [
+                    ConnectedFrame(headers={"version": ""}),
+                    ReceiptFrame(headers={"receipt-id": ""}),
                     message_frame_1,
                     error_frame,
                     message_frame_2,
-                    heartbeat_frame,  # type: ignore[list-item]
+                    heartbeat_frame,
                 ]
             ]
         )

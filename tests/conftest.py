@@ -7,7 +7,7 @@ import pytest
 
 import stompman
 from stompman import AbstractConnection, Client, ConnectionParameters
-from stompman.frames import AnyClientFrame, AnyServerFrame
+from stompman.frames import AnyClientFrame, AnyServerFrame, HeartbeatFrame
 
 
 @pytest.fixture(
@@ -37,7 +37,7 @@ class BaseMockConnection(AbstractConnection):
     @staticmethod
     async def read_frames(
         max_chunk_size: int, timeout: int
-    ) -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover
+    ) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
 
