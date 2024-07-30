@@ -78,18 +78,12 @@ def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     connected_frame = ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})
     receipt_frame = ReceiptFrame(headers={"receipt-id": "whatever"})
-    connection_class, collected_frames = create_spying_connection([[connected_frame], [receipt_frame]])
-    write_heartbeat_mock = mock.Mock()
+    connection_class, collected_frames = create_spying_connection([[connected_frame], [], [receipt_frame]])
+    connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(return_value=(receipt_id := "myid")))
 
-    class MockConnection(connection_class):  # type: ignore[valid-type, misc]
-        write_heartbeat = write_heartbeat_mock
-
-    receipt_id = "myid"
-    monkeypatch.setattr(stompman.protocol, "uuid4", lambda: receipt_id)
-
-    login = "login"
     async with EnrichedClient(
-        [ConnectionParameters("localhost", 10, login, "%3Dpasscode")], connection_class=MockConnection
+        [ConnectionParameters("localhost", 10, (login := "login"), "%3Dpasscode")], connection_class=connection_class
     ) as client:
         await asyncio.sleep(0)
 
