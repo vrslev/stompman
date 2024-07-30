@@ -131,8 +131,8 @@ async def test_raises_connection_lost_error_in_send(client: stompman.Client, des
 
 
 def generate_frames(
-    cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]],
-) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
+    cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame]]],
+) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame]]:
     all_bytes, all_frames = [], []
 
     for noise, frames in cases:
@@ -178,7 +178,7 @@ frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
         strategies.lists(strategies.tuples(noise_bytes_strategy, strategies.lists(frame_strategy))),
     ),
 )
-def test_parsing(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]) -> None:
+def test_parsing(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame]]) -> None:
     stream_chunks, expected_frames = case
     parser = FrameParser()
     assert [frame for chunk in stream_chunks for frame in parser.parse_frames_from_chunk(chunk)] == expected_frames

@@ -9,7 +9,7 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
 from stompman import AbstractConnection, Client, ConnectionParameters
-from stompman.frames import AnyClientFrame, AnyServerFrame, HeartbeatFrame
+from stompman.frames import AnyClientFrame, AnyServerFrame
 
 
 @pytest.fixture(
@@ -39,7 +39,7 @@ class BaseMockConnection(AbstractConnection):
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
     @staticmethod
-    async def read_frames() -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:  # pragma: no cover
+    async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
 

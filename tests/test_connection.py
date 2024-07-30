@@ -85,7 +85,7 @@ async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
     connection.write_heartbeat()
     await connection.write_frame(CommitFrame(headers={"transaction": "transaction"}))
 
-    async def take_frames(count: int) -> list[AnyServerFrame | HeartbeatFrame]:
+    async def take_frames(count: int) -> list[AnyServerFrame]:
         frames = []
         async for frame in connection.read_frames():
             frames.append(frame)

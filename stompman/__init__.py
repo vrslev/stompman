@@ -11,6 +11,7 @@ from stompman.frames import (
     AbortFrame,
     AckFrame,
     AnyClientFrame,
+    AnyRealServerFrame,
     AnyServerFrame,
     BeginFrame,
     CommitFrame,
@@ -26,13 +27,14 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.protocol import ConnectionParameters, Heartbeat, Subscription, Transaction
+from stompman.protocol import ConnectionParameters, Heartbeat, StompProtocol, Subscription, Transaction
 
 __all__ = [
     "AbortFrame",
     "AbstractConnection",
     "AckFrame",
     "AnyClientFrame",
+    "AnyRealServerFrame",
     "AnyServerFrame",
     "BeginFrame",
     "Client",
@@ -53,6 +55,7 @@ __all__ = [
     "NackFrame",
     "ReceiptFrame",
     "SendFrame",
+    "StompProtocol",
     "SubscribeFrame",
     "Subscription",
     "Transaction",

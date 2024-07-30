@@ -3,13 +3,11 @@ import socket
 from collections.abc import AsyncGenerator, Generator, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
-from typing import Protocol, Self, TypeVar, cast
+from typing import Protocol, Self, cast
 
 from stompman.errors import ConnectionLostError
-from stompman.frames import AnyClientFrame, AnyServerFrame, HeartbeatFrame
+from stompman.frames import AnyClientFrame, AnyServerFrame
 from stompman.serde import NEWLINE, FrameParser, dump_frame
-
-FrameType = TypeVar("FrameType", bound=AnyClientFrame | AnyServerFrame)
 
 
 @dataclass(kw_only=True)
@@ -23,7 +21,7 @@ class AbstractConnection(Protocol):
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
     async def write_frame(self, frame: AnyClientFrame) -> None: ...
-    def read_frames(self) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]: ...
+    def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]: ...
 
 
 @dataclass(kw_only=True, slots=True)
@@ -73,7 +71,7 @@ class Connection(AbstractConnection):
             await asyncio.sleep(0)
         return chunk
 
-    async def read_frames(self) -> AsyncGenerator[AnyServerFrame | HeartbeatFrame, None]:
+    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:
         parser = FrameParser()
 
         while True:
@@ -82,5 +80,5 @@ class Connection(AbstractConnection):
                     self._read_non_empty_bytes(self.read_max_chunk_size), timeout=self.read_timeout
                 )
 
-            for frame in cast(Iterator[AnyServerFrame | HeartbeatFrame], parser.parse_frames_from_chunk(raw_frames)):
+            for frame in cast(Iterator[AnyServerFrame], parser.parse_frames_from_chunk(raw_frames)):
                 yield frame
