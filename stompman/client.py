@@ -15,17 +15,20 @@ from stompman.protocol import AckMode, ConnectionParameters, Heartbeat, StompPro
 class Client:
     servers: list[ConnectionParameters] = field(kw_only=False)
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
+
+    on_error_frame: Callable[[ErrorFrame], None] | None = None
+    on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
+    on_heartbeat: Callable[[], None] | None = None
+
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 2
     connection_confirmation_timeout: int = 2
-    on_error_frame: Callable[[ErrorFrame], None] | None = None
-    on_heartbeat: Callable[[], None] | None = None
-    on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
+
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
-    connection_class: type[AbstractConnection] = Connection
 
+    connection_class: type[AbstractConnection] = Connection
     _protocol: StompProtocol = field(init=False)
 
     async def __aenter__(self) -> Self:
