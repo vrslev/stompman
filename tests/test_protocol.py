@@ -65,7 +65,7 @@ def get_read_frames_with_lifespan(
     return [
         [ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
-        [ReceiptFrame(headers={"receipt-id": "whatever"})],
+        [ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
     ]
 
 
@@ -84,9 +84,14 @@ def enrich_expected_frames(
         ),
         ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"}),
         *expected_frames,
-        DisconnectFrame(headers={"receipt": ""}),
-        ReceiptFrame(headers={"receipt-id": "whatever"}),
+        DisconnectFrame(headers={"receipt": "receipt-id-1"}),
+        ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
     ]
+
+
+@pytest.fixture(autouse=True)
+def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(stompman.protocol, "_make_receipt_id", lambda: "receipt-id-1")
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -171,7 +176,9 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
 async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
     destination_1, subscription_id_1 = "/topic/one", "id1"
     destination_2, subscription_id_2 = "/topic/two", "id2"
-    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id_1, subscription_id_2, ""]))
+    monkeypatch.setattr(
+        stompman.protocol, "_make_subscription_id", mock.Mock(side_effect=[subscription_id_1, subscription_id_2])
+    )
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
