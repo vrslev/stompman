@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Self
+from unittest import mock
 
 import pytest
 
@@ -47,3 +48,8 @@ class EnrichedClient(Client):
     servers: list[ConnectionParameters] = field(
         default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
     )
+
+
+@pytest.fixture()
+def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
+    monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())

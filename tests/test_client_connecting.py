@@ -6,6 +6,8 @@ import pytest
 import stompman
 from tests.conftest import BaseMockConnection, EnrichedClient
 
+pytestmark = pytest.mark.anyio
+
 
 def test_connection_parameters_from_pydantic_multihost_hosts() -> None:
     full_host: dict[str, Any] = {"username": "me", "password": "pass", "host": "localhost", "port": 1234}
@@ -69,9 +71,9 @@ async def test_client_connect_to_any_server_ok() -> None:
         ],
         connection_class=MockConnection,
     )
-    await client._connect_to_any_server()
-    assert client._protocol.connection
-    assert client._protocol.connection_parameters == successful_server
+    connection, connection_parameters = await client._connect_to_any_server()
+    assert connection
+    assert connection_parameters == successful_server
 
 
 @pytest.mark.usefixtures("mock_sleep")

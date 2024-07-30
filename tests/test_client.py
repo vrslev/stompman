@@ -76,11 +76,6 @@ def assert_frames_between_lifespan_match(
     assert collected_frames[2:-2] == expected_frames
 
 
-@pytest.fixture()
-def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
-    monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())
-
-
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     connected_frame = ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})
     receipt_frame = ReceiptFrame(headers={"receipt-id": "whatever"})
