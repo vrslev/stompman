@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Coroutine
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from unittest import mock
 
 import pytest
@@ -315,6 +315,70 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
     handle_message_2.assert_called_once_with(message_frame_2)
     on_suppressed_exception_1.assert_not_called()
     on_suppressed_exception_2.assert_called_once_with(SomeError(), message_frame_2)
+
+
+@pytest.mark.parametrize("side_effect", [None, SomeError])
+@pytest.mark.parametrize("ack", ["client", "client-individual"])
+async def test_client_listen_unsubscribe_before_ack_or_nack(
+    monkeypatch: pytest.MonkeyPatch, ack: Literal["client", "client-individual"], side_effect: object
+) -> None:
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[(subscription_id := "id1"), ""]))
+    message_frame = MessageFrame(
+        headers={"destination": "", "message-id": "", "subscription": subscription_id}, body=b""
+    )
+    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
+    handle_message = mock.AsyncMock(side_effect=side_effect)
+
+    async with EnrichedClient(connection_class=connection_class) as client:
+        subscription = await client.subscribe(
+            "", handler=handle_message, on_suppressed_exception=noop_error_handler, ack=ack
+        )
+        await asyncio.sleep(0)
+        await subscription.unsubscribe()
+
+    handle_message.assert_called_once_with(message_frame)
+    assert_frames_between_lifespan_match(
+        collected_frames,
+        [
+            SubscribeFrame(headers={"ack": ack, "destination": "", "id": subscription_id}),
+            message_frame,
+            UnsubscribeFrame(headers={"id": "id1"}),
+        ],
+    )
+
+
+@pytest.mark.parametrize("ok", [True, False])
+@pytest.mark.parametrize("ack", ["client", "client-individual"])
+async def test_client_listen_ack_nack(
+    monkeypatch: pytest.MonkeyPatch, ack: Literal["client", "client-individual"], ok: bool  # noqa: FBT001
+) -> None:
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[(subscription_id := "id1"), ""]))
+    message_frame = MessageFrame(
+        headers={"destination": "", "message-id": "", "subscription": subscription_id}, body=b""
+    )
+
+    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
+    handle_message = mock.AsyncMock(side_effect=None if ok else SomeError)
+    async with EnrichedClient(connection_class=connection_class) as client:
+        subscription = await client.subscribe(
+            "", handler=handle_message, on_suppressed_exception=noop_error_handler, ack=ack
+        )
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await subscription.unsubscribe()
+
+    handle_message.assert_called_once_with(message_frame)
+    assert_frames_between_lifespan_match(
+        collected_frames,
+        [
+            SubscribeFrame(headers={"ack": ack, "destination": "", "id": subscription_id}),
+            message_frame,
+            AckFrame(headers={"id": "", "subscription": subscription_id})
+            if ok
+            else NackFrame(headers={"id": "", "subscription": subscription_id}),
+            UnsubscribeFrame(headers={"id": subscription_id}),
+        ],
+    )
 
 
 async def test_ack_nack_ok() -> None:

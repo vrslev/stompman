@@ -324,7 +324,7 @@ class Subscription:
         try:
             await self.handler(frame)
         except self.supressed_exception_classes as exception:
-            if self._should_handle_ack_nack and self._connection.active:
+            if self._should_handle_ack_nack and self._connection.active and self.id in self._active_subscriptions:
                 with suppress(ConnectionLostError):
                     await self._connection.write_frame(
                         NackFrame(
@@ -334,7 +334,12 @@ class Subscription:
             called_nack = True
             self.on_suppressed_exception(exception, frame)
         finally:
-            if not called_nack and self._should_handle_ack_nack and self._connection.active:
+            if (
+                not called_nack
+                and self._should_handle_ack_nack
+                and self._connection.active
+                and self.id in self._active_subscriptions
+            ):
                 with suppress(ConnectionLostError):
                     await self._connection.write_frame(
                         AckFrame(
