@@ -105,16 +105,88 @@ class ConnectionParameters:
 
 
 @dataclass(kw_only=True, slots=True)
+class Transaction:
+    id: str
+    _connection: AbstractConnection
+
+    async def send(
+        self,
+        body: bytes,
+        destination: str,
+        content_type: str | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        await self._connection.write_frame(
+            SendFrame.build(
+                body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
+            )
+        )
+
+
+AckMode = Literal["client", "client-individual", "auto"]
+
+
+@dataclass(kw_only=True, slots=True)
+class Subscription:
+    id: str
+    destination: str
+    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+    ack: AckMode
+    on_suppressed_exception: Callable[[Exception, MessageFrame], Any]
+    supressed_exception_classes: tuple[type[Exception], ...]
+    _connection: AbstractConnection
+    _active_subscriptions: dict[str, "Subscription"]
+    _should_handle_ack_nack: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
+
+    async def unsubscribe(self) -> None:
+        del self._active_subscriptions[self.id]
+        if self._connection.active:
+            await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
+
+    async def _run_handler(self, frame: MessageFrame) -> None:
+        called_nack = False
+        try:
+            await self.handler(frame)
+        except self.supressed_exception_classes as exception:
+            if self._should_handle_ack_nack and self._connection.active and self.id in self._active_subscriptions:
+                with suppress(ConnectionLostError):
+                    await self._connection.write_frame(
+                        NackFrame(
+                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
+                        )
+                    )
+            called_nack = True
+            self.on_suppressed_exception(exception, frame)
+        finally:
+            if (
+                not called_nack
+                and self._should_handle_ack_nack
+                and self._connection.active
+                and self.id in self._active_subscriptions
+            ):
+                with suppress(ConnectionLostError):
+                    await self._connection.write_frame(
+                        AckFrame(
+                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
+                        )
+                    )
+
+
+@dataclass(kw_only=True, slots=True)
 class StompProtocol:
+    PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
+
     connection: AbstractConnection
     connection_parameters: ConnectionParameters
     heartbeat: Heartbeat
     connection_confirmation_timeout: int
-    on_error_frame: Callable[[ErrorFrame], None] | None
-    on_heartbeat: Callable[[], None] | None
-    on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
 
-    PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
+    on_error_frame: Callable[[ErrorFrame], None] | None
+    on_unhandled_message_frame: Callable[[MessageFrame], None] | None
+    on_heartbeat: Callable[[], None] | None
 
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
@@ -284,74 +356,3 @@ def _make_transaction_id() -> str:
 
 def _make_subscription_id() -> str:
     return str(uuid4())
-
-
-@dataclass(kw_only=True, slots=True)
-class Transaction:
-    id: str
-    _connection: AbstractConnection
-
-    async def send(
-        self,
-        body: bytes,
-        destination: str,
-        content_type: str | None = None,
-        headers: dict[str, str] | None = None,
-    ) -> None:
-        await self._connection.write_frame(
-            SendFrame.build(
-                body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
-            )
-        )
-
-
-AckMode = Literal["client", "client-individual", "auto"]
-
-
-@dataclass(kw_only=True, slots=True)
-class Subscription:
-    id: str
-    destination: str
-    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
-    ack: AckMode
-    on_suppressed_exception: Callable[[Exception, MessageFrame], Any]
-    supressed_exception_classes: tuple[type[Exception], ...]
-    _connection: AbstractConnection
-    _active_subscriptions: dict[str, "Subscription"]
-    _should_handle_ack_nack: bool = field(init=False)
-
-    def __post_init__(self) -> None:
-        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
-
-    async def unsubscribe(self) -> None:
-        del self._active_subscriptions[self.id]
-        if self._connection.active:
-            await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
-
-    async def _run_handler(self, frame: MessageFrame) -> None:
-        called_nack = False
-        try:
-            await self.handler(frame)
-        except self.supressed_exception_classes as exception:
-            if self._should_handle_ack_nack and self._connection.active and self.id in self._active_subscriptions:
-                with suppress(ConnectionLostError):
-                    await self._connection.write_frame(
-                        NackFrame(
-                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
-                        )
-                    )
-            called_nack = True
-            self.on_suppressed_exception(exception, frame)
-        finally:
-            if (
-                not called_nack
-                and self._should_handle_ack_nack
-                and self._connection.active
-                and self.id in self._active_subscriptions
-            ):
-                with suppress(ConnectionLostError):
-                    await self._connection.write_frame(
-                        AckFrame(
-                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
-                        )
-                    )
