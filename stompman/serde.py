@@ -9,6 +9,7 @@ from stompman.frames import (
     AbortFrame,
     AckFrame,
     AnyClientFrame,
+    AnyRealServerFrame,
     AnyServerFrame,
     BeginFrame,
     CommitFrame,
@@ -79,7 +80,7 @@ def dump_header(key: str, value: str) -> bytes:
     return f"{escaped_key}:{escaped_value}\n".encode()
 
 
-def dump_frame(frame: AnyClientFrame | AnyServerFrame) -> bytes:
+def dump_frame(frame: AnyClientFrame | AnyRealServerFrame) -> bytes:
     sorted_headers = sorted(frame.headers.items())
     dumped_headers = (
         (f"{key}:{value}\n".encode() for key, value in sorted_headers)
@@ -168,7 +169,7 @@ class FrameParser:
         self._lines.clear()
         self._current_line = bytearray()
 
-    def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame | HeartbeatFrame]:
+    def parse_frames_from_chunk(self, chunk: bytes) -> Iterator[AnyClientFrame | AnyServerFrame]:
         for byte in iter_bytes(chunk):
             if byte == NULL:
                 if self._headers_processed:

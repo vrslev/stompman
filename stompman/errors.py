@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from stompman.frames import ErrorFrame, MessageFrame, ReceiptFrame
+from stompman.frames import ErrorFrame, HeartbeatFrame, MessageFrame, ReceiptFrame
 
 if TYPE_CHECKING:
     from stompman.client import ConnectionParameters
@@ -16,7 +16,7 @@ class Error(Exception):
 @dataclass(frozen=True, kw_only=True, slots=True)
 class ConnectionConfirmationTimeoutError(Error):
     timeout: int
-    frames: list[MessageFrame | ReceiptFrame | ErrorFrame]
+    frames: list[MessageFrame | ReceiptFrame | ErrorFrame | HeartbeatFrame]
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

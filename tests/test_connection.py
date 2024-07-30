@@ -22,7 +22,9 @@ pytestmark = pytest.mark.anyio
 
 
 async def make_connection() -> Connection | None:
-    return await Connection.connect(host="localhost", port=12345, timeout=2)
+    return await Connection.connect(
+        host="localhost", port=12345, timeout=2, read_max_chunk_size=1024 * 1024, read_timeout=2
+    )
 
 
 async def make_mocked_connection(monkeypatch: pytest.MonkeyPatch, reader: object, writer: object) -> Connection:
@@ -85,7 +87,7 @@ async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
 
     async def take_frames(count: int) -> list[AnyServerFrame]:
         frames = []
-        async for frame in connection.read_frames(max_chunk_size=max_chunk_size, timeout=1):
+        async for frame in connection.read_frames():
             frames.append(frame)
             if len(frames) == count:
                 break
@@ -157,7 +159,7 @@ async def test_read_frames_timeout_error(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     mock_wait_for(monkeypatch)
     with pytest.raises(ConnectionLostError):
-        [frame async for frame in connection.read_frames(1024, 1)]
+        [frame async for frame in connection.read_frames()]
 
 
 async def test_read_frames_connection_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -165,4 +167,4 @@ async def test_read_frames_connection_error(monkeypatch: pytest.MonkeyPatch) -> 
         monkeypatch, mock.AsyncMock(read=mock.AsyncMock(side_effect=BrokenPipeError)), mock.AsyncMock()
     )
     with pytest.raises(ConnectionLostError):
-        [frame async for frame in connection.read_frames(1024, 1)]
+        [frame async for frame in connection.read_frames()]

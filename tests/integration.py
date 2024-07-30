@@ -21,6 +21,7 @@ from stompman.serde import (
     make_frame_from_parts,
     parse_header,
 )
+from tests.conftest import build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
 
@@ -56,15 +57,19 @@ async def test_ok(destination: str) -> None:
 
     async def consume() -> None:
         received_messages = []
+        event = asyncio.Event()
 
-        async with asyncio.timeout(5), consumer.subscribe(destination=destination):
-            async for event in consumer.listen():
-                match event:
-                    case stompman.MessageEvent(body=body):
-                        await event.ack()
-                        received_messages.append(body)
-                        if len(received_messages) == len(messages):
-                            break
+        async def handle_message(frame: stompman.MessageFrame) -> None:  # noqa: RUF029
+            received_messages.append(frame.body)
+            if len(received_messages) == len(messages):
+                event.set()
+
+        async with asyncio.timeout(5):
+            subscription = await consumer.subscribe(
+                destination=destination, handler=handle_message, on_suppressed_exception=print
+            )
+            await event.wait()
+            await subscription.unsubscribe()
 
         assert sorted(received_messages) == sorted(messages)
 
@@ -83,7 +88,7 @@ async def test_not_raises_connection_lost_error_in_write_frame(client: stompman.
     await client._connection.close()
 
     with pytest.raises(ConnectionLostError):
-        await client._connection.write_frame(stompman.ConnectFrame(headers={"accept-version": "", "host": ""}))
+        await client._connection.write_frame(build_dataclass(stompman.ConnectFrame))
 
 
 @pytest.mark.parametrize("anyio_backend", [("asyncio", {"use_uvloop": True})])
@@ -95,8 +100,11 @@ async def test_not_raises_connection_lost_error_in_write_heartbeat(client: stomp
 
 
 async def test_not_raises_connection_lost_error_in_subscription(client: stompman.Client, destination: str) -> None:
-    async with client.subscribe(destination):
-        await client._connection.close()
+    subscription = await client.subscribe(
+        destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+    )
+    await client._connection.close()
+    await subscription.unsubscribe()
 
 
 async def test_not_raises_connection_lost_error_in_transaction_without_send(client: stompman.Client) -> None:
@@ -122,16 +130,9 @@ async def test_raises_connection_lost_error_in_send(client: stompman.Client, des
         await client.send(b"first", destination=destination)
 
 
-async def test_raises_connection_lost_error_in_listen(client: stompman.Client) -> None:
-    await client._connection.close()
-    client.read_timeout = 0
-    with pytest.raises(ConnectionLostError):
-        [event async for event in client.listen()]
-
-
 def generate_frames(
-    cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]],
-) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]:
+    cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame]]],
+) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame]]:
     all_bytes, all_frames = [], []
 
     for noise, frames in cases:
@@ -177,7 +178,7 @@ frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
         strategies.lists(strategies.tuples(noise_bytes_strategy, strategies.lists(frame_strategy))),
     ),
 )
-def test_parsing(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame | HeartbeatFrame]]) -> None:
+def test_parsing(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame]]) -> None:
     stream_chunks, expected_frames = case
     parser = FrameParser()
     assert [frame for chunk in stream_chunks for frame in parser.parse_frames_from_chunk(chunk)] == expected_frames

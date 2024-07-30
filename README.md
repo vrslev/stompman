@@ -24,6 +24,12 @@ async with stompman.Client(
         stompman.ConnectionParameters(host="171.0.0.1", port=61616, login="user1", passcode="passcode1"),
         stompman.ConnectionParameters(host="172.0.0.1", port=61616, login="user2", passcode="passcode2"),
     ],
+
+    # Handlers:
+    on_error_frame=lambda error_frame: print(error_frame.body),
+    on_unhandled_message_frame=lambda message_frame: print(message_frame.body),
+    on_heartbeat=lambda: print("Server sent a heartbeat"),
+
     # Optional parameters with sensible defaults:
     heartbeat=stompman.Heartbeat(will_send_interval_ms=1000, want_to_receive_interval_ms=1000),
     connect_retry_attempts=3,
@@ -40,7 +46,7 @@ async with stompman.Client(
 To send a message, use the following code:
 
 ```python
-await client.send(body=b"hi there!", destination="DLQ", headers={"persistent": "true"})
+await client.send(b"hi there!", destination="DLQ", headers={"persistent": "true"})
 ```
 
 Or, to send messages in a transaction:
@@ -54,61 +60,48 @@ async with client.begin() as transaction:
 
 ### Listening for Messages
 
-Now, let's subscribe to a queue and listen for messages.
-
-Notice that `listen()` is not bound to a destination: it will listen to all subscribed destinations. If you want separate subscribtions, create separate clients for that.
+Now, let's subscribe to a destination and listen for messages:
 
 ```python
-async with client.subscribe("DLQ"):
-    async for event in client.listen():
-        ...
+async def handle_message_from_dlq(message_frame: stompman.MessageFrame) -> None:
+    print(message_frame.body)
+
+
+await client.subscribe("DLQ", handle_message_from_dlq):
 ```
 
-`...`—and that's where it gets interesting.
+Entered `stompman.Client` will block forever waiting for messages if there are any active subscriptions.
 
-Before learning how to processing messages from server, we need to understand how other libraries do it. They use callbacks. Damn callbacks in asynchronous programming.
-
-I wanted to avoid them, and came up with an elegant solution: combining async generator and match statement. Here how it looks like:
+Sometimes it's useful to avoid that:
 
 ```python
-async for event in client.listen():
-    match event:
-        case stompman.MessageEvent(body=body):
-            print(f"message: {body!s}")
-            await event.ack()
-        case stompman.ErrorEvent(message_header=short_description, body=body):
-            print(f"{short_description}:\n{body!s}")
+dlq_subscription = await client.subscribe("DLQ", handle_message_from_dlq)
+await dlq_subscription.unsubscribe()
 ```
 
-More complex example, that involves handling all possible events, and auto-acknowledgement:
+By default, subscription have ACK mode "client-individual". If handler successfully processes the message, an `ACK` frame will be sent. If handler raises an exception, a `NACK` frame will be sent. You can catch (and log) exceptions using `on_suppressed_exception` parameter:
 
 ```python
-async with asyncio.TaskGroup() as task_group:
-    async for event in client.listen():
-        match event:
-            case stompman.MessageEvent(body=body):
-                task_group.create_task(
-                    event.with_auto_ack(
-                        handle_message(body),
-                        on_suppressed_exception=lambda _exception, event: log.exception(
-                            "Failed to process message", stompman_event=event
-                        ),
-                    )
-                )
-            case stompman.ErrorEvent():
-                log.error("Received an error from server", stompman_event=event)
-            case stompman.HeartbeatEvent():
-                task_group.create_task(update_healthcheck_status())
+await client.subscribe(
+    "DLQ",
+    handle_message_from_dlq,
+    on_suppressed_exception=lambda exception, message_frame: print(exception, message_frame),
+)
+```
 
+You can change the ack mode used by specifying the `ack` parameter:
 
-async def handle_message(event: stompman.MessageEvent) -> None:
-    validated_message = MyMessageModel.model_validate_json(event.body)
-    await run_business_logic(validated_message)
+```python
+# Server will assume that all messages sent to the subscription before the ACK'ed message are received and processed:
+await client.subscribe("DLQ", handle_message_from_dlq, ack="client")
+
+# Server will assume that messages are received as soon as it send them to client:
+await client.subscribe("DLQ", handle_message_from_dlq, ack="auto")
 ```
 
 ### Cleaning Up
 
-stompman takes care of cleaning up resources automatically. When you leave the context of async context managers `stompman.Client()`, `client.subscribe()`, or `client.begin()`, the necessary frames will be sent to the server.
+stompman takes care of cleaning up resources automatically. When you leave the context of async context managers `stompman.Client()`, or `client.begin()`, the necessary frames will be sent to the server.
 
 ### Handling Connectivity Issues
 
@@ -127,17 +120,12 @@ stompman takes care of cleaning up resources automatically. When you leave the c
 
 ### ...and caveats
 
-- stompman only runs on Python 3.11 and newer.
+- stompman supports Python 3.11 and newer.
 - It implements [STOMP 1.2](https://stomp.github.io/stomp-specification-1.2.html) — the latest version of the protocol.
-- The client-individual ack mode is used, which means that server requires `ack` or `nack`. In contrast, with `client` ack mode server assumes you don't care about messages that occured before you connected. And, with `auto` ack mode server assumes client successfully received the message.
-- Heartbeats are required, and sent automatically on `listen()` (defaults to 1 second).
+- Heartbeats are required, and sent automatically in background (defaults to 1 second).
 
 Also, I want to pointed out that:
 
 - Protocol parsing is inspired by [aiostomp](https://github.com/pedrokiefer/aiostomp/blob/3449dcb53f43e5956ccc7662bb5b7d76bc6ef36b/aiostomp/protocol.py) (meaning: consumed by me and refactored from).
 - stompman is tested and used with [Artemis ActiveMQ](https://activemq.apache.org/components/artemis/).
-- Specification says that headers in CONNECT and CONNECTED frames shouldn't be escaped for backwards compatibility. stompman doesn't escape headers in CONNECT frame (outcoming), but does not unescape headers in CONNECTED (outcoming).
-
-## No docs
-
-I try to keep it simple and easy to understand. May be counter-intuitive for some, but concise high-quality code speaks for itself. There're no comments and little indirection. Read the source if you wish, leave an issue if it's not enough or you want to add or fix something.
+- Specification says that headers in CONNECT and CONNECTED frames shouldn't be escaped for backwards compatibility. stompman escapes headers in CONNECT frame (outcoming), but does not unescape headers in CONNECTED (outcoming).

@@ -234,4 +234,5 @@ AnyClientFrame = (
     | ConnectFrame
     | StompFrame
 )
-AnyServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
+AnyRealServerFrame = ConnectedFrame | MessageFrame | ReceiptFrame | ErrorFrame
+AnyServerFrame = AnyRealServerFrame | HeartbeatFrame
