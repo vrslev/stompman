@@ -241,12 +241,11 @@ async def test_client_heartbeat_not_raises_connection_lost() -> None:
 
 
 @dataclass
-class SomeError(Exception): ...
-
-
-async def raise_someerror_after_tick() -> None:
-    await asyncio.sleep(0)
-    raise SomeError
+class SomeError(Exception):
+    @classmethod
+    async def raise_after_tick(cls) -> None:
+        await asyncio.sleep(0)
+        raise cls
 
 
 @pytest.mark.parametrize("direct_error", [True, False])
@@ -264,14 +263,14 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
                 await client.subscribe(
                     destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
                 )
-                await raise_someerror_after_tick()
+                await SomeError.raise_after_tick()
     else:
         with pytest.raises(ExceptionGroup) as exc_info:  # noqa: PT012
             async with asyncio.TaskGroup() as task_group, EnrichedClient(connection_class=connection_class) as client:
                 await client.subscribe(
                     destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
                 )
-                task_group.create_task(raise_someerror_after_tick())
+                task_group.create_task(SomeError.raise_after_tick())
 
         assert exc_info.value.exceptions == (SomeError(),)
 
