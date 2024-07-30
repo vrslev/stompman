@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 
+import stompman.protocol
 from stompman import (
     AbortFrame,
     AbstractConnection,
@@ -13,7 +14,6 @@ from stompman import (
     AnyClientFrame,
     AnyServerFrame,
     BeginFrame,
-    Client,
     CommitFrame,
     ConnectedFrame,
     ConnectFrame,
@@ -31,7 +31,6 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-import stompman.protocol
 from tests.conftest import BaseMockConnection, EnrichedClient, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
@@ -58,7 +57,7 @@ def create_spying_connection(
 
 def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> list[list[AnyServerFrame]]:
     return [
-        [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})],
+        [ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
         [ReceiptFrame(headers={"receipt-id": "whatever"})],
     ]
@@ -76,7 +75,7 @@ def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    connected_frame = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
+    connected_frame = ConnectedFrame(headers={"version": StompProtocol.PROTOCOL_VERSION, "heart-beat": "1,1"})
     receipt_frame = ReceiptFrame(headers={"receipt-id": "whatever"})
     connection_class, collected_frames = create_spying_connection([[connected_frame], [receipt_frame]])
     write_heartbeat_mock = mock.Mock()
@@ -97,7 +96,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
         ConnectFrame(
             headers={
                 "host": client._protocol.connection_parameters.host,
-                "accept-version": client.PROTOCOL_VERSION,
+                "accept-version": StompProtocol.PROTOCOL_VERSION,
                 "heart-beat": client.heartbeat.to_header(),
                 "login": login,
                 "passcode": "=passcode",
@@ -146,7 +145,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
         await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == UnsupportedProtocolVersionError(
-        given_version=given_version, supported_version=client.PROTOCOL_VERSION
+        given_version=given_version, supported_version=StompProtocol.PROTOCOL_VERSION
     )
 
 

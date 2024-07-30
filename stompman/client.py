@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Any, ClassVar, Literal, Self
+from typing import Any, Literal, Self
 
 from stompman.connection import AbstractConnection, Connection
 from stompman.errors import FailedAllConnectAttemptsError
@@ -24,8 +24,6 @@ class Client:
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
-
-    PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
 
     _protocol: StompProtocol = field(init=False)
 
