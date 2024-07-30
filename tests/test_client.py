@@ -111,31 +111,31 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
         await asyncio.sleep(0)
         return await original_wait_for(task, 0)
 
-    original_wait_for = asyncio.wait_for
-    monkeypatch.setattr("asyncio.wait_for", timeout)
-
     class MockConnection(BaseMockConnection):
         @staticmethod
         async def read_frames(max_chunk_size: int, timeout: int) -> AsyncGenerator[AnyServerFrame, None]:
-            yield ErrorFrame(headers={"message": "hi"})
+            yield error_frame
             await asyncio.sleep(0)
 
+    original_wait_for = asyncio.wait_for
+    monkeypatch.setattr("asyncio.wait_for", timeout)
+    error_frame = ErrorFrame(headers={"message": "hi"})
     client = EnrichedClient(connection_class=MockConnection)
+
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
         await client.__aenter__()  # noqa: PLC2801
 
     assert exc_info.value == ConnectionConfirmationTimeoutError(
-        timeout=client.connection_confirmation_timeout, frames=[ErrorFrame(headers={"message": "hi"})]
+        timeout=client.connection_confirmation_timeout, frames=[error_frame]
     )
 
 
 async def test_client_lifespan_unsupported_protocol_version() -> None:
-    given_version = "whatever"
     connection_class, _ = create_spying_connection(
-        [[ConnectedFrame(headers={"version": given_version, "heart-beat": "1,1"})]]
+        [[ConnectedFrame(headers={"version": (given_version := "whatever"), "heart-beat": "1,1"})]]
     )
-
     client = EnrichedClient(connection_class=connection_class)
+
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
         await client.__aenter__()  # noqa: PLC2801
 
