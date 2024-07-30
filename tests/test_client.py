@@ -173,15 +173,16 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
     )
 
 
+@dataclass
+class SomeError(Exception): ...
+
+
 async def test_client_subscribe_lifespan_with_active_subs_in_aexit_indirect_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     destination, subscription_id = "/topic/one", "id1"
     monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id, ""]))
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
-
-    @dataclass
-    class SomeError(Exception): ...
 
     async def raise_soon() -> None:
         await asyncio.sleep(0)
@@ -210,8 +211,6 @@ async def test_client_subscribe_lifespan_with_active_subs_in_aexit_direct_error(
     destination, subscription_id = "/topic/one", "id1"
     monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id, ""]))
     connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
-
-    class SomeError(Exception): ...
 
     with pytest.raises(SomeError):  # noqa: PT012
         async with EnrichedClient(connection_class=connection_class) as client:
@@ -257,40 +256,58 @@ async def test_client_heartbeat_not_raises_connection_lost() -> None:
         await asyncio.sleep(0)
 
 
-async def test_client_listen_ok() -> None:
-    destination = "mydestination"
-    message_frame = MessageFrame(
-        headers={"destination": destination, "message-id": "", "subscription": ""}, body=b"hello"
+async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    message_frame_1 = MessageFrame(
+        headers={"destination": "whatever-1", "message-id": "", "subscription": (subscription_id_1 := "sub-id-1")},
+        body=b"hello",
     )
-    error_frame = ErrorFrame(headers={"message": "short description"})
+    message_frame_2 = MessageFrame(
+        headers={"destination": "whatever-2", "message-id": "", "subscription": (subscription_id_2 := "sub-id-2")},
+        body=b"hello again",
+    )
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id_1, subscription_id_2, ""]))
+    error_frame = ErrorFrame(headers={"message": "short description here"})
     heartbeat_frame = HeartbeatFrame()
 
     connection_class, _ = create_spying_connection(
         get_read_frames_with_lifespan(
             [
                 [
-                    message_frame,
+                    message_frame_1,
                     error_frame,
+                    message_frame_2,
                     heartbeat_frame,  # type: ignore[list-item]
                 ]
             ]
         )
     )
+
     on_error_frame = mock.Mock()
     on_heartbeat = mock.Mock()
-    handle_message = mock.AsyncMock()
+    handle_message_1 = mock.AsyncMock(return_value=None)
+    handle_message_2 = mock.AsyncMock(side_effect=SomeError)
+    on_suppressed_exception_1 = mock.Mock()
+    on_suppressed_exception_2 = mock.Mock()
+
     async with EnrichedClient(
         connection_class=connection_class, on_error_frame=on_error_frame, on_heartbeat=on_heartbeat
     ) as client:
-        subscription = await client.subscribe(
-            destination, handler=handle_message, on_suppressed_exception=noop_error_handler
+        subscription_1 = await client.subscribe(
+            "whatev", handler=handle_message_1, on_suppressed_exception=on_suppressed_exception_1
+        )
+        subscription_2 = await client.subscribe(
+            "whatev", handler=handle_message_2, on_suppressed_exception=on_suppressed_exception_2
         )
         await asyncio.sleep(0)
-        await subscription.unsubscribe()
+        await subscription_1.unsubscribe()
+        await subscription_2.unsubscribe()
 
     on_error_frame.assert_called_once_with(error_frame)
     on_heartbeat.assert_called_once_with()
-    handle_message.assert_called_once_with(message_frame)
+    handle_message_1.assert_called_once_with(message_frame_1)
+    handle_message_2.assert_called_once_with(message_frame_2)
+    on_suppressed_exception_1.assert_not_called()
+    on_suppressed_exception_2.assert_called_once_with(SomeError(), message_frame_2)
 
 
 @pytest.mark.parametrize("frame", [ConnectedFrame(headers={"version": ""}), ReceiptFrame(headers={"receipt-id": ""})])
