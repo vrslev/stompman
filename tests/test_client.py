@@ -1,16 +1,23 @@
 from typing import Any, Self
 from unittest import mock
 
+import faker
 import pytest
 
 import stompman
-from tests.conftest import BaseMockConnection, EnrichedClient
+from tests.conftest import BaseMockConnection, EnrichedClient, build_dataclass
 
 pytestmark = pytest.mark.anyio
+FAKER = faker.Faker()
 
 
 def test_connection_parameters_from_pydantic_multihost_hosts() -> None:
-    full_host: dict[str, Any] = {"username": "me", "password": "pass", "host": "localhost", "port": 1234}
+    full_host: dict[str, Any] = {
+        "username": FAKER.pystr(),
+        "password": FAKER.pystr(),
+        "host": FAKER.pystr(),
+        "port": FAKER.pyint(),
+    }
     assert stompman.ConnectionParameters.from_pydantic_multihost_hosts(
         [{**full_host, "port": index} for index in range(5)]  # type: ignore[typeddict-item]
     ) == [
@@ -61,13 +68,13 @@ async def test_client_connect_to_any_server_ok() -> None:
         async def connect(cls, host: str, port: int, timeout: int) -> Self | None:
             return await super().connect(host, port, timeout) if port == successful_server.port else None
 
-    successful_server = stompman.ConnectionParameters("localhost", 10, "login", "pass")
+    successful_server = build_dataclass(stompman.ConnectionParameters)
     client = stompman.Client(
         servers=[
-            stompman.ConnectionParameters("localhost", 0, "login", "pass"),
-            stompman.ConnectionParameters("localhost", 1, "login", "pass"),
+            build_dataclass(stompman.ConnectionParameters),
+            build_dataclass(stompman.ConnectionParameters),
             successful_server,
-            stompman.ConnectionParameters("localhost", 3, "login", "pass"),
+            build_dataclass(stompman.ConnectionParameters),
         ],
         connection_class=MockConnection,
     )
@@ -85,10 +92,10 @@ async def test_client_connect_to_any_server_fails() -> None:
 
     client = EnrichedClient(
         servers=[
-            stompman.ConnectionParameters("", 0, "", ""),
-            stompman.ConnectionParameters("", 1, "", ""),
-            stompman.ConnectionParameters("", 2, "", ""),
-            stompman.ConnectionParameters("", 3, "", ""),
+            build_dataclass(stompman.ConnectionParameters),
+            build_dataclass(stompman.ConnectionParameters),
+            build_dataclass(stompman.ConnectionParameters),
+            build_dataclass(stompman.ConnectionParameters),
         ],
         connection_class=MockConnection,
     )

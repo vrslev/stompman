@@ -21,7 +21,7 @@ from stompman.serde import (
     make_frame_from_parts,
     parse_header,
 )
-from tests.conftest import noop_error_handler, noop_message_handler
+from tests.conftest import build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
 
@@ -88,7 +88,7 @@ async def test_not_raises_connection_lost_error_in_write_frame(client: stompman.
     await client._protocol.connection.close()
 
     with pytest.raises(ConnectionLostError):
-        await client._protocol.connection.write_frame(stompman.ConnectFrame(headers={"accept-version": "", "host": ""}))
+        await client._protocol.connection.write_frame(build_dataclass(stompman.ConnectFrame))
 
 
 @pytest.mark.parametrize("anyio_backend", [("asyncio", {"use_uvloop": True})])
