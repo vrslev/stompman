@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Coroutine
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any
 from unittest import mock
 
@@ -168,6 +169,63 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
             SubscribeFrame(headers={"destination": destination_2, "id": subscription_id_2, "ack": "client-individual"}),
             UnsubscribeFrame(headers={"id": subscription_id_1}),
             UnsubscribeFrame(headers={"id": subscription_id_2}),
+        ],
+    )
+
+
+async def test_client_subscribe_lifespan_with_active_subs_in_aexit_indirect_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination, subscription_id = "/topic/one", "id1"
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id, ""]))
+    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
+
+    @dataclass
+    class SomeError(Exception): ...
+
+    async def raise_soon() -> None:
+        await asyncio.sleep(0)
+        raise SomeError
+
+    with pytest.raises(ExceptionGroup) as exc_info:  # noqa: PT012
+        async with asyncio.TaskGroup() as task_group, EnrichedClient(connection_class=connection_class) as client:
+            await client.subscribe(
+                destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+            )
+            task_group.create_task(raise_soon())
+
+    assert exc_info.value.exceptions == (SomeError(),)
+    assert_frames_between_lifespan_match(
+        collected_frames,
+        [
+            SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
+            UnsubscribeFrame(headers={"id": subscription_id}),
+        ],
+    )
+
+
+async def test_client_subscribe_lifespan_with_active_subs_in_aexit_direct_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destination, subscription_id = "/topic/one", "id1"
+    monkeypatch.setattr(stompman.protocol, "uuid4", mock.Mock(side_effect=[subscription_id, ""]))
+    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
+
+    @dataclass
+    class SomeError(Exception): ...# TODO
+
+    async with EnrichedClient(connection_class=connection_class) as client:
+        await client.subscribe(
+            destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
+        )
+        await asyncio.sleep(1)
+
+
+    assert_frames_between_lifespan_match(
+        collected_frames,
+        [
+            SubscribeFrame(headers={"destination": destination, "id": subscription_id, "ack": "client-individual"}),
+            UnsubscribeFrame(headers={"id": subscription_id}),
         ],
     )
 
