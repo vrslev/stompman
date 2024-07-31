@@ -71,22 +71,20 @@ class ConnectionManager:
             timeout=self.connect_timeout,
         )
 
-    async def _get_active_connection_state_unsafe(self) -> ActiveConnectionState:
+    async def _get_active_connection_state(self) -> ActiveConnectionState:
         if self._active_connection_state:
             return self._active_connection_state
 
-        connection, connection_parameters = await self._connect_to_any_server()
-        lifespan = self.lifespan(connection, connection_parameters)
-        self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
-        try:
-            await lifespan.__aenter__()  # noqa: PLC2801
-        except ConnectionLostError:
-            return await self._get_active_connection_state_unsafe()
-        return self._active_connection_state
-
-    async def _get_active_connection_state(self) -> ActiveConnectionState:
         async with self._reconnect_lock:
-            return await self._get_active_connection_state_unsafe()
+            connection, connection_parameters = await self._connect_to_any_server()
+            lifespan = self.lifespan(connection, connection_parameters)
+            self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
+            try:
+                await lifespan.__aenter__()  # noqa: PLC2801
+            except ConnectionLostError:
+                self._clear_active_connection_state()
+                return await self._get_active_connection_state()
+            return self._active_connection_state
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None

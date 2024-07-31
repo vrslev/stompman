@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 
 import stompman
-from tests.conftest import BaseMockConnection, EnrichedClient, EnrichedConnectionManager, build_dataclass
+from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = pytest.mark.anyio
 
