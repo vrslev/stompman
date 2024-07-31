@@ -1,10 +1,11 @@
+from types import SimpleNamespace
 from typing import Self
 from unittest import mock
 
 import pytest
 
 import stompman
-from stompman.errors import FailedAllConnectAttemptsError
+from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
@@ -89,16 +90,37 @@ async def test_connect_to_any_server_fails() -> None:
         await manager._connect_to_any_server()
 
 
-# async def test_get_active_connection_state_ok() -> None:
-#     aenter_mock = mock.AsyncMock()
-#     connect_mock = mock.AsyncMock()
+async def test_get_active_connection_state_lifespan_flaky_ok() -> None:
+    aenter = mock.AsyncMock(side_effect=[ConnectionLostError, None])
+    lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
+    manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
 
-#     class MockConnection(BaseMockConnection):
-#         connect = connect_mock
+    await manager._get_active_connection_state()
+
+    assert aenter.mock_calls == [mock.call(), mock.call()]
+    assert lifespan.mock_calls == [
+        mock.call(BaseMockConnection(), manager.servers[0]),
+        mock.call(BaseMockConnection(), manager.servers[0]),
+    ]
 
 
-#     EnrichedConnectionManager(lifespan=mock.Mock(__aenter__=aenter_mock), connection_class=MockConnection)
-async def test_get_active_connection_state_fails() -> None:
+async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
+    aenter = mock.AsyncMock(side_effect=ConnectionLostError)
+    lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
+    manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
+
+    with pytest.raises(stompman.RepeatedConnectionLostInLifespanError) as exc_info:
+        await manager._get_active_connection_state()
+
+    assert (
+        exc_info.value.retry_attempts
+        == len(lifespan.mock_calls)
+        == len(aenter.mock_calls)
+        == manager.connect_retry_attempts
+    )
+
+
+async def test_get_active_connection_state_fails_to_connect() -> None:
     class MockConnection(BaseMockConnection):
         connect = mock.AsyncMock(return_value=None)
 

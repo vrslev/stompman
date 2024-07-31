@@ -6,7 +6,7 @@ from types import TracebackType
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
-from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError
+from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError, RepeatedConnectionLostInLifespanError
 from stompman.frames import AnyClientFrame, AnyServerFrame
 
 
@@ -71,20 +71,24 @@ class ConnectionManager:
             timeout=self.connect_timeout,
         )
 
-    async def _get_active_connection_state(self) -> ActiveConnectionState:
+    async def _get_active_connection_state(self, attempt: int = 1) -> ActiveConnectionState:
         if self._active_connection_state:
             return self._active_connection_state
 
-        async with self._reconnect_lock:
-            connection, connection_parameters = await self._connect_to_any_server()
-            lifespan = self.lifespan(connection, connection_parameters)
-            self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
-            try:
+        try:
+            async with self._reconnect_lock:
+                connection, connection_parameters = await self._connect_to_any_server()
+                lifespan = self.lifespan(connection, connection_parameters)
+                self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
                 await lifespan.__aenter__()  # noqa: PLC2801
-            except ConnectionLostError:
-                self._clear_active_connection_state()
-                return await self._get_active_connection_state()
-            return self._active_connection_state
+        except ConnectionLostError as error:
+            if attempt == self.connect_retry_attempts:
+                raise RepeatedConnectionLostInLifespanError(
+                    last_server=connection_parameters, retry_attempts=self.connect_retry_attempts
+                ) from error
+            self._clear_active_connection_state()
+            return await self._get_active_connection_state(attempt + 1)
+        return self._active_connection_state
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None

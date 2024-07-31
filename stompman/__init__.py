@@ -7,6 +7,7 @@ from stompman.errors import (
     ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
+    RepeatedConnectionLostInLifespanError,
     UnsupportedProtocolVersionError,
 )
 from stompman.frames import (
@@ -56,6 +57,7 @@ __all__ = [
     "MessageFrame",
     "NackFrame",
     "ReceiptFrame",
+    "RepeatedConnectionLostInLifespanError",
     "SendFrame",
     "SubscribeFrame",
     "Subscription",
