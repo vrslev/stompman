@@ -1,7 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import suppress
-from dataclasses import dataclass
 from typing import Any, get_args
 from unittest import mock
 
@@ -33,7 +32,14 @@ from stompman import (
 )
 from stompman.client import AckMode, Client
 from stompman.config import ConnectionParameters
-from tests.conftest import BaseMockConnection, EnrichedClient, build_dataclass, noop_error_handler, noop_message_handler
+from tests.conftest import (
+    BaseMockConnection,
+    EnrichedClient,
+    SomeError,
+    build_dataclass,
+    noop_error_handler,
+    noop_message_handler,
+)
 
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
@@ -180,48 +186,31 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
-    first_subscribe_frame = SubscribeFrame(
-        headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": "client-individual"}
-    )
-    second_subscribe_frame = SubscribeFrame(
-        headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": "client-individual"}
-    )
     monkeypatch.setattr(
         stompman.client,
         "_make_subscription_id",
-        mock.Mock(side_effect=[first_subscribe_frame.headers["id"], second_subscribe_frame.headers["id"]]),
+        mock.Mock(side_effect=[(first_sub_id := FAKER.pystr()), (second_sub_id := FAKER.pystr())]),
     )
+    first_destination, second_destination = FAKER.pystr(), FAKER.pystr()
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
         first_subscription = await client.subscribe(
-            first_subscribe_frame.headers["destination"],
-            handler=noop_message_handler,
-            on_suppressed_exception=noop_error_handler,
+            first_destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
         )
         second_subscription = await client.subscribe(
-            second_subscribe_frame.headers["destination"],
-            handler=noop_message_handler,
-            on_suppressed_exception=noop_error_handler,
+            second_destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
         )
         await asyncio.sleep(0)
         await first_subscription.unsubscribe()
         await second_subscription.unsubscribe()
 
     assert collected_frames == enrich_expected_frames(
-        first_subscribe_frame,
-        second_subscribe_frame,
-        UnsubscribeFrame(headers={"id": first_subscribe_frame.headers["id"]}),
-        UnsubscribeFrame(headers={"id": second_subscribe_frame.headers["id"]}),
+        SubscribeFrame(headers={"id": first_sub_id, "destination": first_destination, "ack": "client-individual"}),
+        SubscribeFrame(headers={"id": second_sub_id, "destination": second_destination, "ack": "client-individual"}),
+        UnsubscribeFrame(headers={"id": first_sub_id}),
+        UnsubscribeFrame(headers={"id": second_sub_id}),
     )
-
-
-@dataclass
-class SomeError(Exception):
-    @classmethod
-    async def raise_after_tick(cls) -> None:
-        await asyncio.sleep(0)
-        raise cls
 
 
 @pytest.mark.parametrize("direct_error", [True, False])

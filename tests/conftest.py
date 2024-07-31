@@ -83,3 +83,11 @@ DataclassType = TypeVar("DataclassType")
 
 def build_dataclass(dataclass: type[DataclassType], **kwargs: Any) -> DataclassType:  # noqa: ANN401
     return DataclassFactory.create_factory(dataclass).build(**kwargs)
+
+
+@dataclass
+class SomeError(Exception):
+    @classmethod
+    async def raise_after_tick(cls) -> None:
+        await asyncio.sleep(0)
+        raise cls
