@@ -1,9 +1,9 @@
 import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import NamedTuple, Self, TypedDict, TypeVar
+from typing import NamedTuple, Self, TypedDict
 from urllib.parse import unquote
 
 from stompman.connection import AbstractConnection
@@ -90,9 +90,6 @@ class ActiveConnectionState:
     lifespan: AbstractAsyncContextManager[None]
 
 
-T = TypeVar("T")
-
-
 @dataclass(kw_only=True, slots=True)
 class ConnectionManager:
     servers: list[ConnectionParameters]
@@ -154,6 +151,7 @@ class ConnectionManager:
     async def _connect(self) -> ActiveConnectionState:
         if self._active_connection_state:
             return self._active_connection_state
+
         connection, connection_parameters = await self._connect_to_any_server()
         lifespan = self.lifespan(connection, connection_parameters)
         self._active_connection_state = ActiveConnectionState(
@@ -168,32 +166,29 @@ class ConnectionManager:
     async def _reconnect_if_not_already(self) -> ActiveConnectionState:
         return await self._connect()
 
-    async def _run_with_ensured_connection(self, func: Callable[[AbstractConnection], Awaitable[T]]) -> T:
+    async def write_heartbeat(self) -> None:
         while True:
             connection_state = await self._reconnect_if_not_already()
             try:
-                return await func(connection_state.connection)
+                return connection_state.connection.write_heartbeat()
             except ConnectionLostError:
                 self._remove_active_connection()
 
-    async def write_heartbeat(self) -> None:
-        return await self._run_with_ensured_connection(_send_heartbeat_async)
-
     async def write_frame(self, frame: AnyClientFrame) -> None:
-        return await self._run_with_ensured_connection(lambda connection: connection.write_frame(frame))
+        while True:
+            connection_state = await self._reconnect_if_not_already()
+            try:
+                return await connection_state.connection.write_frame(frame)
+            except ConnectionLostError:
+                self._remove_active_connection()
 
     async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:
-        if not self._active_connection_state:
-            self._active_connection_state = await self._reconnect_if_not_already()
         while True:
+            connection_state = await self._reconnect_if_not_already()
             try:
-                async for frame in self._active_connection_state.connection.read_frames():
+                async for frame in connection_state.connection.read_frames():
                     yield frame
             except ConnectionLostError:
-                self._active_connection_state = await self._reconnect_if_not_already()
+                self._remove_active_connection()
             else:
                 return
-
-
-async def _send_heartbeat_async(connection: AbstractConnection) -> None:  # noqa: RUF029
-    return connection.write_heartbeat()
