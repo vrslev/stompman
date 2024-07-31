@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
 from unittest import mock
@@ -55,8 +56,8 @@ class EnrichedConnectionManager(ConnectionManager):
     servers: list[ConnectionParameters] = field(
         default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
-    connect_retry_attempts: int = 1
-    connect_retry_interval: int = 2
+    connect_retry_attempts: int = 3
+    connect_retry_interval: int = 1
     connect_timeout: int = 3
     read_timeout: int = 4
     read_max_chunk_size: int = 5
@@ -72,3 +73,10 @@ DataclassType = TypeVar("DataclassType")
 
 def build_dataclass(dataclass: type[DataclassType], **kwargs: Any) -> DataclassType:  # noqa: ANN401
     return DataclassFactory.create_factory(dataclass).build(**kwargs)
+
+
+@asynccontextmanager
+async def noop_lifespan(  # noqa: RUF029
+    connection: AbstractConnection, connection_parameters: ConnectionParameters
+) -> AsyncIterator[None]:
+    yield

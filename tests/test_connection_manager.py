@@ -4,13 +4,13 @@ from unittest import mock
 import pytest
 
 import stompman
-from tests.conftest import BaseMockConnection, EnrichedClient, build_dataclass
+from tests.conftest import BaseMockConnection, EnrichedClient, EnrichedConnectionManager, build_dataclass, noop_lifespan
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.mark.parametrize("ok_on_attempt", [1, 2, 3])
-async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.MonkeyPatch) -> None:
     attempts = 0
 
     class MockConnection(BaseMockConnection):
@@ -18,7 +18,7 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
         async def connect(  # noqa: PLR0913
             cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
         ) -> Self | None:
-            assert (host, port) == (client.servers[0].host, client.servers[0].port)
+            assert (host, port) == (manager.servers[0].host, manager.servers[0].port)
             nonlocal attempts
             attempts += 1
 
@@ -30,8 +30,8 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
-    client = EnrichedClient(connection_class=MockConnection)
-    assert await client._connection._connect_to_one_server(client.servers[0])
+    manager = EnrichedConnectionManager(lifespan=noop_lifespan, connection_class=MockConnection)
+    assert await manager._connect_to_one_server(manager.servers[0])
     assert attempts == ok_on_attempt == (len(sleep_mock.mock_calls) + 1)
 
 
