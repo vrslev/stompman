@@ -389,13 +389,14 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(
         stompman.client, "_make_transaction_id", mock.Mock(return_value=(transaction_id := FAKER.pystr()))
     )
-    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     async with EnrichedClient(connection_class=connection_class) as client, client.begin() as transaction:
         await transaction.send(
             body=body, destination=destination, content_type=content_type, headers={"expires": expires}
         )
         await client.send(body=body, destination=destination, content_type=content_type, headers={"expires": expires})
+        await asyncio.sleep(0)
 
     assert collected_frames == enrich_expected_frames(
         BeginFrame(headers={"transaction": transaction_id}),
