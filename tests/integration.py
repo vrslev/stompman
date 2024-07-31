@@ -52,18 +52,17 @@ async def test_ok() -> None:
             if len(received_messages) == len(messages):
                 event.set()
 
-        async with asyncio.timeout(5):
-            subscription = await consumer.subscribe(
-                destination=DESTINATION, handler=handle_message, on_suppressed_exception=print
-            )
-            await event.wait()
-            await subscription.unsubscribe()
+        subscription = await consumer.subscribe(
+            destination=DESTINATION, handler=handle_message, on_suppressed_exception=print
+        )
+        await asyncio.wait_for(event.wait(), timeout=5)
+        await subscription.unsubscribe()
 
         assert sorted(received_messages) == sorted(messages)
 
     messages = [str(uuid4()).encode() for _ in range(10000)]
 
-    async with asyncio.TaskGroup() as task_group, create_client() as consumer, create_client() as producer:
+    async with create_client() as consumer, create_client() as producer, asyncio.TaskGroup() as task_group:
         task_group.create_task(consume())
         task_group.create_task(produce())
 
