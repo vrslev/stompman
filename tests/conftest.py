@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
 from unittest import mock
@@ -51,10 +51,20 @@ class EnrichedClient(Client):
     )
 
 
+@asynccontextmanager
+async def noop_lifespan(  # noqa: RUF029
+    connection: AbstractConnection, connection_parameters: ConnectionParameters
+) -> AsyncIterator[None]:
+    yield
+
+
 @dataclass(kw_only=True, slots=True)
 class EnrichedConnectionManager(ConnectionManager):
     servers: list[ConnectionParameters] = field(
         default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
+    )
+    lifespan: Callable[[AbstractConnection, ConnectionParameters], AbstractAsyncContextManager[None]] = field(
+        default=noop_lifespan
     )
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
@@ -73,10 +83,3 @@ DataclassType = TypeVar("DataclassType")
 
 def build_dataclass(dataclass: type[DataclassType], **kwargs: Any) -> DataclassType:  # noqa: ANN401
     return DataclassFactory.create_factory(dataclass).build(**kwargs)
-
-
-@asynccontextmanager
-async def noop_lifespan(  # noqa: RUF029
-    connection: AbstractConnection, connection_parameters: ConnectionParameters
-) -> AsyncIterator[None]:
-    yield

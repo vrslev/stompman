@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 
 import stompman
-from tests.conftest import BaseMockConnection, EnrichedClient, EnrichedConnectionManager, build_dataclass, noop_lifespan
+from tests.conftest import BaseMockConnection, EnrichedClient, EnrichedConnectionManager, build_dataclass
 
 pytestmark = pytest.mark.anyio
 
@@ -30,13 +30,13 @@ async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.
 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
-    manager = EnrichedConnectionManager(lifespan=noop_lifespan, connection_class=MockConnection)
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
     assert await manager._connect_to_one_server(manager.servers[0])
     assert attempts == ok_on_attempt == (len(sleep_mock.mock_calls) + 1)
 
 
 @pytest.mark.usefixtures("mock_sleep")
-async def test_client_connect_to_one_server_fails() -> None:
+async def test_connect_to_one_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(  # noqa: PLR0913
@@ -44,12 +44,12 @@ async def test_client_connect_to_one_server_fails() -> None:
         ) -> Self | None:
             return None
 
-    client = EnrichedClient(connection_class=MockConnection)
-    assert await client._connection._connect_to_one_server(client.servers[0]) is None
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
+    assert await manager._connect_to_one_server(manager.servers[0]) is None
 
 
 @pytest.mark.usefixtures("mock_sleep")
-async def test_client_connect_to_any_server_ok() -> None:
+async def test_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(  # noqa: PLR0913
@@ -62,7 +62,7 @@ async def test_client_connect_to_any_server_ok() -> None:
             )
 
     successful_server = build_dataclass(stompman.ConnectionParameters)
-    client = stompman.Client(
+    manager = EnrichedConnectionManager(
         servers=[
             build_dataclass(stompman.ConnectionParameters),
             build_dataclass(stompman.ConnectionParameters),
@@ -71,13 +71,13 @@ async def test_client_connect_to_any_server_ok() -> None:
         ],
         connection_class=MockConnection,
     )
-    connection, connection_parameters = await client._connection._connect_to_any_server()
+    connection, connection_parameters = await manager._connect_to_any_server()
     assert connection
     assert connection_parameters == successful_server
 
 
 @pytest.mark.usefixtures("mock_sleep")
-async def test_client_connect_to_any_server_fails() -> None:
+async def test_connect_to_any_server_fails() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(  # noqa: PLR0913
@@ -85,7 +85,7 @@ async def test_client_connect_to_any_server_fails() -> None:
         ) -> Self | None:
             return None
 
-    client = EnrichedClient(
+    manager = EnrichedConnectionManager(
         servers=[
             build_dataclass(stompman.ConnectionParameters),
             build_dataclass(stompman.ConnectionParameters),
@@ -96,4 +96,4 @@ async def test_client_connect_to_any_server_fails() -> None:
     )
 
     with pytest.raises(stompman.FailedAllConnectAttemptsError):
-        await client._connection._connect_to_any_server()
+        await manager._connect_to_any_server()
