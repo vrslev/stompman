@@ -10,7 +10,6 @@ import pytest
 from hypothesis import given, strategies
 
 import stompman
-import stompman.connection_manager
 from stompman import AnyClientFrame, AnyServerFrame, HeartbeatFrame
 from stompman.serde import (
     COMMANDS_TO_FRAMES,
@@ -25,7 +24,7 @@ from stompman.serde import (
 
 pytestmark = pytest.mark.anyio
 
-CONNECTION_PARAMETERS: Final = stompman.connection_manager.ConnectionParameters(
+CONNECTION_PARAMETERS: Final = stompman.ConnectionParameters(
     host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode=":=123"
 )
 
