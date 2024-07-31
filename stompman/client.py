@@ -29,10 +29,6 @@ from stompman.frames import (
 )
 
 
-def _make_transaction_id() -> str:
-    return str(uuid4())
-
-
 @dataclass(kw_only=True, slots=True, unsafe_hash=True)
 class Transaction:
     id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
@@ -336,4 +332,8 @@ def _make_receipt_id() -> str:
 
 
 def _make_subscription_id() -> str:
+    return str(uuid4())
+
+
+def _make_transaction_id() -> str:
     return str(uuid4())
