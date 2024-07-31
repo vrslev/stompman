@@ -191,6 +191,14 @@ class Client:
             max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
         )
         self._restart_heartbeat_task(heartbeat_interval)
+
+        for subscription in self._active_subscriptions.values():
+            await self._connection.write_frame_reconnecting(
+                SubscribeFrame(
+                    headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
+                )
+            )
+
         yield
 
         for subscription in self._active_subscriptions.copy().values():
