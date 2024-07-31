@@ -29,11 +29,32 @@ from stompman.frames import (
 )
 
 
+def _make_transaction_id() -> str:
+    return str(uuid4())
+
+
 @dataclass(kw_only=True, slots=True, unsafe_hash=True)
 class Transaction:
-    id: str
+    id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
     _connection: ConnectionManager = field(hash=False)
+    _active_transactions: set["Transaction"] = field(hash=False)
     sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
+
+    async def __aenter__(self) -> Self:
+        await self._connection.write_frame_reconnecting(BeginFrame(headers={"transaction": self.id}))
+        self._active_transactions.add(self)
+        return self
+
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        if exc_value:
+            await self._connection.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
+            self._active_transactions.remove(self)
+        else:
+            commited = await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
+            if commited:
+                self._active_transactions.remove(self)
 
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
@@ -269,21 +290,10 @@ class Client:
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator[Transaction, None]:
-        transaction_id = _make_transaction_id()
-        await self._connection.write_frame_reconnecting(BeginFrame(headers={"transaction": transaction_id}))
-
-        try:
-            transaction = Transaction(id=transaction_id, _connection=self._connection)
-            self._active_transactions.add(transaction)
+        async with Transaction(
+            _connection=self._connection, _active_transactions=self._active_transactions
+        ) as transaction:
             yield transaction
-        except Exception:
-            await self._connection.maybe_write_frame(AbortFrame(headers={"transaction": transaction_id}))
-            self._active_transactions.remove(transaction)
-            raise
-        else:
-            commited = await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": transaction_id}))
-            if commited:
-                self._active_transactions.remove(transaction)
 
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
@@ -322,10 +332,6 @@ class Client:
 
 
 def _make_receipt_id() -> str:
-    return str(uuid4())
-
-
-def _make_transaction_id() -> str:
     return str(uuid4())
 
 
