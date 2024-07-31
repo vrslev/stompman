@@ -249,35 +249,23 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(
         stompman.client,
         "_make_subscription_id",
-        mock.Mock(side_effect=[(first_subscription_id := FAKER.pystr()), (second_subscription_id := FAKER.pystr())]),
+        mock.Mock(side_effect=[(first_sub_id := FAKER.pystr()), (second_sub_id := FAKER.pystr())]),
     )
     connection_class, _ = create_spying_connection(
-        get_read_frames_with_lifespan(
+        *get_read_frames_with_lifespan(
             [
-                [
-                    build_dataclass(ConnectedFrame),
-                    build_dataclass(ReceiptFrame),
-                    (
-                        first_message_frame := build_dataclass(
-                            MessageFrame, headers={"subscription": first_subscription_id}
-                        )
-                    ),
-                    (error_frame := build_dataclass(ErrorFrame)),
-                    (second_message_frame := build_dataclass(MessageFrame)),
-                    (
-                        third_message_frame := build_dataclass(
-                            MessageFrame, headers={"subscription": second_subscription_id}
-                        )
-                    ),
-                    HeartbeatFrame(),
-                ]
+                build_dataclass(ConnectedFrame),
+                build_dataclass(ReceiptFrame),
+                (first_message_frame := build_dataclass(MessageFrame, headers={"subscription": first_sub_id})),
+                (error_frame := build_dataclass(ErrorFrame)),
+                (second_message_frame := build_dataclass(MessageFrame)),
+                (third_message_frame := build_dataclass(MessageFrame, headers={"subscription": second_sub_id})),
+                HeartbeatFrame(),
             ]
         )
     )
-    first_handler = mock.AsyncMock(return_value=None)
-    second_handle_message = mock.AsyncMock(side_effect=SomeError)
-    first_on_suppressed_exception = mock.Mock()
-    second_on_suppressed_exception = mock.Mock()
+    first_message_handler, first_error_handler = mock.AsyncMock(return_value=None), mock.Mock()
+    second_message_handler, second_error_handler = mock.AsyncMock(side_effect=SomeError), mock.Mock()
 
     async with EnrichedClient(
         connection_class=connection_class,
@@ -286,23 +274,25 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
         on_unhandled_message_frame=(on_unhandled_message_frame := mock.Mock()),
     ) as client:
         first_subscription = await client.subscribe(
-            FAKER.pystr(), handler=first_handler, on_suppressed_exception=first_on_suppressed_exception
+            FAKER.pystr(), handler=first_message_handler, on_suppressed_exception=first_error_handler
         )
         second_subscription = await client.subscribe(
-            FAKER.pystr(), handler=second_handle_message, on_suppressed_exception=second_on_suppressed_exception
+            FAKER.pystr(), handler=second_message_handler, on_suppressed_exception=second_error_handler
         )
         await asyncio.sleep(0)
         await asyncio.sleep(0)
         await first_subscription.unsubscribe()
         await second_subscription.unsubscribe()
 
+    first_message_handler.assert_called_once_with(first_message_frame)
+    first_error_handler.assert_not_called()
+
+    second_message_handler.assert_called_once_with(third_message_frame)
+    second_error_handler.assert_called_once_with(SomeError(), third_message_frame)
+
     on_error_frame.assert_called_once_with(error_frame)
     on_heartbeat.assert_called_once_with()
     on_unhandled_message_frame.assert_called_once_with(second_message_frame)
-    first_handler.assert_called_once_with(first_message_frame)
-    second_handle_message.assert_called_once_with(third_message_frame)
-    first_on_suppressed_exception.assert_not_called()
-    second_on_suppressed_exception.assert_called_once_with(SomeError(), third_message_frame)
 
 
 @pytest.mark.parametrize("side_effect", [None, SomeError])
