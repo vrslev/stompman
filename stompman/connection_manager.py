@@ -93,15 +93,13 @@ class ActiveConnectionState:
 class ConnectionManager:
     servers: list[ConnectionParameters]
     lifespan: Callable[[AbstractConnection, ConnectionParameters], AbstractAsyncContextManager[None]]
-
     connection_class: type[AbstractConnection]
     connect_retry_attempts: int
     connect_retry_interval: int
     connect_timeout: int
     read_timeout: int
     read_max_chunk_size: int
-
-    _active_connection_state: ActiveConnectionState | None = None
+    _active_connection_state: ActiveConnectionState | None = field(default=None, init=False)
 
     async def __aenter__(self) -> None:
         self._active_connection_state = await self._get_active_connection_state()
