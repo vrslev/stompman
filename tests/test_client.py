@@ -412,15 +412,15 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
 
 
 async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        stompman.client, "_make_transaction_id", mock.Mock(return_value=(transaction_id := FAKER.pystr()))
-    )
-    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([]))
+    transaction_id = FAKER.pystr()
+    monkeypatch.setattr(stompman.client, "_make_transaction_id", mock.Mock(return_value=transaction_id))
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
-        with suppress(AssertionError):
+        with suppress(SomeError):
             async with client.begin():
-                raise AssertionError
+                raise SomeError
+        await asyncio.sleep(0)
 
     assert collected_frames == enrich_expected_frames(
         BeginFrame(headers={"transaction": transaction_id}), AbortFrame(headers={"transaction": transaction_id})
