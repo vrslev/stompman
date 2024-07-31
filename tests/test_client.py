@@ -206,7 +206,7 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
             ack=ack,
             on_suppressed_exception=noop_error_handler,
         )
-        client._connection._active_connection_state = None
+        client._connection._clear_active_connection_state()
         await client.send(message_body, destination=message_destination)
         await subscription.unsubscribe()
         await asyncio.sleep(0)
@@ -462,6 +462,46 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
 
     assert collected_frames == enrich_expected_frames(
         BeginFrame(headers={"transaction": transaction_id}), AbortFrame(headers={"transaction": transaction_id})
+    )
+
+
+async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
+    connection_class, collected_frames = create_spying_connection(
+        *get_read_frames_with_lifespan(
+            [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})], []
+        )
+    )
+    body, destination = FAKER.binary(length=10), FAKER.pystr()
+    monkeypatch.setattr(
+        stompman.client,
+        "_make_transaction_id",
+        mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
+    )
+    async with EnrichedClient(connection_class=connection_class) as client:
+        async with client.begin() as first_transaction:
+            await first_transaction.send(body, destination=destination)
+            client._connection._clear_active_connection_state()
+        async with client.begin() as second_transaction:
+            await second_transaction.send(body, destination=destination)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+    assert collected_frames == enrich_expected_frames(
+        BeginFrame(headers={"transaction": first_id}),
+        SendFrame(
+            headers={"destination": destination, "transaction": first_id, "content-length": str(len(body))}, body=body
+        ),
+        enrich_expected_frames()[0],
+        enrich_expected_frames()[1],
+        SendFrame(
+            headers={"destination": destination, "transaction": first_id, "content-length": str(len(body))}, body=body
+        ),
+        CommitFrame(headers={"transaction": first_id}),
+        BeginFrame(headers={"transaction": second_id}),
+        SendFrame(
+            headers={"destination": destination, "transaction": second_id, "content-length": str(len(body))}, body=body
+        ),
+        CommitFrame(headers={"transaction": second_id}),
     )
 
 
