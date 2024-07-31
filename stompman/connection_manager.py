@@ -117,7 +117,10 @@ class ConnectionManager:
     ) -> None:
         if not self._active_connection_state:
             return
-        await self._active_connection_state.lifespan.__aexit__(exc_type, exc_value, traceback)
+        try:
+            await self._active_connection_state.lifespan.__aexit__(exc_type, exc_value, traceback)
+        except ConnectionLostError:
+            return
         await self._active_connection_state.connection.close()
 
     async def _connect_to_one_server(
