@@ -9,7 +9,7 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
 from stompman import AbstractConnection, Client
-from stompman.connection_manager import ConnectionParameters
+from stompman.connection_manager import ConnectionManager, ConnectionParameters
 from stompman.frames import AnyClientFrame, AnyServerFrame
 
 
@@ -50,6 +50,18 @@ class EnrichedClient(Client):
     servers: list[ConnectionParameters] = field(
         default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
     )
+
+
+@dataclass(kw_only=True, slots=True)
+class EnrichedConnectionManager(ConnectionManager):
+    servers: list[ConnectionParameters] = field(
+        default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
+    )
+    connect_retry_attempts: int = 1
+    connect_retry_interval: int = 2
+    connect_timeout: int = 3
+    read_timeout: int = 4
+    read_max_chunk_size: int = 5
 
 
 @pytest.fixture()
