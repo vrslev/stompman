@@ -240,9 +240,9 @@ class Client:
                 await commit_pending_transactions(connection=connection, active_transactions=self._active_transactions)
                 yield
 
-    def _restart_heartbeat_task(self, heartbeat_interval: float) -> None:
+    def _restart_heartbeat_task(self, interval: float) -> None:
         self._heartbeat_task.cancel()
-        self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(heartbeat_interval))
+        self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(interval))
 
     async def _send_heartbeats_forever(self, interval: float) -> None:
         while True:
