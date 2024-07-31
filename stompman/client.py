@@ -67,7 +67,7 @@ AckMode = Literal["client", "client-individual", "auto"]
 
 @dataclass(kw_only=True, slots=True)
 class Subscription:
-    id: str
+    id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
     destination: str
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
     ack: AckMode
@@ -80,6 +80,12 @@ class Subscription:
 
     def __post_init__(self) -> None:
         self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
+
+    async def _subscribe(self) -> None:
+        await self._connection.write_frame_reconnecting(
+            SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
+        )
+        self._active_subscriptions[self.id] = self
 
     async def unsubscribe(self) -> None:
         del self._active_subscriptions[self.id]
@@ -284,13 +290,6 @@ class Client:
                     case ConnectedFrame() | ReceiptFrame():
                         pass
 
-    @asynccontextmanager
-    async def begin(self) -> AsyncGenerator[Transaction, None]:
-        async with Transaction(
-            _connection=self._connection, _active_transactions=self._active_transactions
-        ) as transaction:
-            yield transaction
-
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
@@ -299,6 +298,13 @@ class Client:
                 body=body, destination=destination, transaction=None, content_type=content_type, headers=headers
             )
         )
+
+    @asynccontextmanager
+    async def begin(self) -> AsyncGenerator[Transaction, None]:
+        async with Transaction(
+            _connection=self._connection, _active_transactions=self._active_transactions
+        ) as transaction:
+            yield transaction
 
     async def subscribe(  # noqa: PLR0913
         self,
@@ -309,12 +315,7 @@ class Client:
         on_suppressed_exception: Callable[[Exception, MessageFrame], None],
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> "Subscription":
-        subscription_id = _make_subscription_id()
-        await self._connection.write_frame_reconnecting(
-            SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": ack})
-        )
         subscription = Subscription(
-            id=subscription_id,
             destination=destination,
             handler=handler,
             ack=ack,
@@ -323,7 +324,7 @@ class Client:
             _connection=self._connection,
             _active_subscriptions=self._active_subscriptions,
         )
-        self._active_subscriptions[subscription_id] = subscription
+        await subscription._subscribe()  # noqa: SLF001
         return subscription
 
 
