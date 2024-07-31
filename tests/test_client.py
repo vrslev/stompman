@@ -117,11 +117,16 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def timeout(future: Coroutine[Any, Any, Any], timeout: float) -> object:
-        assert timeout == client.connection_confirmation_timeout
+    async def wait_for_mock(future: Coroutine[Any, Any, Any], timeout: float) -> object:
+        assert timeout == connection_confirmation_timeout
         task = asyncio.create_task(future)
         await asyncio.sleep(0)
         return await original_wait_for(task, 0)
+
+    original_wait_for = asyncio.wait_for
+    monkeypatch.setattr("asyncio.wait_for", wait_for_mock)
+    error_frame = build_dataclass(ErrorFrame)
+    connection_confirmation_timeout = FAKER.pyint()
 
     class MockConnection(BaseMockConnection):
         @staticmethod
@@ -129,16 +134,13 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
             yield error_frame
             await asyncio.sleep(0)
 
-    original_wait_for = asyncio.wait_for
-    monkeypatch.setattr("asyncio.wait_for", timeout)
-    error_frame = build_dataclass(ErrorFrame)
-    client = EnrichedClient(connection_class=MockConnection)
-
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
-        await client.__aenter__()  # noqa: PLC2801
+        await EnrichedClient(  # noqa: PLC2801
+            connection_class=MockConnection, connection_confirmation_timeout=connection_confirmation_timeout
+        ).__aenter__()
 
     assert exc_info.value == ConnectionConfirmationTimeoutError(
-        timeout=client.connection_confirmation_timeout, frames=[error_frame]
+        timeout=connection_confirmation_timeout, frames=[error_frame]
     )
 
 
