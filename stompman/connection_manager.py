@@ -6,7 +6,7 @@ from types import TracebackType
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
-from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError, RepeatedConnectionLostInLifespanError
+from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError, RepeatedConnectionLostError
 from stompman.frames import AnyClientFrame, AnyServerFrame
 
 
@@ -87,9 +87,7 @@ class ConnectionManager:
                 await lifespan.__aenter__()  # noqa: PLC2801
             except ConnectionLostError as error:
                 if attempt == self.connect_retry_attempts:
-                    raise RepeatedConnectionLostInLifespanError(
-                        last_server=connection_parameters, retry_attempts=self.connect_retry_attempts
-                    ) from error
+                    raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts) from error
                 self._clear_active_connection_state()
             else:
                 return self._active_connection_state
@@ -100,24 +98,28 @@ class ConnectionManager:
         self._active_connection_state = None
 
     async def write_heartbeat_reconnecting(self) -> None:
-        while True:
-            connection_state = await self._get_active_connection_state()
+        for attempt in range(self.connect_retry_attempts):
+            connection_state = await self._get_active_connection_state(attempt)
             try:
                 return connection_state.connection.write_heartbeat()
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
+        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
+
     async def write_frame_reconnecting(self, frame: AnyClientFrame) -> None:
-        while True:
-            connection_state = await self._get_active_connection_state()
+        for attempt in range(self.connect_retry_attempts):
+            connection_state = await self._get_active_connection_state(attempt)
             try:
                 return await connection_state.connection.write_frame(frame)
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
+        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
+
     async def read_frames_reconnecting(self) -> AsyncGenerator[AnyServerFrame, None]:
-        while True:
-            connection_state = await self._get_active_connection_state()
+        for attempt in range(self.connect_retry_attempts):
+            connection_state = await self._get_active_connection_state(attempt)
             try:
                 async for frame in connection_state.connection.read_frames():
                     yield frame
@@ -125,6 +127,8 @@ class ConnectionManager:
                 self._clear_active_connection_state()
             else:
                 return
+
+        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
 
     async def maybe_write_frame(self, frame: AnyClientFrame) -> bool:
         if not (connection_state := await self._get_active_connection_state()):

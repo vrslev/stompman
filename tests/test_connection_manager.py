@@ -111,7 +111,7 @@ async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
     lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
     manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
 
-    with pytest.raises(stompman.RepeatedConnectionLostInLifespanError) as exc_info:
+    with pytest.raises(stompman.RepeatedConnectionLostError) as exc_info:
         await manager._get_active_connection_state()
 
     assert (
@@ -153,3 +153,34 @@ async def test_get_active_connection_state_ok_concurrent() -> None:
 
     aenter.assert_called_once_with()
     lifespan.assert_called_once_with(BaseMockConnection(), manager.servers[0])
+
+
+# @pytest.mark.parametrize(
+#     "side_effect",
+#     [
+#         (None,),
+#         (ConnectionLostError, None),
+#         (ConnectionLostError, ConnectionLostError, None),
+#         [
+#             ConnectionLostError,
+#             ConnectionLostError,
+#             ConnectionLostError,
+#             ConnectionLostError,
+#             ConnectionLostError,
+#             ConnectionLostError,
+#             ConnectionLostError,
+#             ConnectionLostError,
+#         ],
+#     ],
+# )
+# async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+#     write_heartbeat_mock = mock.Mock(side_effect=side_effect)
+
+#     class MockConnection(BaseMockConnection):
+#         write_heartbeat = write_heartbeat_mock
+
+#     manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+#     await manager.write_heartbeat_reconnecting()
+
+#     assert len(write_heartbeat_mock.mock_calls) == len(side_effect)

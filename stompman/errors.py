@@ -34,8 +34,7 @@ class FailedAllConnectAttemptsError(Error):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class RepeatedConnectionLostInLifespanError(Error):
-    last_server: "ConnectionParameters"
+class RepeatedConnectionLostError(Error):
     retry_attempts: int
 
 
