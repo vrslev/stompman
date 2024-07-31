@@ -331,6 +331,7 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
             FAKER.pystr(), handler=second_handle_message, on_suppressed_exception=second_on_suppressed_exception
         )
         await asyncio.sleep(0)
+        await asyncio.sleep(0)
         await first_subscription.unsubscribe()
         await second_subscription.unsubscribe()
 
@@ -362,6 +363,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
         )
         await asyncio.sleep(0)
         await subscription.unsubscribe()
+        await asyncio.sleep(0)
 
     handle_message.assert_called_once_with(message_frame)
     assert collected_frames == enrich_expected_frames(

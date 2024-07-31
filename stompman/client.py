@@ -127,6 +127,8 @@ class Client:
     _connection: ConnectionManager = field(init=False)
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
+    _heartbeat_task: asyncio.Task[None] = field(init=False)
+    _listen_task: asyncio.Task[None] = field(init=False)
 
     async def __aenter__(self) -> Self:
         self._connection = ConnectionManager(
@@ -140,6 +142,7 @@ class Client:
             read_max_chunk_size=self.read_max_chunk_size,
         )
         await self._exit_stack.enter_async_context(self._connection)
+        self._listen_task = asyncio.create_task(self._listen_to_frames())
         return self
 
     async def __aexit__(
@@ -149,7 +152,12 @@ class Client:
             if self._active_subscriptions and not exc_value:
                 await asyncio.Future()
         finally:
+            self._listen_task.cancel()
+            self._heartbeat_task.cancel()
             await self._exit_stack.aclose()
+
+    def _restart_heartbeat_task(self, heartbeat_interval: float) -> None:
+        self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(heartbeat_interval))
 
     async def _connect_to_one_server(
         self, server: ConnectionParameters
@@ -223,15 +231,19 @@ class Client:
         heartbeat_interval = (
             max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
         )
+        self._restart_heartbeat_task(heartbeat_interval)
+        yield
+        # async with asyncio.TaskGroup() as task_group:
+        #     # Background tasks initiated in lifespan should be bound to current connection to avoid conflicting with lifespan from different connection
+        #     # Heartbeat task is bound to a connection (heartbeat interval), but listen is not...
 
-        async with asyncio.TaskGroup() as task_group:
-            heartbeat_task = task_group.create_task(self._send_heartbeats_forever(heartbeat_interval))
-            listen_task = task_group.create_task(self._listen_to_frames())
-            try:
-                yield
-            finally:
-                heartbeat_task.cancel()
-                listen_task.cancel()
+        #     heartbeat_task = task_group.create_task(self._send_heartbeats_forever(heartbeat_interval))
+        #     listen_task = task_group.create_task(self._listen_to_frames())
+        #     try:
+        #         yield
+        #     finally:
+        #         heartbeat_task.cancel()
+        #         listen_task.cancel()
 
         if connection.active:
             for subscription in self._active_subscriptions.copy().values():
