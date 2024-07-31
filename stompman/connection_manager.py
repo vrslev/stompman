@@ -71,35 +71,34 @@ class ConnectionManager:
             timeout=self.connect_timeout,
         )
 
-    async def _get_active_connection_state(self, attempt: int = 1) -> ActiveConnectionState:
-        if self._active_connection_state:
-            return self._active_connection_state
-
-        async with self._reconnect_lock:
+    async def _get_active_connection_state(self) -> ActiveConnectionState:
+        for _ in range(self.connect_retry_attempts):
             if self._active_connection_state:
                 return self._active_connection_state
 
-            connection, connection_parameters = await self._connect_to_any_server()
-            lifespan = self.lifespan(connection, connection_parameters)
-            self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
+            async with self._reconnect_lock:
+                if self._active_connection_state:
+                    return self._active_connection_state
 
-            try:
-                await lifespan.__aenter__()  # noqa: PLC2801
-            except ConnectionLostError as error:
-                if attempt == self.connect_retry_attempts:
-                    raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts) from error
-                self._clear_active_connection_state()
-            else:
-                return self._active_connection_state
+                connection, connection_parameters = await self._connect_to_any_server()
+                lifespan = self.lifespan(connection, connection_parameters)
+                self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
 
-        return await self._get_active_connection_state(attempt + 1)
+                try:
+                    await lifespan.__aenter__()  # noqa: PLC2801
+                except ConnectionLostError:
+                    self._clear_active_connection_state()
+                else:
+                    return self._active_connection_state
+
+        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None
 
     async def write_heartbeat_reconnecting(self) -> None:
-        for attempt in range(self.connect_retry_attempts):
-            connection_state = await self._get_active_connection_state(attempt)
+        for _ in range(self.connect_retry_attempts):
+            connection_state = await self._get_active_connection_state()
             try:
                 return connection_state.connection.write_heartbeat()
             except ConnectionLostError:
@@ -108,8 +107,8 @@ class ConnectionManager:
         raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
 
     async def write_frame_reconnecting(self, frame: AnyClientFrame) -> None:
-        for attempt in range(self.connect_retry_attempts):
-            connection_state = await self._get_active_connection_state(attempt)
+        for _ in range(self.connect_retry_attempts):
+            connection_state = await self._get_active_connection_state()
             try:
                 return await connection_state.connection.write_frame(frame)
             except ConnectionLostError:
@@ -118,8 +117,8 @@ class ConnectionManager:
         raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
 
     async def read_frames_reconnecting(self) -> AsyncGenerator[AnyServerFrame, None]:
-        for attempt in range(self.connect_retry_attempts):
-            connection_state = await self._get_active_connection_state(attempt)
+        for _ in range(self.connect_retry_attempts):
+            connection_state = await self._get_active_connection_state()
             try:
                 async for frame in connection_state.connection.read_frames():
                     yield frame
