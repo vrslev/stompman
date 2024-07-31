@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable
-from contextlib import AbstractAsyncContextManager, AsyncExitStack
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import NamedTuple, Self, TypedDict
@@ -86,16 +86,13 @@ class ConnectionParameters:
 @dataclass(frozen=True, kw_only=True, slots=True)
 class ActiveConnectionState:
     connection: AbstractConnection
-    connection_parameters: ConnectionParameters
     lifespan: AbstractAsyncContextManager[None]
 
 
 @dataclass(kw_only=True, slots=True)
 class ConnectionManager:
     servers: list[ConnectionParameters]
-    lifespan: Callable[
-        [AbstractConnection, ConnectionParameters], AbstractAsyncContextManager[None]
-    ]  # It shouldn't raise any runtime error, such as version error
+    lifespan: Callable[[AbstractConnection, ConnectionParameters], AbstractAsyncContextManager[None]]
 
     connection_class: type[AbstractConnection]
     connect_retry_attempts: int
@@ -105,7 +102,6 @@ class ConnectionManager:
     read_max_chunk_size: int
 
     _active_connection_state: ActiveConnectionState | None = None
-    _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> None:
         self._active_connection_state = await self._get_active_connection_state()
@@ -155,9 +151,7 @@ class ConnectionManager:
 
         connection, connection_parameters = await self._connect_to_any_server()
         lifespan = self.lifespan(connection, connection_parameters)
-        self._active_connection_state = ActiveConnectionState(
-            connection=connection, connection_parameters=connection_parameters, lifespan=lifespan
-        )
+        self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
         try:
             await lifespan.__aenter__()  # noqa: PLC2801
         except ConnectionLostError:
