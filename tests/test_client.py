@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args
 from unittest import mock
 
 import faker
@@ -189,7 +189,33 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
 
 
-async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("ack", get_args(AckMode))
+async def test_client_subscribtions_lifespan_resubscribe(monkeypatch: pytest.MonkeyPatch, ack: AckMode) -> None:
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
+    client = EnrichedClient(connection_class=connection_class)
+    destination = FAKER.pystr()
+    subscription = stompman.Subscription(
+        destination=destination,
+        handler=noop_message_handler,
+        ack=ack,
+        on_suppressed_exception=noop_error_handler,
+        supressed_exception_classes=(Exception,),
+        _connection=client._connection,
+        _active_subscriptions=client._active_subscriptions,
+    )
+    client._active_subscriptions[subscription.id] = subscription
+
+    async with client:
+        await subscription.unsubscribe()
+        await asyncio.sleep(0)
+
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"id": subscription.id, "destination": destination, "ack": ack}),
+        UnsubscribeFrame(headers={"id": subscription.id}),
+    )
+
+
+async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         stompman.client,
         "_make_subscription_id",
@@ -218,7 +244,7 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
 
 
 @pytest.mark.parametrize("direct_error", [True, False])
-async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
+async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
     direct_error: bool,  # noqa: FBT001
 ) -> None:

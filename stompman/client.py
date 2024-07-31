@@ -218,7 +218,7 @@ class Client:
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
 
-    _connection: ConnectionManager = field(init=False)
+    _connection: ConnectionManager = field(init=False) # TODO: Rename
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _active_transactions: set[Transaction] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
