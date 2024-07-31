@@ -206,7 +206,7 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
             ack=ack,
             on_suppressed_exception=noop_error_handler,
         )
-        client._connection._clear_active_connection_state()
+        client._connection_manager._clear_active_connection_state()
         await client.send(message_body, destination=message_destination)
         await subscription.unsubscribe()
         await asyncio.sleep(0)
@@ -476,7 +476,7 @@ async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> N
     async with EnrichedClient(connection_class=connection_class) as client:
         async with client.begin() as first_transaction:
             await first_transaction.send(body, destination=destination)
-            client._connection._clear_active_connection_state()
+            client._connection_manager._clear_active_connection_state()
         async with client.begin() as second_transaction:
             await second_transaction.send(body, destination=destination)
         await asyncio.sleep(0)

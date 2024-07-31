@@ -96,7 +96,7 @@ class Subscription:
     ack: AckMode
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
     supressed_exception_classes: tuple[type[Exception], ...]
-    _connection: ConnectionManager
+    _connection_manager: ConnectionManager
     _active_subscriptions: dict[str, "Subscription"]
 
     _should_handle_ack_nack: bool = field(init=False)
@@ -105,21 +105,21 @@ class Subscription:
         self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
 
     async def _subscribe(self) -> None:
-        await self._connection.write_frame_reconnecting(
+        await self._connection_manager.write_frame_reconnecting(
             SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
         )
         self._active_subscriptions[self.id] = self
 
     async def unsubscribe(self) -> None:
         del self._active_subscriptions[self.id]
-        await self._connection.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
+        await self._connection_manager.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
     async def _run_handler(self, frame: MessageFrame) -> None:
         try:
             await self.handler(frame)
         except self.supressed_exception_classes as exception:
             if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection.maybe_write_frame(
+                await self._connection_manager.maybe_write_frame(
                     NackFrame(
                         headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
                     )
@@ -127,7 +127,7 @@ class Subscription:
             self.on_suppressed_exception(exception, frame)
         else:
             if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection.maybe_write_frame(
+                await self._connection_manager.maybe_write_frame(
                     AckFrame(
                         headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
                     )
@@ -156,12 +156,12 @@ async def subscriptions_lifespan(
 @dataclass(kw_only=True, slots=True, unsafe_hash=True)
 class Transaction:
     id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
-    _connection: ConnectionManager = field(hash=False)
+    _connection_manager: ConnectionManager = field(hash=False)
     _active_transactions: set["Transaction"] = field(hash=False)
     sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
 
     async def __aenter__(self) -> Self:
-        await self._connection.write_frame_reconnecting(BeginFrame(headers={"transaction": self.id}))
+        await self._connection_manager.write_frame_reconnecting(BeginFrame(headers={"transaction": self.id}))
         self._active_transactions.add(self)
         return self
 
@@ -169,10 +169,10 @@ class Transaction:
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
         if exc_value:
-            await self._connection.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
+            await self._connection_manager.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
             self._active_transactions.remove(self)
         else:
-            commited = await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
+            commited = await self._connection_manager.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
             if commited:
                 self._active_transactions.remove(self)
 
@@ -183,7 +183,7 @@ class Transaction:
             body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
         )
         self.sent_frames.append(frame)
-        await self._connection.write_frame_reconnecting(frame)
+        await self._connection_manager.write_frame_reconnecting(frame)
 
 
 def _make_transaction_id() -> str:
@@ -216,7 +216,7 @@ class Client:
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
 
-    _connection: ConnectionManager = field(init=False)  # TODO: Rename
+    _connection_manager: ConnectionManager = field(init=False)
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _active_transactions: set[Transaction] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
@@ -224,7 +224,7 @@ class Client:
     _listen_task: asyncio.Task[None] = field(init=False)
 
     def __post_init__(self) -> None:
-        self._connection = ConnectionManager(
+        self._connection_manager = ConnectionManager(
             servers=self.servers,
             lifespan=self._lifespan,
             connection_class=self.connection_class,
@@ -237,7 +237,7 @@ class Client:
 
     async def __aenter__(self) -> Self:
         self._heartbeat_task = asyncio.create_task(asyncio.sleep(0))
-        await self._exit_stack.enter_async_context(self._connection)
+        await self._exit_stack.enter_async_context(self._connection_manager)
         self._listen_task = asyncio.create_task(self._listen_to_frames())
         return self
 
@@ -275,12 +275,12 @@ class Client:
 
     async def _send_heartbeats_forever(self, interval: float) -> None:
         while True:
-            await self._connection.write_heartbeat_reconnecting()
+            await self._connection_manager.write_heartbeat_reconnecting()
             await asyncio.sleep(interval)
 
     async def _listen_to_frames(self) -> None:
         async with asyncio.TaskGroup() as task_group:
-            async for frame in self._connection.read_frames_reconnecting():
+            async for frame in self._connection_manager.read_frames_reconnecting():
                 match frame:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
@@ -299,7 +299,7 @@ class Client:
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
-        await self._connection.write_frame_reconnecting(
+        await self._connection_manager.write_frame_reconnecting(
             SendFrame.build(
                 body=body, destination=destination, transaction=None, content_type=content_type, headers=headers
             )
@@ -308,7 +308,7 @@ class Client:
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator[Transaction, None]:
         async with Transaction(
-            _connection=self._connection, _active_transactions=self._active_transactions
+            _connection_manager=self._connection_manager, _active_transactions=self._active_transactions
         ) as transaction:
             yield transaction
 
@@ -327,7 +327,7 @@ class Client:
             ack=ack,
             on_suppressed_exception=on_suppressed_exception,
             supressed_exception_classes=supressed_exception_classes,
-            _connection=self._connection,
+            _connection_manager=self._connection_manager,
             _active_subscriptions=self._active_subscriptions,
         )
         await subscription._subscribe()  # noqa: SLF001
