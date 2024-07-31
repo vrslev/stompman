@@ -32,6 +32,7 @@ from stompman import (
 )
 from stompman.client import AckMode, Client
 from stompman.config import ConnectionParameters
+from stompman.frames import SendHeaders
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,
@@ -382,13 +383,11 @@ async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, ok: 
 
 
 async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    body = FAKER.binary()
-    destination = FAKER.pystr()
-    expires = FAKER.pystr()
-    content_type = FAKER.pystr()
-    monkeypatch.setattr(
-        stompman.client, "_make_transaction_id", mock.Mock(return_value=(transaction_id := FAKER.pystr()))
-    )
+    body, destination, expires, content_type = FAKER.binary(), FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
+
+    transaction_id = FAKER.pystr()
+    monkeypatch.setattr(stompman.client, "_make_transaction_id", mock.Mock(return_value=transaction_id))
+
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     async with EnrichedClient(connection_class=connection_class) as client, client.begin() as transaction:
@@ -398,27 +397,16 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
         await client.send(body=body, destination=destination, content_type=content_type, headers={"expires": expires})
         await asyncio.sleep(0)
 
+    send_headers: SendHeaders = {  # type: ignore[typeddict-unknown-key]
+        "content-length": str(len(body)),
+        "content-type": content_type,
+        "destination": destination,
+        "expires": expires,
+    }
     assert collected_frames == enrich_expected_frames(
         BeginFrame(headers={"transaction": transaction_id}),
-        SendFrame(
-            headers={  # type: ignore[typeddict-unknown-key]
-                "content-length": str(len(body)),
-                "content-type": content_type,
-                "destination": destination,
-                "transaction": transaction_id,
-                "expires": expires,
-            },
-            body=body,
-        ),
-        SendFrame(
-            headers={  # type: ignore[typeddict-unknown-key]
-                "content-length": str(len(body)),
-                "content-type": content_type,
-                "destination": destination,
-                "expires": expires,
-            },
-            body=body,
-        ),
+        SendFrame(headers=send_headers | {"transaction": transaction_id}, body=body),
+        SendFrame(headers=send_headers, body=body),
         CommitFrame(headers={"transaction": transaction_id}),
     )
 
