@@ -130,7 +130,7 @@ async def test_get_active_connection_state_fails_to_connect() -> None:
         await EnrichedConnectionManager(connection_class=MockConnection)._get_active_connection_state()
 
 
-async def test_get_active_connection_state_ok() -> None:
+async def test_get_active_connection_state_ok_concurrent() -> None:
     aenter = mock.AsyncMock(side_effect=None)
     lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
     manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
@@ -140,14 +140,16 @@ async def test_get_active_connection_state_ok() -> None:
         manager._get_active_connection_state(),
         manager._get_active_connection_state(),
     )
+    fourth_state = await manager._get_active_connection_state()
 
     assert (
         first_state
         == second_state
         == third_state
+        == fourth_state
         == ActiveConnectionState(connection=BaseMockConnection(), lifespan=lifespan.return_value)
     )
-    assert first_state is second_state is third_state
+    assert first_state is second_state is third_state is fourth_state
 
     aenter.assert_called_once_with()
-    lifespan.assert_called_once_with()
+    lifespan.assert_called_once_with(BaseMockConnection(), manager.servers[0])
