@@ -28,11 +28,11 @@ from stompman.frames import (
 )
 
 
-@dataclass(kw_only=True, slots=True)
+@dataclass(kw_only=True, slots=True, unsafe_hash=True)
 class Transaction:
     id: str
-    _connection: ConnectionManager
-    _sent_frames: list[SendFrame] = field(default_factory=list, init=False)
+    _connection: ConnectionManager = field(hash=False)
+    _sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
 
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
