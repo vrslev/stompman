@@ -11,7 +11,6 @@ from stompman.connection_manager import ConnectionManager, ConnectionParameters,
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
     ConnectionLostError,
-    FailedAllConnectAttemptsError,
     UnsupportedProtocolVersionError,
 )
 from stompman.frames import (
@@ -130,7 +129,7 @@ class Client:
     _heartbeat_task: asyncio.Task[None] = field(init=False)
     _listen_task: asyncio.Task[None] = field(init=False)
 
-    async def __aenter__(self) -> Self:
+    def __post_init__(self) -> None:
         self._connection = ConnectionManager(
             servers=self.servers,
             lifespan=self._lifespan,
@@ -141,6 +140,8 @@ class Client:
             read_timeout=self.read_timeout,
             read_max_chunk_size=self.read_max_chunk_size,
         )
+
+    async def __aenter__(self) -> Self:
         await self._exit_stack.enter_async_context(self._connection)
         self._listen_task = asyncio.create_task(self._listen_to_frames())
         return self
@@ -158,34 +159,6 @@ class Client:
 
     def _restart_heartbeat_task(self, heartbeat_interval: float) -> None:
         self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(heartbeat_interval))
-
-    async def _connect_to_one_server(
-        self, server: ConnectionParameters
-    ) -> tuple[AbstractConnection, ConnectionParameters] | None:
-        for attempt in range(self.connect_retry_attempts):
-            if connection := await self.connection_class.connect(
-                host=server.host,
-                port=server.port,
-                timeout=self.connect_timeout,
-                read_max_chunk_size=self.read_max_chunk_size,
-                read_timeout=self.read_timeout,
-            ):
-                return connection, server
-            await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
-        return None
-
-    async def _connect_to_any_server(self) -> tuple[AbstractConnection, ConnectionParameters]:
-        for maybe_connection_future in asyncio.as_completed(
-            [self._connect_to_one_server(server) for server in self.servers]
-        ):
-            if maybe_result := await maybe_connection_future:
-                return maybe_result
-        raise FailedAllConnectAttemptsError(
-            servers=self.servers,
-            retry_attempts=self.connect_retry_attempts,
-            retry_interval=self.connect_retry_interval,
-            timeout=self.connect_timeout,
-        )
 
     async def _wait_for_connected_frame(self) -> ConnectedFrame:
         collected_frames = []

@@ -52,7 +52,7 @@ async def test_client_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: 
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
     client = EnrichedClient(connection_class=MockConnection)
-    assert await client._connect_to_one_server(client.servers[0])
+    assert await client._connection._connect_to_one_server(client.servers[0])
     assert attempts == ok_on_attempt == (len(sleep_mock.mock_calls) + 1)
 
 
@@ -66,7 +66,7 @@ async def test_client_connect_to_one_server_fails() -> None:
             return None
 
     client = EnrichedClient(connection_class=MockConnection)
-    assert await client._connect_to_one_server(client.servers[0]) is None
+    assert await client._connection._connect_to_one_server(client.servers[0]) is None
 
 
 @pytest.mark.usefixtures("mock_sleep")
@@ -92,7 +92,7 @@ async def test_client_connect_to_any_server_ok() -> None:
         ],
         connection_class=MockConnection,
     )
-    connection, connection_parameters = await client._connect_to_any_server()
+    connection, connection_parameters = await client._connection._connect_to_any_server()
     assert connection
     assert connection_parameters == successful_server
 
@@ -117,4 +117,4 @@ async def test_client_connect_to_any_server_fails() -> None:
     )
 
     with pytest.raises(stompman.FailedAllConnectAttemptsError):
-        await client._connect_to_any_server()
+        await client._connection._connect_to_any_server()
