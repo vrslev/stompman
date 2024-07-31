@@ -39,9 +39,12 @@ async def create_client() -> AsyncGenerator[stompman.Client, None]:
 
 async def test_ok() -> None:
     async def produce() -> None:
+        for message in messages[200:]:
+            await producer.send(body=message, destination=DESTINATION, headers={"hello": "from outside transaction"})
+
         async with producer.begin() as transaction:
-            for message in messages:
-                await transaction.send(body=message, destination=DESTINATION, headers={"hello": "world"})
+            for message in messages[:200]:
+                await transaction.send(body=message, destination=DESTINATION, headers={"hello": "from transaction"})
 
     async def consume() -> None:
         received_messages = []
