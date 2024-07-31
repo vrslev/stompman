@@ -110,7 +110,7 @@ class ConnectionManager:
     active: bool = True
 
     async def __aenter__(self) -> None:
-        self._active_connection_state = await self._connect()
+        self._active_connection_state = await self._get_active_connection_state()
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
@@ -148,7 +148,7 @@ class ConnectionManager:
             timeout=self.connect_timeout,
         )
 
-    async def _connect(self) -> ActiveConnectionState:
+    async def _get_active_connection_state(self) -> ActiveConnectionState:
         if self._active_connection_state:
             return self._active_connection_state
 
@@ -160,11 +160,11 @@ class ConnectionManager:
         await lifespan.__aenter__()  # noqa: PLC2801
         return self._active_connection_state
 
-    def _remove_active_connection(self) -> None:
+    def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None
 
     async def _reconnect_if_not_already(self) -> ActiveConnectionState:
-        return await self._connect()
+        return await self._get_active_connection_state()
 
     async def write_heartbeat(self) -> None:
         while True:
@@ -172,7 +172,7 @@ class ConnectionManager:
             try:
                 return connection_state.connection.write_heartbeat()
             except ConnectionLostError:
-                self._remove_active_connection()
+                self._clear_active_connection_state()
 
     async def write_frame(self, frame: AnyClientFrame) -> None:
         while True:
@@ -180,7 +180,7 @@ class ConnectionManager:
             try:
                 return await connection_state.connection.write_frame(frame)
             except ConnectionLostError:
-                self._remove_active_connection()
+                self._clear_active_connection_state()
 
     async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:
         while True:
@@ -189,6 +189,6 @@ class ConnectionManager:
                 async for frame in connection_state.connection.read_frames():
                     yield frame
             except ConnectionLostError:
-                self._remove_active_connection()
+                self._clear_active_connection_state()
             else:
                 return
