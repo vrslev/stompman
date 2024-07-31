@@ -32,19 +32,16 @@ from stompman.frames import (
 class Transaction:
     id: str
     _connection: ConnectionManager
+    _sent_frames: list[SendFrame] = field(default_factory=list, init=False)
 
     async def send(
-        self,
-        body: bytes,
-        destination: str,
-        content_type: str | None = None,
-        headers: dict[str, str] | None = None,
+        self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
-        await self._connection.write_frame_reconnecting(
-            SendFrame.build(
-                body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
-            )
+        frame = SendFrame.build(
+            body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
         )
+        self._sent_frames.append(frame)
+        await self._connection.write_frame_reconnecting(frame)
 
 
 AckMode = Literal["client", "client-individual", "auto"]
@@ -113,6 +110,7 @@ class Client:
     connection_class: type[AbstractConnection] = Connection
     _connection: ConnectionManager = field(init=False)
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
+    _active_transactions: set[Transaction] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
     _heartbeat_task: asyncio.Task[None] | None = field(default=None, init=False)
     _listen_task: asyncio.Task[None] = field(init=False)
@@ -198,6 +196,11 @@ class Client:
                     headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
                 )
             )
+        for transaction in self._active_transactions:
+            for frame in transaction._sent_frames:  # noqa: SLF001
+                await connection.write_frame(frame)
+            await connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
+        self._active_transactions.clear()
 
         yield
 
@@ -242,12 +245,17 @@ class Client:
         await self._connection.write_frame_reconnecting(BeginFrame(headers={"transaction": transaction_id}))
 
         try:
-            yield Transaction(id=transaction_id, _connection=self._connection)
+            transaction = Transaction(id=transaction_id, _connection=self._connection)
+            self._active_transactions.add(transaction)
+            yield transaction
         except Exception:
             await self._connection.maybe_write_frame(AbortFrame(headers={"transaction": transaction_id}))
+            self._active_transactions.remove(transaction)
             raise
         else:
-            await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": transaction_id}))
+            commited = await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": transaction_id}))
+            if commited:
+                self._active_transactions.remove(transaction)
 
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
