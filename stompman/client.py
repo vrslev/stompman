@@ -29,88 +29,6 @@ from stompman.frames import (
 )
 
 
-@dataclass(kw_only=True, slots=True, unsafe_hash=True)
-class Transaction:
-    id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
-    _connection: ConnectionManager = field(hash=False)
-    _active_transactions: set["Transaction"] = field(hash=False)
-    sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
-
-    async def __aenter__(self) -> Self:
-        await self._connection.write_frame_reconnecting(BeginFrame(headers={"transaction": self.id}))
-        self._active_transactions.add(self)
-        return self
-
-    async def __aexit__(
-        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
-    ) -> None:
-        if exc_value:
-            await self._connection.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
-            self._active_transactions.remove(self)
-        else:
-            commited = await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
-            if commited:
-                self._active_transactions.remove(self)
-
-    async def send(
-        self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        frame = SendFrame.build(
-            body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
-        )
-        self.sent_frames.append(frame)
-        await self._connection.write_frame_reconnecting(frame)
-
-
-AckMode = Literal["client", "client-individual", "auto"]
-
-
-@dataclass(kw_only=True, slots=True)
-class Subscription:
-    id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
-    destination: str
-    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
-    ack: AckMode
-    on_suppressed_exception: Callable[[Exception, MessageFrame], None]
-    supressed_exception_classes: tuple[type[Exception], ...]
-    _connection: ConnectionManager
-    _active_subscriptions: dict[str, "Subscription"]
-
-    _should_handle_ack_nack: bool = field(init=False)
-
-    def __post_init__(self) -> None:
-        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
-
-    async def _subscribe(self) -> None:
-        await self._connection.write_frame_reconnecting(
-            SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
-        )
-        self._active_subscriptions[self.id] = self
-
-    async def unsubscribe(self) -> None:
-        del self._active_subscriptions[self.id]
-        await self._connection.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
-
-    async def _run_handler(self, frame: MessageFrame) -> None:
-        try:
-            await self.handler(frame)
-        except self.supressed_exception_classes as exception:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection.maybe_write_frame(
-                    NackFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
-                    )
-                )
-            self.on_suppressed_exception(exception, frame)
-        else:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection.maybe_write_frame(
-                    AckFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
-                    )
-                )
-
-
 @asynccontextmanager
 async def connection_lifespan(
     *,
@@ -165,6 +83,55 @@ async def connection_lifespan(
             break
 
 
+AckMode = Literal["client", "client-individual", "auto"]
+
+
+@dataclass(kw_only=True, slots=True)
+class Subscription:
+    id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
+    destination: str
+    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+    ack: AckMode
+    on_suppressed_exception: Callable[[Exception, MessageFrame], None]
+    supressed_exception_classes: tuple[type[Exception], ...]
+    _connection: ConnectionManager
+    _active_subscriptions: dict[str, "Subscription"]
+
+    _should_handle_ack_nack: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
+
+    async def _subscribe(self) -> None:
+        await self._connection.write_frame_reconnecting(
+            SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
+        )
+        self._active_subscriptions[self.id] = self
+
+    async def unsubscribe(self) -> None:
+        del self._active_subscriptions[self.id]
+        await self._connection.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
+
+    async def _run_handler(self, frame: MessageFrame) -> None:
+        try:
+            await self.handler(frame)
+        except self.supressed_exception_classes as exception:
+            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
+                await self._connection.maybe_write_frame(
+                    NackFrame(
+                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
+                    )
+                )
+            self.on_suppressed_exception(exception, frame)
+        else:
+            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
+                await self._connection.maybe_write_frame(
+                    AckFrame(
+                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
+                    )
+                )
+
+
 @asynccontextmanager
 async def subscriptions_lifespan(
     *, connection: AbstractConnection, active_subscriptions: dict[str, Subscription]
@@ -178,6 +145,39 @@ async def subscriptions_lifespan(
     yield
     for subscription in active_subscriptions.copy().values():
         await subscription.unsubscribe()
+
+
+@dataclass(kw_only=True, slots=True, unsafe_hash=True)
+class Transaction:
+    id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
+    _connection: ConnectionManager = field(hash=False)
+    _active_transactions: set["Transaction"] = field(hash=False)
+    sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
+
+    async def __aenter__(self) -> Self:
+        await self._connection.write_frame_reconnecting(BeginFrame(headers={"transaction": self.id}))
+        self._active_transactions.add(self)
+        return self
+
+    async def __aexit__(
+        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
+    ) -> None:
+        if exc_value:
+            await self._connection.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
+            self._active_transactions.remove(self)
+        else:
+            commited = await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
+            if commited:
+                self._active_transactions.remove(self)
+
+    async def send(
+        self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
+    ) -> None:
+        frame = SendFrame.build(
+            body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
+        )
+        self.sent_frames.append(frame)
+        await self._connection.write_frame_reconnecting(frame)
 
 
 async def commit_pending_transactions(*, connection: AbstractConnection, active_transactions: set[Transaction]) -> None:
