@@ -30,12 +30,13 @@ SendHeaders = TypedDict(
         "transaction": NotRequired[str],
     },
 )
+AckMode = Literal["client", "client-individual", "auto"]
 SubscribeHeaders = TypedDict(
     "SubscribeHeaders",
     {
         "id": str,
         "destination": str,
-        "ack": NotRequired[Literal["client", "client-individual", "auto"]],
+        "ack": NotRequired[AckMode],
         "content-length": NotRequired[str],
     },
 )

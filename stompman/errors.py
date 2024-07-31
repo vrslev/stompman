@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from stompman.frames import ErrorFrame, HeartbeatFrame, MessageFrame, ReceiptFrame
 
 if TYPE_CHECKING:
-    from stompman.client import ConnectionParameters
+    from stompman.config import ConnectionParameters
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
@@ -31,6 +31,11 @@ class FailedAllConnectAttemptsError(Error):
     retry_attempts: int
     retry_interval: int
     timeout: int
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class RepeatedConnectionLostError(Error):
+    retry_attempts: int
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

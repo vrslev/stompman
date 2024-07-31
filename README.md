@@ -105,18 +105,9 @@ stompman takes care of cleaning up resources automatically. When you leave the c
 
 ### Handling Connectivity Issues
 
-- If multiple servers were provided, stompman will attempt to connect to each one simultaneously and will use the first that succeeds.
+- If multiple servers were provided, stompman will attempt to connect to each one simultaneously and will use the first that succeeds. If all servers fail to connect, an `stompman.FailedAllConnectAttemptsError` will be raised. In normal situation it doesn't need to be handled: tune retry and timeout parameters in `stompman.Client()` to your needs.
 
-- If all servers fail to connect, an `stompman.FailedAllConnectAttemptsError` will be raised. In normal situation it doesn't need to be handled: tune retry and timeout parameters in `stompman.Client()` to your needs.
-
-- If a connection is lost, a `stompman.ConnectionLostError` will be raised. You should implement reconnect logic manually, for example, with stamina:
-
-  ```python
-  for attempt in stamina.retry_context(on=stompman.ConnectionLostError):
-      with attempt:
-          async with stompman.Client(...) as client:
-              ...
-  ```
+- When connection is lost, stompman will handle it automatically. `stompman.FailedAllConnectAttemptsError` will be raised if all connection attempts fail. `stompman.RepeatedConnectionLostError` will be raised if connection succeeds but operation (like sending a frame) leads to connection getting lost.
 
 ### ...and caveats
 

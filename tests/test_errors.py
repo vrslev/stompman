@@ -1,6 +1,6 @@
-from stompman import ConnectionConfirmationTimeoutError
+import stompman
 
 
 def test_error_str() -> None:
-    error = ConnectionConfirmationTimeoutError(timeout=1, frames=[])
+    error = stompman.ConnectionConfirmationTimeoutError(timeout=1, frames=[])
     assert str(error) == repr(error)
