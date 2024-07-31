@@ -59,9 +59,7 @@ def create_spying_connection(
     return BaseCollectingConnection, collected_frames
 
 
-def get_read_frames_with_lifespan(
-    read_frames: list[list[AnyServerFrame]],
-) -> list[list[AnyServerFrame]]:
+def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> list[list[AnyServerFrame]]:
     return [
         [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
@@ -69,9 +67,7 @@ def get_read_frames_with_lifespan(
     ]
 
 
-def enrich_expected_frames(
-    *expected_frames: AnyClientFrame | AnyServerFrame,
-) -> list[AnyClientFrame | AnyServerFrame]:
+def enrich_expected_frames(*expected_frames: AnyClientFrame | AnyServerFrame) -> list[AnyClientFrame | AnyServerFrame]:
     return [
         ConnectFrame(
             headers={
