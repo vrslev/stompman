@@ -99,7 +99,7 @@ def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stompman.client, "_make_receipt_id", lambda: "receipt-id-1")
 
 
-async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     connected_frame = build_dataclass(ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
     connection_class, collected_frames = create_spying_connection(
         [connected_frame], [], [(receipt_frame := build_dataclass(ReceiptFrame))]
@@ -125,7 +125,7 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert collected_frames == [connect_frame, connected_frame, disconnect_frame, receipt_frame]
 
 
-async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
     async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
         assert timeout == connection_confirmation_timeout
         task = asyncio.create_task(future)
@@ -153,7 +153,7 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
     )
 
 
-async def test_client_lifespan_unsupported_protocol_version() -> None:
+async def test_client_connection_lifespan_unsupported_protocol_version() -> None:
     given_version = FAKER.pystr()
 
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
