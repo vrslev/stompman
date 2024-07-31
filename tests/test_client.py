@@ -300,23 +300,22 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
 async def test_client_listen_unsubscribe_before_ack_or_nack(
     monkeypatch: pytest.MonkeyPatch, ack: AckMode, side_effect: object
 ) -> None:
-    monkeypatch.setattr(
-        stompman.client, "_make_subscription_id", mock.Mock(return_value=(subscription_id := FAKER.pystr()))
-    )
+    subscription_id, destination = FAKER.pystr(), FAKER.pystr()
+    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+
     message_frame = build_dataclass(MessageFrame, headers={"subscription": subscription_id})
-    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[message_frame]]))
-    handle_message = mock.AsyncMock(side_effect=side_effect)
-    destination = FAKER.pystr()
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([message_frame]))
+    message_handler = mock.AsyncMock(side_effect=side_effect)
 
     async with EnrichedClient(connection_class=connection_class) as client:
         subscription = await client.subscribe(
-            destination, handler=handle_message, on_suppressed_exception=noop_error_handler, ack=ack
+            destination, message_handler, on_suppressed_exception=noop_error_handler, ack=ack
         )
         await asyncio.sleep(0)
         await subscription.unsubscribe()
         await asyncio.sleep(0)
 
-    handle_message.assert_called_once_with(message_frame)
+    message_handler.assert_called_once_with(message_frame)
     assert collected_frames == enrich_expected_frames(
         SubscribeFrame(headers={"ack": ack, "destination": destination, "id": subscription_id}),
         message_frame,
