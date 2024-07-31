@@ -67,7 +67,7 @@ async def handle_message_from_dlq(message_frame: stompman.MessageFrame) -> None:
     print(message_frame.body)
 
 
-await client.subscribe("DLQ", handle_message_from_dlq)
+await client.subscribe("DLQ", handle_message_from_dlq, on_suppressed_exception=print)
 ```
 
 Entered `stompman.Client` will block forever waiting for messages if there are any active subscriptions.
@@ -75,7 +75,7 @@ Entered `stompman.Client` will block forever waiting for messages if there are a
 Sometimes it's useful to avoid that:
 
 ```python
-dlq_subscription = await client.subscribe("DLQ", handle_message_from_dlq)
+dlq_subscription = await client.subscribe("DLQ", handle_message_from_dlq, on_suppressed_exception=print)
 await dlq_subscription.unsubscribe()
 ```
 
@@ -93,10 +93,10 @@ You can change the ack mode used by specifying the `ack` parameter:
 
 ```python
 # Server will assume that all messages sent to the subscription before the ACK'ed message are received and processed:
-await client.subscribe("DLQ", handle_message_from_dlq, ack="client")
+await client.subscribe("DLQ", handle_message_from_dlq, ack="client", on_suppressed_exception=print)
 
 # Server will assume that messages are received as soon as it send them to client:
-await client.subscribe("DLQ", handle_message_from_dlq, ack="auto")
+await client.subscribe("DLQ", handle_message_from_dlq, ack="auto", on_suppressed_exception=print)
 ```
 
 ### Cleaning Up
