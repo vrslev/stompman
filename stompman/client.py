@@ -73,9 +73,9 @@ class Subscription:
     ack: AckMode
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
     supressed_exception_classes: tuple[type[Exception], ...]
-
     _connection: ConnectionManager
     _active_subscriptions: dict[str, "Subscription"]
+
     _should_handle_ack_nack: bool = field(init=False)
 
     def __post_init__(self) -> None:
@@ -111,11 +111,6 @@ class Subscription:
                 )
 
 
-@dataclass
-class ConnectionLifespanResult:
-    heartbeat_interval: float
-
-
 @asynccontextmanager
 async def connection_lifespan(
     *,
@@ -124,7 +119,7 @@ async def connection_lifespan(
     protocol_version: str,
     client_heartbeat: Heartbeat,
     connection_confirmation_timeout: int,
-) -> AsyncIterator[ConnectionLifespanResult]:
+) -> AsyncIterator[float]:
     await connection.write_frame(
         ConnectFrame(
             headers={
@@ -162,7 +157,7 @@ async def connection_lifespan(
     heartbeat_interval = (
         max(client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
     )
-    yield ConnectionLifespanResult(heartbeat_interval=heartbeat_interval)
+    yield heartbeat_interval
 
     await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
     async for frame in connection.read_frames():
@@ -257,8 +252,8 @@ class Client:
             protocol_version=self.PROTOCOL_VERSION,
             client_heartbeat=self.heartbeat,
             connection_confirmation_timeout=self.connection_confirmation_timeout,
-        ) as connection_lifespan_result:
-            self._restart_heartbeat_task(connection_lifespan_result.heartbeat_interval)
+        ) as heartbeat_interval:
+            self._restart_heartbeat_task(heartbeat_interval)
             async with subscriptions_lifespan(connection=connection, active_subscriptions=self._active_subscriptions):
                 await commit_pending_transactions(connection=connection, active_transactions=self._active_transactions)
                 yield
