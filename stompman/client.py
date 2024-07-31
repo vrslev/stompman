@@ -102,11 +102,10 @@ class Client:
     connect_retry_interval: int = 1
     connect_timeout: int = 2
     connection_confirmation_timeout: int = 2
-
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
-
     connection_class: type[AbstractConnection] = Connection
+
     _connection: ConnectionManager = field(init=False)
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _active_transactions: set[Transaction] = field(default_factory=set, init=False)
