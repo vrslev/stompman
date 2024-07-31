@@ -210,24 +210,16 @@ class Client:
         self._restart_heartbeat_task(heartbeat_interval)
         yield
 
-        if connection.active:
-            for subscription in self._active_subscriptions.copy().values():
-                await subscription.unsubscribe()
-        if connection.active:
-            await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-        if connection.active:
-            async for frame in connection.read_frames():
-                if isinstance(frame, ReceiptFrame):
-                    break
+        for subscription in self._active_subscriptions.copy().values():
+            await subscription.unsubscribe()
+        await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
+        async for frame in connection.read_frames():
+            if isinstance(frame, ReceiptFrame):
+                break
 
     async def _send_heartbeats_forever(self, interval: float) -> None:
-        while self._connection.active:
-            try:
-                await self._connection.write_heartbeat()
-            except ConnectionLostError:
-                # Avoid raising the error in an exception group.
-                # ConnectionLostError should be raised in a way that user expects it.
-                return
+        while True:
+            await self._connection.write_heartbeat()
             await asyncio.sleep(interval)
 
     async def _listen_to_frames(self) -> None:
