@@ -6,16 +6,18 @@ from unittest import mock
 
 import pytest
 
-import stompman
-from stompman.connection_manager import ActiveConnectionState
-from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError, RepeatedConnectionLostError
-from stompman.frames import (
+from stompman import (
     AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
+    ConnectionLostError,
+    ConnectionParameters,
     ErrorFrame,
+    FailedAllConnectAttemptsError,
     MessageFrame,
+    RepeatedConnectionLostError,
 )
+from stompman.connection_manager import ActiveConnectionState
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
@@ -67,13 +69,13 @@ async def test_connect_to_any_server_ok() -> None:
                 else None
             )
 
-    successful_server = build_dataclass(stompman.ConnectionParameters)
+    successful_server = build_dataclass(ConnectionParameters)
     manager = EnrichedConnectionManager(
         servers=[
-            build_dataclass(stompman.ConnectionParameters),
-            build_dataclass(stompman.ConnectionParameters),
+            build_dataclass(ConnectionParameters),
+            build_dataclass(ConnectionParameters),
             successful_server,
-            build_dataclass(stompman.ConnectionParameters),
+            build_dataclass(ConnectionParameters),
         ],
         connection_class=MockConnection,
     )
@@ -88,15 +90,15 @@ async def test_connect_to_any_server_fails() -> None:
 
     manager = EnrichedConnectionManager(
         servers=[
-            build_dataclass(stompman.ConnectionParameters),
-            build_dataclass(stompman.ConnectionParameters),
-            build_dataclass(stompman.ConnectionParameters),
-            build_dataclass(stompman.ConnectionParameters),
+            build_dataclass(ConnectionParameters),
+            build_dataclass(ConnectionParameters),
+            build_dataclass(ConnectionParameters),
+            build_dataclass(ConnectionParameters),
         ],
         connection_class=MockConnection,
     )
 
-    with pytest.raises(stompman.FailedAllConnectAttemptsError):
+    with pytest.raises(FailedAllConnectAttemptsError):
         await manager._connect_to_any_server()
 
 
@@ -119,7 +121,7 @@ async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
     lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
     manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
 
-    with pytest.raises(stompman.RepeatedConnectionLostError) as exc_info:
+    with pytest.raises(RepeatedConnectionLostError) as exc_info:
         await manager._get_active_connection_state()
 
     assert (

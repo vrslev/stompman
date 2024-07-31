@@ -12,13 +12,16 @@ from stompman import (
     AbortFrame,
     AbstractConnection,
     AckFrame,
+    AckMode,
     AnyClientFrame,
     AnyServerFrame,
     BeginFrame,
+    Client,
     CommitFrame,
     ConnectedFrame,
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
+    ConnectionParameters,
     DisconnectFrame,
     ErrorFrame,
     HeartbeatFrame,
@@ -30,8 +33,6 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.client import AckMode, Client
-from stompman.config import ConnectionParameters
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,
