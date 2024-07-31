@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
-from contextlib import AsyncExitStack, asynccontextmanager, suppress
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import ClassVar, Literal, Self
@@ -8,11 +8,7 @@ from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import ConnectionManager, ConnectionParameters, Heartbeat
-from stompman.errors import (
-    ConnectionConfirmationTimeoutError,
-    ConnectionLostError,
-    UnsupportedProtocolVersionError,
-)
+from stompman.errors import ConnectionConfirmationTimeoutError, UnsupportedProtocolVersionError
 from stompman.frames import (
     AbortFrame,
     AckFrame,
@@ -44,7 +40,7 @@ class Transaction:
         content_type: str | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
-        await self._connection.write_frame(
+        await self._connection.write_frame_reconnecting(
             SendFrame.build(
                 body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
             )
@@ -72,36 +68,28 @@ class Subscription:
 
     async def unsubscribe(self) -> None:
         del self._active_subscriptions[self.id]
-        if self._connection.active:
-            await self._connection.write_frame(UnsubscribeFrame(headers={"id": self.id}))
+        await self._connection.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
     async def _run_handler(self, frame: MessageFrame) -> None:
         called_nack = False
         try:
             await self.handler(frame)
         except self.supressed_exception_classes as exception:
-            if self._should_handle_ack_nack and self._connection.active and self.id in self._active_subscriptions:
-                with suppress(ConnectionLostError):
-                    await self._connection.write_frame(
-                        NackFrame(
-                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
-                        )
+            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
+                await self._connection.maybe_write_frame(
+                    NackFrame(
+                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
                     )
+                )
             called_nack = True
             self.on_suppressed_exception(exception, frame)
         finally:
-            if (
-                not called_nack
-                and self._should_handle_ack_nack
-                and self._connection.active
-                and self.id in self._active_subscriptions
-            ):
-                with suppress(ConnectionLostError):
-                    await self._connection.write_frame(
-                        AckFrame(
-                            headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
-                        )
+            if not called_nack and self._should_handle_ack_nack and self.id in self._active_subscriptions:
+                await self._connection.maybe_write_frame(
+                    AckFrame(
+                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
                     )
+                )
 
 
 @dataclass(kw_only=True, slots=True)
@@ -158,16 +146,11 @@ class Client:
                 self._heartbeat_task.cancel()
             await self._exit_stack.aclose()
 
-    def _restart_heartbeat_task(self, heartbeat_interval: float) -> None:
-        if self._heartbeat_task:
-            self._heartbeat_task.cancel()
-        self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(heartbeat_interval))
-
-    async def _wait_for_connected_frame(self) -> ConnectedFrame:
+    async def _wait_for_connected_frame(self, connection: AbstractConnection) -> ConnectedFrame:
         collected_frames = []
 
         async def inner() -> ConnectedFrame:
-            async for frame in self._connection.read_frames():
+            async for frame in connection.read_frames():
                 if isinstance(frame, ConnectedFrame):
                     return frame
                 collected_frames.append(frame)
@@ -196,7 +179,7 @@ class Client:
                 },
             )
         )
-        connected_frame = await self._wait_for_connected_frame()
+        connected_frame = await self._wait_for_connected_frame(connection)
 
         if connected_frame.headers["version"] != self.PROTOCOL_VERSION:
             raise UnsupportedProtocolVersionError(
@@ -217,14 +200,19 @@ class Client:
             if isinstance(frame, ReceiptFrame):
                 break
 
+    def _restart_heartbeat_task(self, heartbeat_interval: float) -> None:
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+        self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(heartbeat_interval))
+
     async def _send_heartbeats_forever(self, interval: float) -> None:
         while True:
-            await self._connection.write_heartbeat()
+            await self._connection.write_heartbeat_reconnecting()
             await asyncio.sleep(interval)
 
     async def _listen_to_frames(self) -> None:
         async with asyncio.TaskGroup() as task_group:
-            async for frame in self._connection.read_frames():
+            async for frame in self._connection.read_frames_reconnecting():
                 match frame:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
@@ -243,22 +231,20 @@ class Client:
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator[Transaction, None]:
         transaction_id = _make_transaction_id()
-        await self._connection.write_frame(BeginFrame(headers={"transaction": transaction_id}))
+        await self._connection.write_frame_reconnecting(BeginFrame(headers={"transaction": transaction_id}))
 
         try:
             yield Transaction(id=transaction_id, _connection=self._connection)
         except Exception:
-            if self._connection.active:
-                await self._connection.write_frame(AbortFrame(headers={"transaction": transaction_id}))
+            await self._connection.maybe_write_frame(AbortFrame(headers={"transaction": transaction_id}))
             raise
         else:
-            if self._connection.active:
-                await self._connection.write_frame(CommitFrame(headers={"transaction": transaction_id}))
+            await self._connection.maybe_write_frame(CommitFrame(headers={"transaction": transaction_id}))
 
     async def send(
         self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
-        await self._connection.write_frame(
+        await self._connection.write_frame_reconnecting(
             SendFrame.build(
                 body=body, destination=destination, transaction=None, content_type=content_type, headers=headers
             )
@@ -274,7 +260,7 @@ class Client:
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> "Subscription":
         subscription_id = _make_subscription_id()
-        await self._connection.write_frame(
+        await self._connection.write_frame_reconnecting(
             SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": ack})
         )
         subscription = Subscription(

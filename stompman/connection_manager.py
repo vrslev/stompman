@@ -107,8 +107,6 @@ class ConnectionManager:
     _active_connection_state: ActiveConnectionState | None = None
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
-    active: bool = True
-
     async def __aenter__(self) -> None:
         self._active_connection_state = await self._get_active_connection_state()
 
@@ -160,7 +158,10 @@ class ConnectionManager:
         self._active_connection_state = ActiveConnectionState(
             connection=connection, connection_parameters=connection_parameters, lifespan=lifespan
         )
-        await lifespan.__aenter__()  # noqa: PLC2801
+        try:
+            await lifespan.__aenter__()  # noqa: PLC2801
+        except ConnectionLostError:
+            return await self._get_active_connection_state()
         return self._active_connection_state
 
     def _clear_active_connection_state(self) -> None:
@@ -169,7 +170,7 @@ class ConnectionManager:
     async def _reconnect_if_not_already(self) -> ActiveConnectionState:
         return await self._get_active_connection_state()
 
-    async def write_heartbeat(self) -> None:
+    async def write_heartbeat_reconnecting(self) -> None:
         while True:
             connection_state = await self._reconnect_if_not_already()
             try:
@@ -177,7 +178,7 @@ class ConnectionManager:
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
-    async def write_frame(self, frame: AnyClientFrame) -> None:
+    async def write_frame_reconnecting(self, frame: AnyClientFrame) -> None:
         while True:
             connection_state = await self._reconnect_if_not_already()
             try:
@@ -185,7 +186,7 @@ class ConnectionManager:
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
-    async def read_frames(self) -> AsyncGenerator[AnyServerFrame, None]:
+    async def read_frames_reconnecting(self) -> AsyncGenerator[AnyServerFrame, None]:
         while True:
             connection_state = await self._reconnect_if_not_already()
             try:
@@ -195,3 +196,12 @@ class ConnectionManager:
                 self._clear_active_connection_state()
             else:
                 return
+
+    async def maybe_write_frame(self, frame: AnyClientFrame) -> bool:
+        if not (connection_state := await self._reconnect_if_not_already()):
+            return False
+        try:
+            await connection_state.connection.write_frame(frame)
+        except ConnectionLostError:
+            return False
+        return True
