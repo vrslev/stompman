@@ -179,29 +179,30 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
 
 
-@pytest.mark.parametrize("ack", get_args(AckMode))
-async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch, ack: AckMode) -> None:
-    first_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
-    second_subscribe_frame = SubscribeFrame(headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": ack})
+async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
+    first_subscribe_frame = SubscribeFrame(
+        headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": "client-individual"}
+    )
+    second_subscribe_frame = SubscribeFrame(
+        headers={"id": FAKER.pystr(), "destination": FAKER.pystr(), "ack": "client-individual"}
+    )
     monkeypatch.setattr(
         stompman.client,
         "_make_subscription_id",
         mock.Mock(side_effect=[first_subscribe_frame.headers["id"], second_subscribe_frame.headers["id"]]),
     )
-    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
         first_subscription = await client.subscribe(
             first_subscribe_frame.headers["destination"],
             handler=noop_message_handler,
             on_suppressed_exception=noop_error_handler,
-            ack=ack,
         )
         second_subscription = await client.subscribe(
             second_subscribe_frame.headers["destination"],
             handler=noop_message_handler,
             on_suppressed_exception=noop_error_handler,
-            ack=ack,
         )
         await asyncio.sleep(0)
         await first_subscription.unsubscribe()
