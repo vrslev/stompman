@@ -190,27 +190,36 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.parametrize("ack", get_args(AckMode))
-async def test_client_subscribtions_lifespan_resubscribe(monkeypatch: pytest.MonkeyPatch, ack: AckMode) -> None:
-    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
-    client = EnrichedClient(connection_class=connection_class)
-    destination = FAKER.pystr()
-    subscription = stompman.Subscription(
-        destination=destination,
-        handler=noop_message_handler,
-        ack=ack,
-        on_suppressed_exception=noop_error_handler,
-        supressed_exception_classes=(Exception,),
-        _connection=client._connection,
-        _active_subscriptions=client._active_subscriptions,
+async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
+    connection_class, collected_frames = create_spying_connection(
+        *get_read_frames_with_lifespan(
+            [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})], []
+        )
     )
-    client._active_subscriptions[subscription.id] = subscription
+    client = EnrichedClient(connection_class=connection_class)
+    sub_destination, message_destination, message_body = FAKER.pystr(), FAKER.pystr(), FAKER.binary(length=10)
 
     async with client:
+        subscription = await client.subscribe(
+            destination=sub_destination,
+            handler=noop_message_handler,
+            ack=ack,
+            on_suppressed_exception=noop_error_handler,
+        )
+        client._connection._active_connection_state = None
+        await client.send(message_body, destination=message_destination)
         await subscription.unsubscribe()
+        await asyncio.sleep(0)
         await asyncio.sleep(0)
 
     assert collected_frames == enrich_expected_frames(
-        SubscribeFrame(headers={"id": subscription.id, "destination": destination, "ack": ack}),
+        SubscribeFrame(headers={"id": subscription.id, "destination": sub_destination, "ack": ack}),
+        enrich_expected_frames()[0],
+        enrich_expected_frames()[1],
+        SubscribeFrame(headers={"id": subscription.id, "destination": sub_destination, "ack": ack}),
+        SendFrame(
+            headers={"destination": message_destination, "content-length": str(len(message_body))}, body=message_body
+        ),
         UnsubscribeFrame(headers={"id": subscription.id}),
     )
 
