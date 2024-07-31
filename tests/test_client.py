@@ -466,16 +466,16 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
 
 
 async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
-    connection_class, collected_frames = create_spying_connection(
-        *get_read_frames_with_lifespan(
-            [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})], []
-        )
-    )
     body, destination = FAKER.binary(length=10), FAKER.pystr()
     monkeypatch.setattr(
         stompman.client,
         "_make_transaction_id",
         mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
+    )
+    connection_class, collected_frames = create_spying_connection(
+        *get_read_frames_with_lifespan(
+            [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})], []
+        )
     )
     async with EnrichedClient(connection_class=connection_class) as client:
         async with client.begin() as first_transaction:
