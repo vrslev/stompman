@@ -117,14 +117,14 @@ async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def wait_for_mock(future: Coroutine[Any, Any, Any], timeout: float) -> object:
+    async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
         assert timeout == connection_confirmation_timeout
         task = asyncio.create_task(future)
         await asyncio.sleep(0)
         return await original_wait_for(task, 0)
 
     original_wait_for = asyncio.wait_for
-    monkeypatch.setattr("asyncio.wait_for", wait_for_mock)
+    monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
     error_frame = build_dataclass(ErrorFrame)
     connection_confirmation_timeout = FAKER.pyint()
 
