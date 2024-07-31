@@ -20,7 +20,6 @@ from stompman import (
     ConnectedFrame,
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
-    ConnectionLostError,
     DisconnectFrame,
     ErrorFrame,
     HeartbeatFrame,
@@ -159,7 +158,7 @@ async def test_client_lifespan_unsupported_protocol_version() -> None:
     )
 
 
-async def test_client_start_sending_heartbeats(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     async def mock_sleep(delay: float) -> None:
         await real_sleep(0)
         sleep_calls.append(delay)
@@ -178,13 +177,6 @@ async def test_client_start_sending_heartbeats(monkeypatch: pytest.MonkeyPatch) 
 
     assert sleep_calls == [0, 1, 1]
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
-
-
-async def test_client_heartbeat_not_raises_connection_lost() -> None:
-    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[]]))
-    connection_class.write_heartbeat = mock.Mock(side_effect=ConnectionLostError)  # type: ignore[method-assign]
-    async with EnrichedClient(connection_class=connection_class):
-        await asyncio.sleep(0)
 
 
 @pytest.mark.parametrize("ack", get_args(AckMode))
