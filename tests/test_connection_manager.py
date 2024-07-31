@@ -99,13 +99,8 @@ async def test_connect_to_any_server_fails() -> None:
 
 #     EnrichedConnectionManager(lifespan=mock.Mock(__aenter__=aenter_mock), connection_class=MockConnection)
 async def test_get_active_connection_state_fails() -> None:
-    aenter_mock = mock.AsyncMock()
-    connect_mock = mock.AsyncMock()
-
     class MockConnection(BaseMockConnection):
         connect = mock.AsyncMock(return_value=None)
 
     with pytest.raises(FailedAllConnectAttemptsError):
-        await EnrichedConnectionManager(
-            lifespan=mock.Mock(__aenter__=aenter_mock), connection_class=MockConnection
-        )._get_active_connection_state()
+        await EnrichedConnectionManager(connection_class=MockConnection)._get_active_connection_state()
