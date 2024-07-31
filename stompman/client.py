@@ -83,6 +83,10 @@ async def connection_lifespan(
             break
 
 
+def _make_receipt_id() -> str:
+    return str(uuid4())
+
+
 AckMode = Literal["client", "client-individual", "auto"]
 
 
@@ -132,6 +136,10 @@ class Subscription:
                 )
 
 
+def _make_subscription_id() -> str:
+    return str(uuid4())
+
+
 @asynccontextmanager
 async def subscriptions_lifespan(
     *, connection: AbstractConnection, active_subscriptions: dict[str, Subscription]
@@ -178,6 +186,10 @@ class Transaction:
         )
         self.sent_frames.append(frame)
         await self._connection.write_frame_reconnecting(frame)
+
+
+def _make_transaction_id() -> str:
+    return str(uuid4())
 
 
 async def commit_pending_transactions(*, connection: AbstractConnection, active_transactions: set[Transaction]) -> None:
@@ -321,15 +333,3 @@ class Client:
         )
         await subscription._subscribe()  # noqa: SLF001
         return subscription
-
-
-def _make_receipt_id() -> str:
-    return str(uuid4())
-
-
-def _make_subscription_id() -> str:
-    return str(uuid4())
-
-
-def _make_transaction_id() -> str:
-    return str(uuid4())
