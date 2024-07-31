@@ -12,7 +12,6 @@ from stompman import (
     AbortFrame,
     AbstractConnection,
     AckFrame,
-    AckMode,
     AnyClientFrame,
     AnyServerFrame,
     BeginFrame,
@@ -33,6 +32,7 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
+from stompman.frames import AckMode
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,

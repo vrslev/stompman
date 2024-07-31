@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import ClassVar, Literal, Self
+from typing import ClassVar, Self
 from uuid import uuid4
 
 from stompman.config import ConnectionParameters, Heartbeat
@@ -13,6 +13,7 @@ from stompman.errors import ConnectionConfirmationTimeoutError, UnsupportedProto
 from stompman.frames import (
     AbortFrame,
     AckFrame,
+    AckMode,
     BeginFrame,
     CommitFrame,
     ConnectedFrame,
@@ -85,9 +86,6 @@ async def connection_lifespan(
 
 def _make_receipt_id() -> str:
     return str(uuid4())
-
-
-AckMode = Literal["client", "client-individual", "auto"]
 
 
 @dataclass(kw_only=True, slots=True)
@@ -218,7 +216,7 @@ class Client:
     read_max_chunk_size: int = 1024 * 1024
     connection_class: type[AbstractConnection] = Connection
 
-    _connection: ConnectionManager = field(init=False) # TODO: Rename
+    _connection: ConnectionManager = field(init=False)  # TODO: Rename
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _active_transactions: set[Transaction] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
