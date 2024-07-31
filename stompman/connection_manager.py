@@ -75,23 +75,26 @@ class ConnectionManager:
         if self._active_connection_state:
             return self._active_connection_state
 
-        try:
-            async with self._reconnect_lock:
-                if self._active_connection_state:
-                    return self._active_connection_state
+        async with self._reconnect_lock:
+            if self._active_connection_state:
+                return self._active_connection_state
 
-                connection, connection_parameters = await self._connect_to_any_server()
-                lifespan = self.lifespan(connection, connection_parameters)
-                self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
+            connection, connection_parameters = await self._connect_to_any_server()
+            lifespan = self.lifespan(connection, connection_parameters)
+            self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
+
+            try:
                 await lifespan.__aenter__()  # noqa: PLC2801
-        except ConnectionLostError as error:
-            if attempt == self.connect_retry_attempts:
-                raise RepeatedConnectionLostInLifespanError(
-                    last_server=connection_parameters, retry_attempts=self.connect_retry_attempts
-                ) from error
-            self._clear_active_connection_state()
-            return await self._get_active_connection_state(attempt + 1)
-        return self._active_connection_state
+            except ConnectionLostError as error:
+                if attempt == self.connect_retry_attempts:
+                    raise RepeatedConnectionLostInLifespanError(
+                        last_server=connection_parameters, retry_attempts=self.connect_retry_attempts
+                    ) from error
+                self._clear_active_connection_state()
+            else:
+                return self._active_connection_state
+
+        return await self._get_active_connection_state(attempt + 1)
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None
