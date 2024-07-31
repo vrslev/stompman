@@ -67,7 +67,7 @@ async def handle_message_from_dlq(message_frame: stompman.MessageFrame) -> None:
     print(message_frame.body)
 
 
-await client.subscribe("DLQ", handle_message_from_dlq):
+await client.subscribe("DLQ", handle_message_from_dlq)
 ```
 
 Entered `stompman.Client` will block forever waiting for messages if there are any active subscriptions.
