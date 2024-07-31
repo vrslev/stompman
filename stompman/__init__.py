@@ -1,4 +1,4 @@
-from stompman.client import Client, Subscription, Transaction
+from stompman.client import AckMode, Client, Subscription, Transaction
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import ConnectionManager
@@ -35,6 +35,7 @@ __all__ = [
     "AbortFrame",
     "AbstractConnection",
     "AckFrame",
+    "AckMode",
     "AnyClientFrame",
     "AnyRealServerFrame",
     "AnyServerFrame",
