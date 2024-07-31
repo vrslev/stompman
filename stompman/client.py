@@ -187,7 +187,7 @@ class Client:
         )
         self._restart_heartbeat_task(heartbeat_interval)
 
-        yield 
+        yield
 
         await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
         async for frame in connection.read_frames():
