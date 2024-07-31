@@ -26,6 +26,7 @@ pytestmark = pytest.mark.anyio
 CONNECTION_PARAMETERS: Final = stompman.ConnectionParameters(
     host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode=":=123"
 )
+DESTINATION: Final = "DLQ"
 
 
 @asynccontextmanager
@@ -36,27 +37,11 @@ async def create_client() -> AsyncGenerator[stompman.Client, None]:
         yield client
 
 
-@pytest.fixture()
-async def client() -> AsyncGenerator[stompman.Client, None]:
-    async with create_client() as client:
-        yield client
-
-
-@pytest.fixture()
-def destination() -> str:
-    return "DLQ"
-
-
-async def close_active_connection(client: stompman.Client) -> None:
-    assert client._connection._active_connection_state
-    await client._connection._active_connection_state.connection.close()
-
-
-async def test_ok(destination: str) -> None:
+async def test_ok() -> None:
     async def produce() -> None:
         async with producer.begin() as transaction:
             for message in messages:
-                await transaction.send(body=message, destination=destination, headers={"hello": "world"})
+                await transaction.send(body=message, destination=DESTINATION, headers={"hello": "world"})
 
     async def consume() -> None:
         received_messages = []
@@ -69,7 +54,7 @@ async def test_ok(destination: str) -> None:
 
         async with asyncio.timeout(5):
             subscription = await consumer.subscribe(
-                destination=destination, handler=handle_message, on_suppressed_exception=print
+                destination=DESTINATION, handler=handle_message, on_suppressed_exception=print
             )
             await event.wait()
             await subscription.unsubscribe()
@@ -78,7 +63,7 @@ async def test_ok(destination: str) -> None:
 
     messages = [str(uuid4()).encode() for _ in range(10000)]
 
-    async with create_client() as consumer, create_client() as producer, asyncio.TaskGroup() as task_group:
+    async with asyncio.TaskGroup() as task_group, create_client() as consumer, create_client() as producer:
         task_group.create_task(consume())
         task_group.create_task(produce())
 
