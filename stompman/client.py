@@ -69,7 +69,6 @@ class Subscription:
         await self._connection.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
     async def _run_handler(self, frame: MessageFrame) -> None:
-        called_nack = False
         try:
             await self.handler(frame)
         except self.supressed_exception_classes as exception:
@@ -79,10 +78,9 @@ class Subscription:
                         headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
                     )
                 )
-            called_nack = True
             self.on_suppressed_exception(exception, frame)
-        finally:
-            if not called_nack and self._should_handle_ack_nack and self.id in self._active_subscriptions:
+        else:
+            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
                 await self._connection.maybe_write_frame(
                     AckFrame(
                         headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
