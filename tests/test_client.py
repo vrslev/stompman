@@ -59,7 +59,7 @@ def create_spying_connection(
     return BaseCollectingConnection, collected_frames
 
 
-def get_read_frames_with_lifespan(read_frames: list[list[AnyServerFrame]]) -> list[list[AnyServerFrame]]:
+def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[list[AnyServerFrame]]:
     return [
         [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})],
         *read_frames,
@@ -164,10 +164,11 @@ async def test_client_start_sending_heartbeats(monkeypatch: pytest.MonkeyPatch) 
         await real_sleep(0)
         sleep_calls.append(delay)
 
-    real_sleep = asyncio.sleep
     sleep_calls: list[float] = []
+    real_sleep = asyncio.sleep
     monkeypatch.setattr("asyncio.sleep", mock_sleep)
-    connection_class, _ = create_spying_connection(get_read_frames_with_lifespan([[]]))
+
+    connection_class, _ = create_spying_connection(*get_read_frames_with_lifespan([]))
     connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
 
     async with EnrichedClient(connection_class=connection_class):
