@@ -10,7 +10,6 @@ import pytest
 from hypothesis import given, strategies
 
 import stompman
-from stompman import AnyClientFrame, AnyServerFrame, HeartbeatFrame
 from stompman.serde import (
     COMMANDS_TO_FRAMES,
     NEWLINE,
@@ -85,8 +84,8 @@ async def test_ok(destination: str) -> None:
 
 
 def generate_frames(
-    cases: list[tuple[bytes, list[AnyClientFrame | AnyServerFrame]]],
-) -> tuple[list[bytes], list[AnyClientFrame | AnyServerFrame]]:
+    cases: list[tuple[bytes, list[stompman.AnyClientFrame | stompman.AnyServerFrame]]],
+) -> tuple[list[bytes], list[stompman.AnyClientFrame | stompman.AnyServerFrame]]:
     all_bytes, all_frames = [], []
 
     for noise, frames in cases:
@@ -95,7 +94,7 @@ def generate_frames(
             current_all_bytes.append(noise + NEWLINE)
 
         for frame in frames:
-            current_all_bytes.append(NEWLINE if isinstance(frame, HeartbeatFrame) else dump_frame(frame))
+            current_all_bytes.append(NEWLINE if isinstance(frame, stompman.HeartbeatFrame) else dump_frame(frame))
             all_frames.append(frame)
 
         all_bytes.append(b"".join(current_all_bytes))
@@ -118,7 +117,7 @@ headers_strategy = strategies.dictionaries(header_value_strategy, header_value_s
 )
 
 FRAMES_WITH_ESCAPED_HEADERS = tuple(command for command in COMMANDS_TO_FRAMES if command != b"CONNECT")
-frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
+frame_strategy = strategies.just(stompman.HeartbeatFrame()) | strategies.builds(
     make_frame_from_parts,
     command=strategies.sampled_from(FRAMES_WITH_ESCAPED_HEADERS),
     headers=headers_strategy,
@@ -132,7 +131,7 @@ frame_strategy = strategies.just(HeartbeatFrame()) | strategies.builds(
         strategies.lists(strategies.tuples(noise_bytes_strategy, strategies.lists(frame_strategy))),
     ),
 )
-def test_parsing(case: tuple[list[bytes], list[AnyClientFrame | AnyServerFrame]]) -> None:
+def test_parsing(case: tuple[list[bytes], list[stompman.AnyClientFrame | stompman.AnyServerFrame]]) -> None:
     stream_chunks, expected_frames = case
     parser = FrameParser()
     assert [frame for chunk in stream_chunks for frame in parser.parse_frames_from_chunk(chunk)] == expected_frames
