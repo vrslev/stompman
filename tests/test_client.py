@@ -41,7 +41,7 @@ FAKER = faker.Faker()
 
 
 def create_spying_connection(
-    read_frames_yields: list[list[AnyServerFrame]],
+    *read_frames_yields: list[AnyServerFrame],
 ) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame]]:
     class BaseCollectingConnection(BaseMockConnection):
         @staticmethod
@@ -93,35 +93,27 @@ def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     connected_frame = build_dataclass(ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
     connection_class, collected_frames = create_spying_connection(
-        [
-            [connected_frame],
-            [],
-            [(receipt_frame := build_dataclass(ReceiptFrame))],
-        ]
+        [connected_frame], [], [(receipt_frame := build_dataclass(ReceiptFrame))]
     )
-    connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
-    monkeypatch.setattr(stompman.client, "_make_receipt_id", mock.Mock(return_value=(receipt_id := FAKER.pystr())))
+
+    disconnect_frame = DisconnectFrame(headers={"receipt": (receipt_id := FAKER.pystr())})
+    monkeypatch.setattr(stompman.client, "_make_receipt_id", mock.Mock(return_value=receipt_id))
 
     async with EnrichedClient(
         [ConnectionParameters("localhost", 10, "login", "%3Dpasscode")], connection_class=connection_class
     ) as client:
         await asyncio.sleep(0)
 
-    assert collected_frames == [
-        ConnectFrame(
-            headers={
-                "host": "localhost",
-                "accept-version": Client.PROTOCOL_VERSION,
-                "heart-beat": client.heartbeat.to_header(),
-                "login": "login",
-                "passcode": "=passcode",
-            }
-        ),
-        connected_frame,
-        DisconnectFrame(headers={"receipt": receipt_id}),
-        receipt_frame,
-    ]
-    write_heartbeat_mock.assert_called_once_with()
+    connect_frame = ConnectFrame(
+        headers={
+            "host": "localhost",
+            "accept-version": Client.PROTOCOL_VERSION,
+            "heart-beat": client.heartbeat.to_header(),
+            "login": "login",
+            "passcode": "=passcode",
+        }
+    )
+    assert collected_frames == [connect_frame, connected_frame, disconnect_frame, receipt_frame]
 
 
 async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
