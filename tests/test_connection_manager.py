@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncGenerator
 from types import SimpleNamespace
 from typing import Self
 from unittest import mock
@@ -7,7 +8,8 @@ import pytest
 
 import stompman
 from stompman.connection_manager import ActiveConnectionState
-from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError
+from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError, RepeatedConnectionLostError
+from stompman.frames import AnyServerFrame, ConnectFrame
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
@@ -155,32 +157,57 @@ async def test_get_active_connection_state_ok_concurrent() -> None:
     lifespan.assert_called_once_with(BaseMockConnection(), manager.servers[0])
 
 
-# @pytest.mark.parametrize(
-#     "side_effect",
-#     [
-#         (None,),
-#         (ConnectionLostError, None),
-#         (ConnectionLostError, ConnectionLostError, None),
-#         [
-#             ConnectionLostError,
-#             ConnectionLostError,
-#             ConnectionLostError,
-#             ConnectionLostError,
-#             ConnectionLostError,
-#             ConnectionLostError,
-#             ConnectionLostError,
-#             ConnectionLostError,
-#         ],
-#     ],
-# )
-# async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
-#     write_heartbeat_mock = mock.Mock(side_effect=side_effect)
+async def test_write_heartbeat_reconnecting_raises() -> None:
+    write_heartbeat_mock = mock.Mock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
 
-#     class MockConnection(BaseMockConnection):
-#         write_heartbeat = write_heartbeat_mock
+    class MockConnection(BaseMockConnection):
+        write_heartbeat = write_heartbeat_mock
 
-#     manager = EnrichedConnectionManager(connection_class=MockConnection)
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-#     await manager.write_heartbeat_reconnecting()
+    with pytest.raises(RepeatedConnectionLostError):
+        await manager.write_heartbeat_reconnecting()
 
-#     assert len(write_heartbeat_mock.mock_calls) == len(side_effect)
+
+async def test_write_frame_reconnecting_raises() -> None:
+    write_frame_mock = mock.AsyncMock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
+
+    class MockConnection(BaseMockConnection):
+        write_frame = write_frame_mock
+
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+    with pytest.raises(RepeatedConnectionLostError):
+        await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
+
+
+async def test_read_frames_reconnecting_raises() -> None:
+    async def read_frames_mock(self: object) -> AsyncGenerator[AnyServerFrame, None]:
+        raise ConnectionLostError
+        yield
+        await asyncio.Future()
+
+    class MockConnection(BaseMockConnection):
+        read_frames = read_frames_mock  # type: ignore[assignment]
+
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+    with pytest.raises(RepeatedConnectionLostError):  # noqa: PT012
+        async for _ in manager.read_frames_reconnecting():
+            pass
+
+
+@pytest.mark.parametrize(
+    "side_effect", [(None,), (ConnectionLostError, None), (ConnectionLostError, ConnectionLostError, None)]
+)
+async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+    write_heartbeat_mock = mock.Mock(side_effect=side_effect)
+
+    class MockConnection(BaseMockConnection):
+        write_heartbeat = write_heartbeat_mock
+
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+    await manager.write_heartbeat_reconnecting()
+
+    assert len(write_heartbeat_mock.mock_calls) == len(side_effect)
