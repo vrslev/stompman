@@ -177,10 +177,7 @@ class ConnectionManager:
                 self._remove_active_connection()
 
     async def write_heartbeat(self) -> None:
-        async def inner(connection: AbstractConnection) -> None:  # noqa: RUF029
-            return connection.write_heartbeat()
-
-        return await self._run_with_ensured_connection(inner)
+        return await self._run_with_ensured_connection(_send_heartbeat_async)
 
     async def write_frame(self, frame: AnyClientFrame) -> None:
         return await self._run_with_ensured_connection(lambda connection: connection.write_frame(frame))
@@ -196,3 +193,7 @@ class ConnectionManager:
                 self._active_connection_state = await self._reconnect_if_not_already()
             else:
                 return
+
+
+async def _send_heartbeat_async(connection: AbstractConnection) -> None:  # noqa: RUF029
+    return connection.write_heartbeat()
