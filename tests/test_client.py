@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest import mock
 
 import faker
@@ -32,7 +32,6 @@ from stompman import (
 )
 from stompman.client import AckMode, Client
 from stompman.config import ConnectionParameters
-from stompman.frames import SendHeaders
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,
@@ -41,6 +40,9 @@ from tests.conftest import (
     noop_error_handler,
     noop_message_handler,
 )
+
+if TYPE_CHECKING:
+    from stompman.frames import SendHeaders
 
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
@@ -429,11 +431,7 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
 
 @pytest.mark.parametrize(
     "func",
-    [
-        stompman.client._make_receipt_id,
-        stompman.client._make_subscription_id,
-        stompman.client._make_transaction_id,
-    ],
+    [stompman.client._make_receipt_id, stompman.client._make_subscription_id, stompman.client._make_transaction_id],
 )
 def test_generate_ids(func: Callable[[], str]) -> None:
     func()
