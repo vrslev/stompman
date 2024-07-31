@@ -8,9 +8,7 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
-from stompman import AbstractConnection, Client
-from stompman.connection_manager import ConnectionManager, ConnectionParameters
-from stompman.frames import AnyClientFrame, AnyServerFrame
+from stompman import AbstractConnection, AnyClientFrame, AnyServerFrame, Client, ConnectionManager, ConnectionParameters
 
 
 @pytest.fixture(

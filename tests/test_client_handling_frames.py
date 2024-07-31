@@ -33,7 +33,7 @@ from stompman import (
     UnsupportedProtocolVersionError,
 )
 from stompman.client import AckMode, Client
-from stompman.connection_manager import ConnectionParameters
+from stompman.config import ConnectionParameters
 from tests.conftest import BaseMockConnection, EnrichedClient, build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio

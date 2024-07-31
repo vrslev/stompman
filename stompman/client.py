@@ -6,8 +6,9 @@ from types import TracebackType
 from typing import ClassVar, Literal, Self
 from uuid import uuid4
 
+from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
-from stompman.connection_manager import ConnectionManager, ConnectionParameters, Heartbeat
+from stompman.connection_manager import ConnectionManager
 from stompman.errors import ConnectionConfirmationTimeoutError, UnsupportedProtocolVersionError
 from stompman.frames import (
     AbortFrame,

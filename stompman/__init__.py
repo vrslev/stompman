@@ -1,6 +1,7 @@
 from stompman.client import Client, Subscription, Transaction
+from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
-from stompman.connection_manager import ConnectionManager, ConnectionParameters, Heartbeat
+from stompman.connection_manager import ConnectionManager
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
     ConnectionLostError,
