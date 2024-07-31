@@ -146,13 +146,13 @@ async def test_client_lifespan_connection_not_confirmed(monkeypatch: pytest.Monk
 
 async def test_client_lifespan_unsupported_protocol_version() -> None:
     given_version = FAKER.pystr()
-    connection_class, _ = create_spying_connection(
-        [[build_dataclass(ConnectedFrame, headers={"version": given_version})]]
-    )
-    client = EnrichedClient(connection_class=connection_class)
 
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
-        await client.__aenter__()  # noqa: PLC2801
+        await EnrichedClient(  # noqa: PLC2801
+            connection_class=create_spying_connection(
+                [build_dataclass(ConnectedFrame, headers={"version": given_version})]
+            )[0]
+        ).__aenter__()
 
     assert exc_info.value == UnsupportedProtocolVersionError(
         given_version=given_version, supported_version=Client.PROTOCOL_VERSION
