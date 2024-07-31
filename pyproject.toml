@@ -58,7 +58,7 @@ ignore = ["D1", "D203", "D213", "COM812", "ISC001", "CPY001"]
 extend-per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG"] }
 
 [tool.pytest.ini_options]
-addopts = "--cov -s"
+addopts = "--cov -s -vv"
 
 [tool.coverage.report]
 skip_covered = true
