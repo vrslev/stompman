@@ -21,6 +21,11 @@ def anyio_backend(request: pytest.FixtureRequest) -> object:
     return request.param
 
 
+@pytest.fixture()
+def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
+    monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())
+
+
 async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
 
 
@@ -70,11 +75,6 @@ class EnrichedConnectionManager(stompman.ConnectionManager):
     connect_timeout: int = 3
     read_timeout: int = 4
     read_max_chunk_size: int = 5
-
-
-@pytest.fixture()
-def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
-    monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())
 
 
 DataclassType = TypeVar("DataclassType")
