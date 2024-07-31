@@ -9,7 +9,6 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
-from stompman import AbstractConnection, AnyClientFrame, AnyServerFrame, Client, ConnectionManager, ConnectionParameters
 
 
 @pytest.fixture(
@@ -28,7 +27,7 @@ async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
 def noop_error_handler(exception: Exception, frame: stompman.MessageFrame) -> None: ...
 
 
-class BaseMockConnection(AbstractConnection):
+class BaseMockConnection(stompman.AbstractConnection):
     @classmethod
     async def connect(  # noqa: PLR0913
         cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
@@ -37,35 +36,35 @@ class BaseMockConnection(AbstractConnection):
 
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
-    async def write_frame(self, frame: AnyClientFrame) -> None: ...
+    async def write_frame(self, frame: stompman.AnyClientFrame) -> None: ...
     @staticmethod
-    async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:  # pragma: no cover
+    async def read_frames() -> AsyncGenerator[stompman.AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
         yield  # type: ignore[misc]
 
 
 @dataclass(kw_only=True, slots=True)
-class EnrichedClient(Client):
-    servers: list[ConnectionParameters] = field(
-        default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
+class EnrichedClient(stompman.Client):
+    servers: list[stompman.ConnectionParameters] = field(
+        default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
     )
 
 
 @asynccontextmanager
 async def noop_lifespan(  # noqa: RUF029
-    connection: AbstractConnection, connection_parameters: ConnectionParameters
+    connection: stompman.AbstractConnection, connection_parameters: stompman.ConnectionParameters
 ) -> AsyncIterator[None]:
     yield
 
 
 @dataclass(kw_only=True, slots=True)
-class EnrichedConnectionManager(ConnectionManager):
-    servers: list[ConnectionParameters] = field(
-        default_factory=lambda: [ConnectionParameters("localhost", 12345, "login", "passcode")]
+class EnrichedConnectionManager(stompman.ConnectionManager):
+    servers: list[stompman.ConnectionParameters] = field(
+        default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
-    lifespan: Callable[[AbstractConnection, ConnectionParameters], AbstractAsyncContextManager[None]] = field(
-        default=noop_lifespan
-    )
+    lifespan: Callable[
+        [stompman.AbstractConnection, stompman.ConnectionParameters], AbstractAsyncContextManager[None]
+    ] = field(default=noop_lifespan)
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 3
