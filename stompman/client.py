@@ -209,17 +209,6 @@ class Client:
         )
         self._restart_heartbeat_task(heartbeat_interval)
         yield
-        # async with asyncio.TaskGroup() as task_group:
-        #     # Background tasks initiated in lifespan should be bound to current connection to avoid conflicting with lifespan from different connection
-        #     # Heartbeat task is bound to a connection (heartbeat interval), but listen is not...
-
-        #     heartbeat_task = task_group.create_task(self._send_heartbeats_forever(heartbeat_interval))
-        #     listen_task = task_group.create_task(self._listen_to_frames())
-        #     try:
-        #         yield
-        #     finally:
-        #         heartbeat_task.cancel()
-        #         listen_task.cancel()
 
         if connection.active:
             for subscription in self._active_subscriptions.copy().values():
