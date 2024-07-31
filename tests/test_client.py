@@ -76,18 +76,22 @@ def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[li
     ]
 
 
+CONNECT_FRAME = ConnectFrame(
+    headers={
+        "accept-version": Client.PROTOCOL_VERSION,
+        "heart-beat": "1000,1000",
+        "host": "localhost",
+        "login": "login",
+        "passcode": "passcode",
+    },
+)
+CONNECTED_FRAME = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
+
+
 def enrich_expected_frames(*expected_frames: AnyClientFrame | AnyServerFrame) -> list[AnyClientFrame | AnyServerFrame]:
     return [
-        ConnectFrame(
-            headers={
-                "accept-version": Client.PROTOCOL_VERSION,
-                "heart-beat": "1000,1000",
-                "host": "localhost",
-                "login": "login",
-                "passcode": "passcode",
-            },
-        ),
-        ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"}),
+        CONNECT_FRAME,
+        CONNECTED_FRAME,
         *expected_frames,
         DisconnectFrame(headers={"receipt": "receipt-id-1"}),
         ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
@@ -191,11 +195,7 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.parametrize("ack", get_args(AckMode))
 async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
-    connection_class, collected_frames = create_spying_connection(
-        *get_read_frames_with_lifespan(
-            [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})], []
-        )
-    )
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     client = EnrichedClient(connection_class=connection_class)
     sub_destination, message_destination, message_body = FAKER.pystr(), FAKER.pystr(), FAKER.binary(length=10)
 
@@ -214,8 +214,8 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
 
     assert collected_frames == enrich_expected_frames(
         SubscribeFrame(headers={"id": subscription.id, "destination": sub_destination, "ack": ack}),
-        enrich_expected_frames()[0],
-        enrich_expected_frames()[1],
+        CONNECT_FRAME,
+        CONNECTED_FRAME,
         SubscribeFrame(headers={"id": subscription.id, "destination": sub_destination, "ack": ack}),
         SendFrame(
             headers={"destination": message_destination, "content-length": str(len(message_body))}, body=message_body
@@ -472,11 +472,7 @@ async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> N
         "_make_transaction_id",
         mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
     )
-    connection_class, collected_frames = create_spying_connection(
-        *get_read_frames_with_lifespan(
-            [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})], []
-        )
-    )
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     async with EnrichedClient(connection_class=connection_class) as client:
         async with client.begin() as first_transaction:
             await first_transaction.send(body, destination=destination)
@@ -491,8 +487,8 @@ async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> N
         SendFrame(
             headers={"destination": destination, "transaction": first_id, "content-length": str(len(body))}, body=body
         ),
-        enrich_expected_frames()[0],
-        enrich_expected_frames()[1],
+        CONNECT_FRAME,
+        CONNECTED_FRAME,
         SendFrame(
             headers={"destination": destination, "transaction": first_id, "content-length": str(len(body))}, body=body
         ),
