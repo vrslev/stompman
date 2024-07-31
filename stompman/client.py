@@ -187,7 +187,7 @@ class Client:
         )
         self._restart_heartbeat_task(heartbeat_interval)
 
-        yield
+        yield 
 
         await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
         async for frame in connection.read_frames():
@@ -216,50 +216,27 @@ class Client:
     async def _lifespan(
         self, connection: AbstractConnection, connection_parameters: ConnectionParameters
     ) -> AsyncGenerator[None, None]:
-        await connection.write_frame(
-            ConnectFrame(
-                headers={
-                    "accept-version": self.PROTOCOL_VERSION,
-                    "heart-beat": self.heartbeat.to_header(),
-                    "host": connection_parameters.host,
-                    "login": connection_parameters.login,
-                    "passcode": connection_parameters.unescaped_passcode,
-                },
-            )
-        )
-        connected_frame = await self._wait_for_connected_frame(connection)
-
-        if connected_frame.headers["version"] != self.PROTOCOL_VERSION:
-            raise UnsupportedProtocolVersionError(
-                given_version=connected_frame.headers["version"], supported_version=self.PROTOCOL_VERSION
-            )
-
-        server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
-        heartbeat_interval = (
-            max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
-        )
-        self._restart_heartbeat_task(heartbeat_interval)
-
-        for subscription in self._active_subscriptions.values():
-            await self._connection.write_frame_reconnecting(
-                SubscribeFrame(
-                    headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
+        async with self._connection_lifespan(connection=connection, connection_parameters=connection_parameters):
+            for subscription in self._active_subscriptions.values():
+                await connection.write_frame(
+                    SubscribeFrame(
+                        headers={
+                            "id": subscription.id,
+                            "destination": subscription.destination,
+                            "ack": subscription.ack,
+                        }
+                    )
                 )
-            )
-        for transaction in self._active_transactions:
-            for frame in transaction._sent_frames:  # noqa: SLF001
-                await connection.write_frame(frame)
-            await connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
-        self._active_transactions.clear()
+            for transaction in self._active_transactions:
+                for frame in transaction._sent_frames:  # noqa: SLF001
+                    await connection.write_frame(frame)
+                await connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
+            self._active_transactions.clear()
 
-        yield
+            yield
 
-        for subscription in self._active_subscriptions.copy().values():
-            await subscription.unsubscribe()
-        await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-        async for frame in connection.read_frames():
-            if isinstance(frame, ReceiptFrame):
-                break
+            for subscription in self._active_subscriptions.copy().values():
+                await subscription.unsubscribe()
 
     def _restart_heartbeat_task(self, heartbeat_interval: float) -> None:
         self._heartbeat_task.cancel()
