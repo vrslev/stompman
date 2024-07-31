@@ -91,15 +91,10 @@ def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_client_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    connected_frame = build_dataclass(ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
     connection_class, collected_frames = create_spying_connection(
         [
-            [
-                (
-                    connected_frame := build_dataclass(
-                        ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"}
-                    )
-                )
-            ],
+            [connected_frame],
             [],
             [(receipt_frame := build_dataclass(ReceiptFrame))],
         ]
