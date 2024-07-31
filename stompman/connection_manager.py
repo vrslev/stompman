@@ -203,5 +203,6 @@ class ConnectionManager:
         try:
             await connection_state.connection.write_frame(frame)
         except ConnectionLostError:
+            self._clear_active_connection_state()
             return False
         return True
