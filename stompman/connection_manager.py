@@ -77,6 +77,9 @@ class ConnectionManager:
 
         try:
             async with self._reconnect_lock:
+                if self._active_connection_state:
+                    return self._active_connection_state
+
                 connection, connection_parameters = await self._connect_to_any_server()
                 lifespan = self.lifespan(connection, connection_parameters)
                 self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)

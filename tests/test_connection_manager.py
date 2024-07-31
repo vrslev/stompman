@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from typing import Self
 from unittest import mock
@@ -5,6 +6,7 @@ from unittest import mock
 import pytest
 
 import stompman
+from stompman.connection_manager import ActiveConnectionState
 from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
@@ -126,3 +128,26 @@ async def test_get_active_connection_state_fails_to_connect() -> None:
 
     with pytest.raises(FailedAllConnectAttemptsError):
         await EnrichedConnectionManager(connection_class=MockConnection)._get_active_connection_state()
+
+
+async def test_get_active_connection_state_ok() -> None:
+    aenter = mock.AsyncMock(side_effect=None)
+    lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
+    manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
+
+    first_state, second_state, third_state = await asyncio.gather(
+        manager._get_active_connection_state(),
+        manager._get_active_connection_state(),
+        manager._get_active_connection_state(),
+    )
+
+    assert (
+        first_state
+        == second_state
+        == third_state
+        == ActiveConnectionState(connection=BaseMockConnection(), lifespan=lifespan.return_value)
+    )
+    assert first_state is second_state is third_state
+
+    aenter.assert_called_once_with()
+    lifespan.assert_called_once_with()
