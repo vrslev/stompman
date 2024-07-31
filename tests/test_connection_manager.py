@@ -163,6 +163,40 @@ async def test_get_active_connection_state_ok_concurrent() -> None:
     lifespan.assert_called_once_with(BaseMockConnection(), manager.servers[0])
 
 
+async def test_connection_manager_context_connection_lost() -> None:
+    async with EnrichedConnectionManager(connection_class=BaseMockConnection) as manager:
+        manager._clear_active_connection_state()
+
+
+async def test_connection_manager_context_lifespan_aexit_raises_connection_lost() -> None:
+    async with EnrichedConnectionManager(
+        lifespan=mock.Mock(
+            return_value=SimpleNamespace(
+                __aenter__=mock.AsyncMock(), __aexit__=mock.AsyncMock(side_effect=[ConnectionLostError])
+            )
+        ),
+        connection_class=BaseMockConnection,
+    ):
+        pass
+
+
+async def test_connection_manager_context_exist_ok() -> None:
+    aexit = mock.AsyncMock()
+    close_mock = mock.AsyncMock()
+
+    class MockConnection(BaseMockConnection):
+        close = close_mock
+
+    async with EnrichedConnectionManager(
+        lifespan=mock.Mock(return_value=SimpleNamespace(__aenter__=mock.AsyncMock(), __aexit__=aexit)),
+        connection_class=MockConnection,
+    ):
+        pass
+
+    aexit.assert_called_once()
+    close_mock.assert_called_once_with()
+
+
 async def test_write_heartbeat_reconnecting_raises() -> None:
     write_heartbeat_mock = mock.Mock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
 
@@ -200,10 +234,10 @@ async def test_read_frames_reconnecting_raises() -> None:
 
     with pytest.raises(RepeatedConnectionLostError):  # noqa: PT012
         async for _ in manager.read_frames_reconnecting():
-            pass
+            pass  # pragma: no cover
 
 
-SIDE_EFFECTS = [(None,), (ConnectionLostError, None), (ConnectionLostError, ConnectionLostError, None)]
+SIDE_EFFECTS = [(None,), (ConnectionLostError(), None), (ConnectionLostError(), ConnectionLostError(), None)]
 
 
 @pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
