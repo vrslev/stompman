@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Coroutine
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -141,6 +141,58 @@ class Client:
             self._listen_task.cancel()
             self._heartbeat_task.cancel()
             await self._exit_stack.aclose()
+
+    @asynccontextmanager
+    async def _connection_lifespan(
+        self, connection: AbstractConnection, connection_parameters: ConnectionParameters
+    ) -> AsyncIterator[None]:
+        await connection.write_frame(
+            ConnectFrame(
+                headers={
+                    "accept-version": self.PROTOCOL_VERSION,
+                    "heart-beat": self.heartbeat.to_header(),
+                    "host": connection_parameters.host,
+                    "login": connection_parameters.login,
+                    "passcode": connection_parameters.unescaped_passcode,
+                },
+            )
+        )
+        collected_frames = []
+
+        async def take_connected_frame() -> ConnectedFrame:
+            async for frame in connection.read_frames():
+                if isinstance(frame, ConnectedFrame):
+                    return frame
+                collected_frames.append(frame)
+            msg = "unreachable"  # pragma: no cover
+            raise AssertionError(msg)  # pragma: no cover
+
+        try:
+            connected_frame = await asyncio.wait_for(
+                take_connected_frame(), timeout=self.connection_confirmation_timeout
+            )
+        except TimeoutError as exception:
+            raise ConnectionConfirmationTimeoutError(
+                timeout=self.connection_confirmation_timeout, frames=collected_frames
+            ) from exception
+
+        if connected_frame.headers["version"] != self.PROTOCOL_VERSION:
+            raise UnsupportedProtocolVersionError(
+                given_version=connected_frame.headers["version"], supported_version=self.PROTOCOL_VERSION
+            )
+
+        server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
+        heartbeat_interval = (
+            max(self.heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
+        )
+        self._restart_heartbeat_task(heartbeat_interval)
+
+        yield
+
+        await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
+        async for frame in connection.read_frames():
+            if isinstance(frame, ReceiptFrame):
+                break
 
     async def _wait_for_connected_frame(self, connection: AbstractConnection) -> ConnectedFrame:
         collected_frames = []
