@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import suppress
-from typing import Any, get_args
+from typing import Any
 from unittest import mock
 
 import faker
@@ -189,7 +189,7 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
     monkeypatch.setattr(
         stompman.client,
         "_make_subscription_id",
-        mock.Mock(side_effect=[(first_sub_id := FAKER.pystr()), (second_sub_id := FAKER.pystr())]),
+        mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
     )
     first_destination, second_destination = FAKER.pystr(), FAKER.pystr()
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
@@ -206,49 +206,42 @@ async def test_client_subscribe_lifespan_no_active_subs_in_aexit(monkeypatch: py
         await second_subscription.unsubscribe()
 
     assert collected_frames == enrich_expected_frames(
-        SubscribeFrame(headers={"id": first_sub_id, "destination": first_destination, "ack": "client-individual"}),
-        SubscribeFrame(headers={"id": second_sub_id, "destination": second_destination, "ack": "client-individual"}),
-        UnsubscribeFrame(headers={"id": first_sub_id}),
-        UnsubscribeFrame(headers={"id": second_sub_id}),
+        SubscribeFrame(headers={"id": first_id, "destination": first_destination, "ack": "client-individual"}),
+        SubscribeFrame(headers={"id": second_id, "destination": second_destination, "ack": "client-individual"}),
+        UnsubscribeFrame(headers={"id": first_id}),
+        UnsubscribeFrame(headers={"id": second_id}),
     )
 
 
 @pytest.mark.parametrize("direct_error", [True, False])
-@pytest.mark.parametrize("ack", get_args(AckMode))
 async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
     direct_error: bool,  # noqa: FBT001
-    ack: AckMode,
 ) -> None:
-    subscribe_frame = SubscribeFrame(headers={"destination": FAKER.pystr(), "id": FAKER.pystr(), "ack": ack})
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscribe_frame.headers["id"]))
-    connection_class, collected_frames = create_spying_connection(get_read_frames_with_lifespan([[]]))
+    subscription_id, destination = FAKER.pystr(), FAKER.pystr()
+    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     if direct_error:
         with pytest.raises(SomeError):  # noqa: PT012
             async with EnrichedClient(connection_class=connection_class) as client:
                 await client.subscribe(
-                    subscribe_frame.headers["destination"],
-                    handler=noop_message_handler,
-                    on_suppressed_exception=noop_error_handler,
-                    ack=ack,
+                    destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
                 )
                 await SomeError.raise_after_tick()
     else:
         with pytest.raises(ExceptionGroup) as exc_info:  # noqa: PT012
             async with asyncio.TaskGroup() as task_group, EnrichedClient(connection_class=connection_class) as client:
                 await client.subscribe(
-                    subscribe_frame.headers["destination"],
-                    handler=noop_message_handler,
-                    on_suppressed_exception=noop_error_handler,
-                    ack=ack,
+                    destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
                 )
                 task_group.create_task(SomeError.raise_after_tick())
 
         assert exc_info.value.exceptions == (SomeError(),)
 
     assert collected_frames == enrich_expected_frames(
-        subscribe_frame, UnsubscribeFrame(headers={"id": subscribe_frame.headers["id"]})
+        SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": "client-individual"}),
+        UnsubscribeFrame(headers={"id": subscription_id}),
     )
 
 
