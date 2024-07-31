@@ -3,11 +3,11 @@ from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import ClassVar, Literal, NamedTuple, Self, TypedDict
-from urllib.parse import unquote
+from typing import ClassVar, Literal, Self
 from uuid import uuid4
 
 from stompman.connection import AbstractConnection, Connection
+from stompman.connection_manager import ConnectionManager, ConnectionParameters, Heartbeat
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
     ConnectionLostError,
@@ -33,82 +33,10 @@ from stompman.frames import (
 )
 
 
-class Heartbeat(NamedTuple):
-    will_send_interval_ms: int
-    want_to_receive_interval_ms: int
-
-    def to_header(self) -> str:
-        return f"{self.will_send_interval_ms},{self.want_to_receive_interval_ms}"
-
-    @classmethod
-    def from_header(cls, header: str) -> Self:
-        first, second = header.split(",", maxsplit=1)
-        return cls(int(first), int(second))
-
-
-class MultiHostHostLike(TypedDict):
-    username: str | None
-    password: str | None
-    host: str | None
-    port: int | None
-
-
-@dataclass(frozen=True, slots=True)
-class ConnectionParameters:
-    host: str
-    port: int
-    login: str
-    passcode: str = field(repr=False)
-
-    @property
-    def unescaped_passcode(self) -> str:
-        return unquote(self.passcode)
-
-    @classmethod
-    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
-        """Create connection parameters from a list of `MultiHostUrl` objects.
-
-        .. code-block:: python
-        import stompman.
-
-        ArtemisDsn = typing.Annotated[
-            pydantic_core.MultiHostUrl,
-            pydantic.UrlConstraints(
-                host_required=True,
-                allowed_schemes=["tcp"],
-            ),
-        ]
-
-        async with stompman.Client(
-            servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-                ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
-            ),
-        ):
-            ...
-        """
-        servers: list[Self] = []
-        for host in hosts:
-            if host["host"] is None:
-                msg = "host must be set"
-                raise ValueError(msg)
-            if host["port"] is None:
-                msg = "port must be set"
-                raise ValueError(msg)
-            if host["username"] is None:
-                msg = "username must be set"
-                raise ValueError(msg)
-            if host["password"] is None:
-                msg = "password must be set"
-                raise ValueError(msg)
-
-            servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
-        return servers
-
-
 @dataclass(kw_only=True, slots=True)
 class Transaction:
     id: str
-    _connection: AbstractConnection
+    _connection: ConnectionManager
 
     async def send(
         self,
@@ -136,7 +64,7 @@ class Subscription:
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
     supressed_exception_classes: tuple[type[Exception], ...]
 
-    _connection: AbstractConnection
+    _connection: ConnectionManager
     _active_subscriptions: dict[str, "Subscription"]
     _should_handle_ack_nack: bool = field(init=False)
 
@@ -196,13 +124,22 @@ class Client:
     read_max_chunk_size: int = 1024 * 1024
 
     connection_class: type[AbstractConnection] = Connection
-    _connection: AbstractConnection = field(init=False)
+    _connection: ConnectionManager = field(init=False)
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
 
     async def __aenter__(self) -> Self:
-        self._connection, connection_parameters = await self._connect_to_any_server()
-        await self._exit_stack.enter_async_context(self._lifespan(connection_parameters))
+        self._connection = ConnectionManager(
+            servers=self.servers,
+            lifespan=self._lifespan,
+            connection_class=self.connection_class,
+            connect_retry_attempts=self.connect_retry_attempts,
+            connect_retry_interval=self.connect_retry_interval,
+            connect_timeout=self.connect_timeout,
+            read_timeout=self.read_timeout,
+            read_max_chunk_size=self.read_max_chunk_size,
+        )
+        await self._exit_stack.enter_async_context(self._connection)
         return self
 
     async def __aexit__(
@@ -213,7 +150,6 @@ class Client:
                 await asyncio.Future()
         finally:
             await self._exit_stack.aclose()
-            await self._connection.close()
 
     async def _connect_to_one_server(
         self, server: ConnectionParameters
@@ -262,8 +198,10 @@ class Client:
             ) from exception
 
     @asynccontextmanager
-    async def _lifespan(self, connection_parameters: ConnectionParameters) -> AsyncGenerator[None, None]:
-        await self._connection.write_frame(
+    async def _lifespan(
+        self, connection: AbstractConnection, connection_parameters: ConnectionParameters
+    ) -> AsyncGenerator[None, None]:
+        await connection.write_frame(
             ConnectFrame(
                 headers={
                     "accept-version": self.PROTOCOL_VERSION,
@@ -295,20 +233,20 @@ class Client:
                 heartbeat_task.cancel()
                 listen_task.cancel()
 
-        if self._connection.active:
+        if connection.active:
             for subscription in self._active_subscriptions.copy().values():
                 await subscription.unsubscribe()
-        if self._connection.active:
-            await self._connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-        if self._connection.active:
-            async for frame in self._connection.read_frames():
+        if connection.active:
+            await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
+        if connection.active:
+            async for frame in connection.read_frames():
                 if isinstance(frame, ReceiptFrame):
                     break
 
     async def _send_heartbeats_forever(self, interval: float) -> None:
         while self._connection.active:
             try:
-                self._connection.write_heartbeat()
+                await self._connection.write_heartbeat()
             except ConnectionLostError:
                 # Avoid raising the error in an exception group.
                 # ConnectionLostError should be raised in a way that user expects it.

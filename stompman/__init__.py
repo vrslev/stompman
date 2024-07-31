@@ -1,5 +1,6 @@
-from stompman.client import Client, ConnectionParameters, Heartbeat, Subscription, Transaction
+from stompman.client import Client, Subscription, Transaction
 from stompman.connection import AbstractConnection, Connection
+from stompman.connection_manager import ConnectionManager, ConnectionParameters, Heartbeat
 from stompman.errors import (
     ConnectionConfirmationTimeoutError,
     ConnectionLostError,
@@ -43,6 +44,7 @@ __all__ = [
     "Connection",
     "ConnectionConfirmationTimeoutError",
     "ConnectionLostError",
+    "ConnectionManager",
     "ConnectionParameters",
     "DisconnectFrame",
     "Error",

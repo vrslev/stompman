@@ -8,7 +8,8 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
-from stompman import AbstractConnection, Client, ConnectionParameters
+from stompman import AbstractConnection, Client
+from stompman.connection_manager import ConnectionParameters
 from stompman.frames import AnyClientFrame, AnyServerFrame
 
 

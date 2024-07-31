@@ -21,7 +21,6 @@ from stompman import (
     ConnectFrame,
     ConnectionConfirmationTimeoutError,
     ConnectionLostError,
-    ConnectionParameters,
     DisconnectFrame,
     ErrorFrame,
     HeartbeatFrame,
@@ -34,6 +33,7 @@ from stompman import (
     UnsupportedProtocolVersionError,
 )
 from stompman.client import AckMode, Client
+from stompman.connection_manager import ConnectionParameters
 from tests.conftest import BaseMockConnection, EnrichedClient, build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
@@ -245,8 +245,8 @@ class SomeError(Exception):
         raise cls
 
 
-@pytest.mark.parametrize("ack", get_args(AckMode))
 @pytest.mark.parametrize("direct_error", [True, False])
+@pytest.mark.parametrize("ack", get_args(AckMode))
 async def test_client_subscribe_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
     direct_error: bool,  # noqa: FBT001

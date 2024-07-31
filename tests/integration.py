@@ -10,6 +10,7 @@ import pytest
 from hypothesis import given, strategies
 
 import stompman
+import stompman.connection_manager
 from stompman import AnyClientFrame, AnyServerFrame, ConnectionLostError, HeartbeatFrame
 from stompman.serde import (
     COMMANDS_TO_FRAMES,
@@ -25,7 +26,7 @@ from tests.conftest import build_dataclass, noop_error_handler, noop_message_han
 
 pytestmark = pytest.mark.anyio
 
-CONNECTION_PARAMETERS: Final = stompman.ConnectionParameters(
+CONNECTION_PARAMETERS: Final = stompman.connection_manager.ConnectionParameters(
     host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode=":=123"
 )
 
@@ -47,6 +48,11 @@ async def client() -> AsyncGenerator[stompman.Client, None]:
 @pytest.fixture()
 def destination() -> str:
     return "DLQ"
+
+
+async def close_active_connection(client: stompman.Client) -> None:
+    assert client._connection._active_connection_state
+    await client._connection._active_connection_state.connection.close()
 
 
 async def test_ok(destination: str) -> None:
@@ -81,11 +87,11 @@ async def test_ok(destination: str) -> None:
 
 
 async def test_not_raises_connection_lost_error_in_aexit(client: stompman.Client) -> None:
-    await client._connection.close()
+    await close_active_connection(client)
 
 
 async def test_not_raises_connection_lost_error_in_write_frame(client: stompman.Client) -> None:
-    await client._connection.close()
+    await close_active_connection(client)
 
     with pytest.raises(ConnectionLostError):
         await client._connection.write_frame(build_dataclass(stompman.ConnectFrame))
@@ -93,23 +99,23 @@ async def test_not_raises_connection_lost_error_in_write_frame(client: stompman.
 
 @pytest.mark.parametrize("anyio_backend", [("asyncio", {"use_uvloop": True})])
 async def test_not_raises_connection_lost_error_in_write_heartbeat(client: stompman.Client) -> None:
-    await client._connection.close()
+    await close_active_connection(client)
 
     with pytest.raises(ConnectionLostError):
-        client._connection.write_heartbeat()
+        await client._connection.write_heartbeat()
 
 
 async def test_not_raises_connection_lost_error_in_subscription(client: stompman.Client, destination: str) -> None:
     subscription = await client.subscribe(
         destination, handler=noop_message_handler, on_suppressed_exception=noop_error_handler
     )
-    await client._connection.close()
+    await close_active_connection(client)
     await subscription.unsubscribe()
 
 
 async def test_not_raises_connection_lost_error_in_transaction_without_send(client: stompman.Client) -> None:
     async with client.begin():
-        await client._connection.close()
+        await close_active_connection(client)
 
 
 async def test_not_raises_connection_lost_error_in_transaction_with_send(
@@ -117,14 +123,14 @@ async def test_not_raises_connection_lost_error_in_transaction_with_send(
 ) -> None:
     async with client.begin() as transaction:
         await transaction.send(b"first", destination=destination)
-        await client._connection.close()
+        await close_active_connection(client)
 
         with pytest.raises(ConnectionLostError):
             await transaction.send(b"second", destination=destination)
 
 
 async def test_raises_connection_lost_error_in_send(client: stompman.Client, destination: str) -> None:
-    await client._connection.close()
+    await close_active_connection(client)
 
     with pytest.raises(ConnectionLostError):
         await client.send(b"first", destination=destination)
