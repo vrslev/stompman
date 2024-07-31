@@ -9,7 +9,13 @@ import pytest
 import stompman
 from stompman.connection_manager import ActiveConnectionState
 from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError, RepeatedConnectionLostError
-from stompman.frames import AnyServerFrame, ConnectFrame
+from stompman.frames import (
+    AnyServerFrame,
+    ConnectedFrame,
+    ConnectFrame,
+    ErrorFrame,
+    MessageFrame,
+)
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
@@ -185,7 +191,7 @@ async def test_read_frames_reconnecting_raises() -> None:
     async def read_frames_mock(self: object) -> AsyncGenerator[AnyServerFrame, None]:
         raise ConnectionLostError
         yield
-        await asyncio.Future()
+        await asyncio.sleep(0)
 
     class MockConnection(BaseMockConnection):
         read_frames = read_frames_mock  # type: ignore[assignment]
@@ -197,9 +203,10 @@ async def test_read_frames_reconnecting_raises() -> None:
             pass
 
 
-@pytest.mark.parametrize(
-    "side_effect", [(None,), (ConnectionLostError, None), (ConnectionLostError, ConnectionLostError, None)]
-)
+SIDE_EFFECTS = [(None,), (ConnectionLostError, None), (ConnectionLostError, ConnectionLostError, None)]
+
+
+@pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
 async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
     write_heartbeat_mock = mock.Mock(side_effect=side_effect)
 
@@ -211,3 +218,62 @@ async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | Connect
     await manager.write_heartbeat_reconnecting()
 
     assert len(write_heartbeat_mock.mock_calls) == len(side_effect)
+
+
+@pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
+async def test_write_frame_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+    write_frame_mock = mock.AsyncMock(side_effect=side_effect)
+
+    class MockConnection(BaseMockConnection):
+        write_frame = write_frame_mock
+
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+    await manager.write_frame_reconnecting(frame := build_dataclass(ConnectFrame))
+
+    assert write_frame_mock.mock_calls == [mock.call(frame)] * len(side_effect)
+
+
+@pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
+async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+    frames: list[AnyServerFrame] = [
+        build_dataclass(ConnectedFrame),
+        build_dataclass(MessageFrame),
+        build_dataclass(ErrorFrame),
+    ]
+    attempt = -1
+
+    async def read_frames_mock(self: object) -> AsyncGenerator[AnyServerFrame, None]:
+        nonlocal attempt
+        attempt += 1
+        current_effect = side_effect[attempt]
+        if isinstance(current_effect, ConnectionLostError):
+            raise ConnectionLostError
+        for frame in frames:
+            yield frame
+        await asyncio.sleep(0)
+
+    class MockConnection(BaseMockConnection):
+        read_frames = read_frames_mock  # type: ignore[assignment]
+
+    manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+    assert frames == [frame async for frame in manager.read_frames_reconnecting()]
+
+
+async def test_maybe_write_frame_connection_already_lost() -> None:
+    manager = EnrichedConnectionManager(connection_class=BaseMockConnection)
+    assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
+
+
+async def test_maybe_write_frame_connection_now_lost() -> None:
+    class MockConnection(BaseMockConnection):
+        write_frame = mock.AsyncMock(side_effect=[ConnectionLostError])
+
+    async with EnrichedConnectionManager(connection_class=MockConnection) as manager:
+        assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
+
+
+async def test_maybe_write_frame_ok() -> None:
+    async with EnrichedConnectionManager(connection_class=BaseMockConnection) as manager:
+        assert await manager.maybe_write_frame(build_dataclass(ConnectFrame))

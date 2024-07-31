@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from types import TracebackType
+from typing import Self
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
@@ -29,8 +30,9 @@ class ConnectionManager:
     _active_connection_state: ActiveConnectionState | None = field(default=None, init=False)
     _reconnect_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    async def __aenter__(self) -> None:
+    async def __aenter__(self) -> Self:
         self._active_connection_state = await self._get_active_connection_state()
+        return self
 
     async def __aexit__(
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
@@ -130,10 +132,10 @@ class ConnectionManager:
         raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
 
     async def maybe_write_frame(self, frame: AnyClientFrame) -> bool:
-        if not (connection_state := await self._get_active_connection_state()):
+        if not self._active_connection_state:
             return False
         try:
-            await connection_state.connection.write_frame(frame)
+            await self._active_connection_state.connection.write_frame(frame)
         except ConnectionLostError:
             self._clear_active_connection_state()
             return False
