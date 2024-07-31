@@ -110,7 +110,7 @@ class Client:
     _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _active_transactions: set[Transaction] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
-    _heartbeat_task: asyncio.Task[None] | None = field(default=None, init=False)
+    _heartbeat_task: asyncio.Task[None] = field(init=False)
     _listen_task: asyncio.Task[None] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -126,6 +126,7 @@ class Client:
         )
 
     async def __aenter__(self) -> Self:
+        self._heartbeat_task = asyncio.create_task(asyncio.sleep(0))
         await self._exit_stack.enter_async_context(self._connection)
         self._listen_task = asyncio.create_task(self._listen_to_frames())
         return self
@@ -138,8 +139,7 @@ class Client:
                 await asyncio.Future()
         finally:
             self._listen_task.cancel()
-            if self._heartbeat_task:
-                self._heartbeat_task.cancel()
+            self._heartbeat_task.cancel()
             await self._exit_stack.aclose()
 
     async def _wait_for_connected_frame(self, connection: AbstractConnection) -> ConnectedFrame:
@@ -210,8 +210,7 @@ class Client:
                 break
 
     def _restart_heartbeat_task(self, heartbeat_interval: float) -> None:
-        if self._heartbeat_task:
-            self._heartbeat_task.cancel()
+        self._heartbeat_task.cancel()
         self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(heartbeat_interval))
 
     async def _send_heartbeats_forever(self, interval: float) -> None:
