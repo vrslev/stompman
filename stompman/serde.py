@@ -138,11 +138,8 @@ def parse_header(buffer: bytearray) -> tuple[str, str] | None:
 
 def make_frame_from_parts(*, command: bytes, headers: dict[str, str], body: bytes) -> AnyClientFrame | AnyServerFrame:
     frame_type = COMMANDS_TO_FRAMES[command]
-    return (
-        frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
-        if frame_type in FRAMES_WITH_BODY
-        else frame_type(headers=cast(Any, headers))  # type: ignore[call-arg]
-    )
+    headers_ = cast(Any, headers)
+    return frame_type(headers=headers_, body=body) if frame_type in FRAMES_WITH_BODY else frame_type(headers=headers_)  # type: ignore[call-arg]
 
 
 def parse_lines_into_frame(lines: deque[bytearray]) -> AnyClientFrame | AnyServerFrame:
