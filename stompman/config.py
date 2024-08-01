@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
-from typing import NamedTuple, Self, TypedDict
+from typing import Self, TypedDict
 from urllib.parse import unquote
 
 
-class Heartbeat(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class Heartbeat:
     will_send_interval_ms: int
     want_to_receive_interval_ms: int
 
