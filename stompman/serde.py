@@ -98,7 +98,7 @@ def dump_frame(frame: AnyClientFrame | AnyRealServerFrame) -> bytes:
     return b"".join(lines)
 
 
-def unescape_byte(byte: bytes, previous_byte: bytes | None) -> bytes | None:
+def unescape_byte(*, byte: bytes, previous_byte: bytes | None) -> bytes | None:
     if previous_byte == BACKSLASH:
         return HEADER_UNESCAPE_CHARS.get(byte)
     if byte == BACKSLASH:
@@ -123,7 +123,7 @@ def parse_header(buffer: bytearray) -> tuple[str, str] | None:
             just_escaped_line = False
             if byte != BACKSLASH:
                 (value_buffer if key_parsed else key_buffer).extend(byte)
-        elif unescaped_byte := unescape_byte(byte, previous_byte):
+        elif unescaped_byte := unescape_byte(byte=byte, previous_byte=previous_byte):
             just_escaped_line = True
             (value_buffer if key_parsed else key_buffer).extend(unescaped_byte)
 
@@ -136,7 +136,7 @@ def parse_header(buffer: bytearray) -> tuple[str, str] | None:
     return None
 
 
-def make_frame_from_parts(command: bytes, headers: dict[str, str], body: bytes) -> AnyClientFrame | AnyServerFrame:
+def make_frame_from_parts(*, command: bytes, headers: dict[str, str], body: bytes) -> AnyClientFrame | AnyServerFrame:
     frame_type = COMMANDS_TO_FRAMES[command]
     return (
         frame_type(headers=cast(Any, headers), body=body)  # type: ignore[call-arg]
