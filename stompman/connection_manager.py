@@ -87,7 +87,7 @@ class ConnectionManager:
                 self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
 
                 try:
-                    await lifespan.__aenter__()  # noqa: PLC2801
+                    await lifespan.__aenter__()
                 except ConnectionLostError:
                     self._clear_active_connection_state()
                 else:
