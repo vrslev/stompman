@@ -246,9 +246,8 @@ async def test_read_frames_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(RepeatedConnectionLostError):  # noqa: PT012
-        async for _ in manager.read_frames_reconnecting():
-            pass  # pragma: no cover
+    with pytest.raises(RepeatedConnectionLostError):
+        [_ async for _ in manager.read_frames_reconnecting()]
 
 
 SIDE_EFFECTS = [(None,), (ConnectionLostError(), None), (ConnectionLostError(), ConnectionLostError(), None)]

@@ -9,6 +9,7 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
+from stompman.frames import HeartbeatFrame
 
 
 @pytest.fixture(
@@ -45,7 +46,7 @@ class BaseMockConnection(stompman.AbstractConnection):
     @staticmethod
     async def read_frames() -> AsyncGenerator[stompman.AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
-        yield  # type: ignore[misc]
+        yield HeartbeatFrame()
 
 
 @dataclass(kw_only=True, slots=True)
