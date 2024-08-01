@@ -27,7 +27,6 @@ async with stompman.Client(
 
     # Handlers:
     on_error_frame=lambda error_frame: print(error_frame.body),
-    on_unhandled_message_frame=lambda message_frame: print(message_frame.body),
     on_heartbeat=lambda: print("Server sent a heartbeat"),
 
     # Optional parameters with sensible defaults:
