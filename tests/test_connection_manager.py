@@ -236,13 +236,12 @@ async def test_write_frame_reconnecting_raises() -> None:
 
 
 async def test_read_frames_reconnecting_raises() -> None:
-    async def read_frames_mock(self: object) -> AsyncGenerator[AnyServerFrame, None]:
-        raise ConnectionLostError
-        yield
-        await asyncio.sleep(0)
-
     class MockConnection(BaseMockConnection):
-        read_frames = read_frames_mock  # type: ignore[assignment]
+        @staticmethod
+        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
+            raise ConnectionLostError
+            yield
+            await asyncio.sleep(0)
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
@@ -290,18 +289,17 @@ async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionL
     ]
     attempt = -1
 
-    async def read_frames_mock(self: object) -> AsyncGenerator[AnyServerFrame, None]:
-        nonlocal attempt
-        attempt += 1
-        current_effect = side_effect[attempt]
-        if isinstance(current_effect, ConnectionLostError):
-            raise ConnectionLostError
-        for frame in frames:
-            yield frame
-        await asyncio.sleep(0)
-
     class MockConnection(BaseMockConnection):
-        read_frames = read_frames_mock  # type: ignore[assignment]
+        @staticmethod
+        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
+            nonlocal attempt
+            attempt += 1
+            current_effect = side_effect[attempt]
+            if isinstance(current_effect, ConnectionLostError):
+                raise ConnectionLostError
+            for frame in frames:
+                yield frame
+            await asyncio.sleep(0)
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 

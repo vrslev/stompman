@@ -76,7 +76,6 @@ async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
         HeartbeatFrame(),
         ConnectedFrame(headers={"heart-beat": "0,0", "version": "1.2", "server": "some server"}),
     ]
-    max_chunk_size = 1024
 
     class MockReader:
         read = mock.AsyncMock(side_effect=read_bytes)
@@ -100,7 +99,7 @@ async def test_connection_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
     MockWriter.close.assert_called_once_with()
     MockWriter.wait_closed.assert_called_once_with()
     MockWriter.drain.assert_called_once_with()
-    MockReader.read.mock_calls = [mock.call(max_chunk_size)] * len(read_bytes)  # type: ignore[assignment]
+    assert MockReader.read.mock_calls == [mock.call(connection.read_max_chunk_size)] * len(read_bytes)
     assert MockWriter.write.mock_calls == [mock.call(NEWLINE), mock.call(b"COMMIT\ntransaction:transaction\n\n\x00")]
 
 
