@@ -322,7 +322,7 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
                 build_dataclass(ReceiptFrame),
                 (first_message_frame := build_dataclass(MessageFrame, headers={"subscription": first_sub_id})),
                 (error_frame := build_dataclass(ErrorFrame)),
-                (second_message_frame := build_dataclass(MessageFrame)),
+                (_second_message_frame := build_dataclass(MessageFrame)),
                 (third_message_frame := build_dataclass(MessageFrame, headers={"subscription": second_sub_id})),
                 HeartbeatFrame(),
             ]
@@ -335,7 +335,6 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
         connection_class=connection_class,
         on_error_frame=(on_error_frame := mock.Mock()),
         on_heartbeat=(on_heartbeat := mock.Mock()),
-        on_unhandled_message_frame=(on_unhandled_message_frame := mock.Mock()),
     ) as client:
         first_subscription = await client.subscribe(
             FAKER.pystr(), handler=first_message_handler, on_suppressed_exception=first_error_handler
@@ -356,7 +355,6 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
 
     on_error_frame.assert_called_once_with(error_frame)
     on_heartbeat.assert_called_once_with()
-    on_unhandled_message_frame.assert_called_once_with(second_message_frame)
 
 
 @pytest.mark.parametrize("side_effect", [None, SomeError])

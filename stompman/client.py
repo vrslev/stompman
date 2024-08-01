@@ -212,7 +212,6 @@ class Client:
 
     servers: list[ConnectionParameters] = field(kw_only=False)
     on_error_frame: Callable[[ErrorFrame], None] | None = None
-    on_unhandled_message_frame: Callable[[MessageFrame], None] | None = None
     on_heartbeat: Callable[[], None] | None = None
 
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
@@ -296,8 +295,6 @@ class Client:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
                             task_group.create_task(subscription._run_handler(frame=frame))  # noqa: SLF001
-                        elif self.on_unhandled_message_frame:
-                            self.on_unhandled_message_frame(frame)
                     case ErrorFrame():
                         if self.on_error_frame:
                             self.on_error_frame(frame)
