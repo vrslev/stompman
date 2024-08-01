@@ -142,7 +142,7 @@ class SendFrame:
     body: bytes = b""
 
     @classmethod
-    def build(  # noqa: PLR0913
+    def build(
         cls,
         *,
         body: bytes,

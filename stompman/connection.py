@@ -13,8 +13,8 @@ from stompman.serde import NEWLINE, FrameParser, dump_frame
 @dataclass(kw_only=True)
 class AbstractConnection(Protocol):
     @classmethod
-    async def connect(  # noqa: PLR0913
-        cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+    async def connect(
+        cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
     ) -> Self | None: ...
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
@@ -38,8 +38,8 @@ class Connection(AbstractConnection):
     read_timeout: int
 
     @classmethod
-    async def connect(  # noqa: PLR0913
-        cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+    async def connect(
+        cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
     ) -> Self | None:
         try:
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)

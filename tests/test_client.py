@@ -148,7 +148,7 @@ async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: 
             await asyncio.sleep(0)
 
     with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
-        await EnrichedClient(  # noqa: PLC2801
+        await EnrichedClient(
             connection_class=MockConnection, connection_confirmation_timeout=connection_confirmation_timeout
         ).__aenter__()
 
@@ -161,7 +161,7 @@ async def test_client_connection_lifespan_unsupported_protocol_version() -> None
     given_version = FAKER.pystr()
 
     with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
-        await EnrichedClient(  # noqa: PLC2801
+        await EnrichedClient(
             connection_class=create_spying_connection(
                 [build_dataclass(ConnectedFrame, headers={"version": given_version})]
             )[0]
@@ -279,7 +279,8 @@ async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(monkeypatch
 @pytest.mark.parametrize("direct_error", [True, False])
 async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
-    direct_error: bool,  # noqa: FBT001
+    *,
+    direct_error: bool,
 ) -> None:
     subscription_id, destination = FAKER.pystr(), FAKER.pystr()
     monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
@@ -388,7 +389,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 
 @pytest.mark.parametrize("ok", [True, False])
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
-async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack: AckMode, ok: bool) -> None:  # noqa: FBT001
+async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack: AckMode, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
     monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
@@ -418,7 +419,7 @@ async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack:
 
 
 @pytest.mark.parametrize("ok", [True, False])
-async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, ok: bool) -> None:  # noqa: FBT001
+async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
     monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 

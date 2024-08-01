@@ -54,7 +54,7 @@ line-length = 120
 [tool.ruff.lint]
 preview = true
 select = ["ALL"]
-ignore = ["D1", "D203", "D213", "COM812", "ISC001", "CPY001"]
+ignore = ["D1", "D203", "D213", "COM812", "ISC001", "CPY001", "PLR0913", "PLC2801"]
 extend-per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG"] }
 
 [tool.pytest.ini_options]

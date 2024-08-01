@@ -29,15 +29,21 @@ async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.
 
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(  # noqa: PLR0913
-            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        async def connect(
+            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
         ) -> Self | None:
             assert (host, port) == (manager.servers[0].host, manager.servers[0].port)
             nonlocal attempts
             attempts += 1
 
             return (
-                await super().connect(host, port, timeout, read_max_chunk_size, read_timeout)
+                await super().connect(
+                    host=host,
+                    port=port,
+                    timeout=timeout,
+                    read_max_chunk_size=read_max_chunk_size,
+                    read_timeout=read_timeout,
+                )
                 if attempts == ok_on_attempt
                 else None
             )
@@ -60,11 +66,17 @@ async def test_connect_to_one_server_fails() -> None:
 async def test_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(  # noqa: PLR0913
-            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        async def connect(
+            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
         ) -> Self | None:
             return (
-                await super().connect(host, port, timeout, read_max_chunk_size, read_timeout)
+                await super().connect(
+                    host=host,
+                    port=port,
+                    timeout=timeout,
+                    read_max_chunk_size=read_max_chunk_size,
+                    read_timeout=read_timeout,
+                )
                 if port == successful_server.port
                 else None
             )
@@ -224,19 +236,17 @@ async def test_write_frame_reconnecting_raises() -> None:
 
 
 async def test_read_frames_reconnecting_raises() -> None:
-    async def read_frames_mock(self: object) -> AsyncGenerator[AnyServerFrame, None]:
-        raise ConnectionLostError
-        yield
-        await asyncio.sleep(0)
-
     class MockConnection(BaseMockConnection):
-        read_frames = read_frames_mock  # type: ignore[assignment]
+        @staticmethod
+        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
+            raise ConnectionLostError
+            yield
+            await asyncio.sleep(0)
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(RepeatedConnectionLostError):  # noqa: PT012
-        async for _ in manager.read_frames_reconnecting():
-            pass  # pragma: no cover
+    with pytest.raises(RepeatedConnectionLostError):
+        [_ async for _ in manager.read_frames_reconnecting()]
 
 
 SIDE_EFFECTS = [(None,), (ConnectionLostError(), None), (ConnectionLostError(), ConnectionLostError(), None)]
@@ -279,18 +289,17 @@ async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionL
     ]
     attempt = -1
 
-    async def read_frames_mock(self: object) -> AsyncGenerator[AnyServerFrame, None]:
-        nonlocal attempt
-        attempt += 1
-        current_effect = side_effect[attempt]
-        if isinstance(current_effect, ConnectionLostError):
-            raise ConnectionLostError
-        for frame in frames:
-            yield frame
-        await asyncio.sleep(0)
-
     class MockConnection(BaseMockConnection):
-        read_frames = read_frames_mock  # type: ignore[assignment]
+        @staticmethod
+        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
+            nonlocal attempt
+            attempt += 1
+            current_effect = side_effect[attempt]
+            if isinstance(current_effect, ConnectionLostError):
+                raise ConnectionLostError
+            for frame in frames:
+                yield frame
+            await asyncio.sleep(0)
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 

@@ -27,6 +27,7 @@ class ConnectionManager:
     connect_timeout: int
     read_timeout: int
     read_max_chunk_size: int
+
     _active_connection_state: ActiveConnectionState | None = field(default=None, init=False)
     _reconnect_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
@@ -87,7 +88,7 @@ class ConnectionManager:
                 self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
 
                 try:
-                    await lifespan.__aenter__()  # noqa: PLC2801
+                    await lifespan.__aenter__()
                 except ConnectionLostError:
                     self._clear_active_connection_state()
                 else:
