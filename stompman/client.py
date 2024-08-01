@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import ClassVar, Self
@@ -38,6 +38,7 @@ async def connection_lifespan(
     protocol_version: str,
     client_heartbeat: Heartbeat,
     connection_confirmation_timeout: int,
+    disconnect_confirmation_timeout: int,
 ) -> AsyncIterator[float]:
     await connection.write_frame(
         ConnectFrame(
@@ -52,7 +53,7 @@ async def connection_lifespan(
     )
     collected_frames = []
 
-    async def take_connected_frame() -> ConnectedFrame:
+    async def take_connected_frame_and_collect_other_frames() -> ConnectedFrame:
         async for frame in connection.read_frames():
             if isinstance(frame, ConnectedFrame):
                 return frame
@@ -61,7 +62,9 @@ async def connection_lifespan(
         raise AssertionError(msg)  # pragma: no cover
 
     try:
-        connected_frame = await asyncio.wait_for(take_connected_frame(), timeout=connection_confirmation_timeout)
+        connected_frame = await asyncio.wait_for(
+            take_connected_frame_and_collect_other_frames(), timeout=connection_confirmation_timeout
+        )
     except TimeoutError as exception:
         raise ConnectionConfirmationTimeoutError(
             timeout=connection_confirmation_timeout, frames=collected_frames
@@ -79,9 +82,14 @@ async def connection_lifespan(
     yield heartbeat_interval
 
     await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-    async for frame in connection.read_frames():
-        if isinstance(frame, ReceiptFrame):
-            break
+
+    async def take_receipt_frame() -> None:
+        async for frame in connection.read_frames():
+            if isinstance(frame, ReceiptFrame):
+                break
+
+    with suppress(TimeoutError):
+        await asyncio.wait_for(take_receipt_frame(), timeout=disconnect_confirmation_timeout)
 
 
 def _make_receipt_id() -> str:
@@ -211,9 +219,11 @@ class Client:
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 2
-    connection_confirmation_timeout: int = 2
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
+    connection_confirmation_timeout: int = 2
+    disconnect_confirmation_timeout: int = 2
+
     connection_class: type[AbstractConnection] = Connection
 
     _connection_manager: ConnectionManager = field(init=False)
@@ -263,6 +273,7 @@ class Client:
             protocol_version=self.PROTOCOL_VERSION,
             client_heartbeat=self.heartbeat,
             connection_confirmation_timeout=self.connection_confirmation_timeout,
+            disconnect_confirmation_timeout=self.disconnect_confirmation_timeout,
         ) as heartbeat_interval:
             self._restart_heartbeat_task(heartbeat_interval)
             async with subscriptions_lifespan(connection=connection, active_subscriptions=self._active_subscriptions):
