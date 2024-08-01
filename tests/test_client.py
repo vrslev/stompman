@@ -389,7 +389,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 
 @pytest.mark.parametrize("ok", [True, False])
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
-async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack: AckMode, ok: bool) -> None:  # noqa: FBT001
+async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack: AckMode, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
     monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
@@ -419,7 +419,7 @@ async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack:
 
 
 @pytest.mark.parametrize("ok", [True, False])
-async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, ok: bool) -> None:  # noqa: FBT001
+async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
     monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
