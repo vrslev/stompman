@@ -36,6 +36,7 @@ async with stompman.Client(
     connect_retry_interval=1,
     connect_timeout=2,
     connection_confirmation_timeout=2,
+    disconnect_confirmation_timeout=2,
     read_timeout=2,
 ) as client:
     ...
