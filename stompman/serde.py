@@ -150,7 +150,7 @@ def parse_lines_into_frame(lines: deque[bytearray]) -> AnyClientFrame | AnyServe
         header = parse_header(line)
         if header and header[0] not in headers:
             headers[header[0]] = header[1]
-    body = lines.popleft() if lines else b""
+    body = bytes(lines.popleft()) if lines else b""
     return make_frame_from_parts(command=command, headers=headers, body=body)
 
 
