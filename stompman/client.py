@@ -312,7 +312,7 @@ class Client:
         ) as transaction:
             yield transaction
 
-    async def subscribe(  # noqa: PLR0913
+    async def subscribe(
         self,
         destination: str,
         handler: Callable[[MessageFrame], Coroutine[None, None, None]],

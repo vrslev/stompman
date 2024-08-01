@@ -29,7 +29,7 @@ async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.
 
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(  # noqa: PLR0913
+        async def connect(
             cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
         ) -> Self | None:
             assert (host, port) == (manager.servers[0].host, manager.servers[0].port)
@@ -66,7 +66,7 @@ async def test_connect_to_one_server_fails() -> None:
 async def test_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
-        async def connect(  # noqa: PLR0913
+        async def connect(
             cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
         ) -> Self | None:
             return (
