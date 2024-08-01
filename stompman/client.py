@@ -122,7 +122,7 @@ class Subscription:
         del self._active_subscriptions[self.id]
         await self._connection_manager.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
 
-    async def _run_handler(self, frame: MessageFrame) -> None:
+    async def _run_handler(self, *, frame: MessageFrame) -> None:
         try:
             await self.handler(frame)
         except self.supressed_exception_classes as exception:
@@ -185,7 +185,7 @@ class Transaction:
                 self._active_transactions.remove(self)
 
     async def send(
-        self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
+        self, body: bytes, destination: str, *, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         frame = SendFrame.build(
             body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
@@ -295,7 +295,7 @@ class Client:
                 match frame:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
-                            task_group.create_task(subscription._run_handler(frame))  # noqa: SLF001
+                            task_group.create_task(subscription._run_handler(frame=frame))  # noqa: SLF001
                         elif self.on_unhandled_message_frame:
                             self.on_unhandled_message_frame(frame)
                     case ErrorFrame():
@@ -308,7 +308,7 @@ class Client:
                         pass
 
     async def send(
-        self, body: bytes, destination: str, content_type: str | None = None, headers: dict[str, str] | None = None
+        self, body: bytes, destination: str, *, content_type: str | None = None, headers: dict[str, str] | None = None
     ) -> None:
         await self._connection_manager.write_frame_reconnecting(
             SendFrame.build(
