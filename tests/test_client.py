@@ -68,14 +68,6 @@ def create_spying_connection(
     return BaseCollectingConnection, collected_frames
 
 
-def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[list[AnyServerFrame]]:
-    return [
-        [ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})],
-        *read_frames,
-        [ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
-    ]
-
-
 CONNECT_FRAME = ConnectFrame(
     headers={
         "accept-version": Client.PROTOCOL_VERSION,
@@ -86,6 +78,14 @@ CONNECT_FRAME = ConnectFrame(
     },
 )
 CONNECTED_FRAME = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
+
+
+def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[list[AnyServerFrame]]:
+    return [
+        [CONNECTED_FRAME],
+        *read_frames,
+        [ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
+    ]
 
 
 def enrich_expected_frames(*expected_frames: AnyClientFrame | AnyServerFrame) -> list[AnyClientFrame | AnyServerFrame]:
@@ -170,6 +170,30 @@ async def test_client_connection_lifespan_unsupported_protocol_version() -> None
     assert exc_info.value == UnsupportedProtocolVersionError(
         given_version=given_version, supported_version=Client.PROTOCOL_VERSION
     )
+
+
+async def test_client_connection_lifespan_disconnect_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
+    wait_for_calls = []
+
+    async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
+        wait_for_calls.append(timeout)
+        task = asyncio.create_task(future)
+        await asyncio.sleep(0)
+        return await original_wait_for(task, 0)
+
+    original_wait_for = asyncio.wait_for
+    monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
+    disconnect_confirmation_timeout = FAKER.pyint()
+    read_frames_yields = get_read_frames_with_lifespan([])
+    read_frames_yields[-1].clear()
+    connection_class, _ = create_spying_connection(*read_frames_yields)
+
+    async with EnrichedClient(
+        connection_class=connection_class, disconnect_confirmation_timeout=disconnect_confirmation_timeout
+    ):
+        pass
+
+    assert wait_for_calls[-1] == disconnect_confirmation_timeout
 
 
 async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
