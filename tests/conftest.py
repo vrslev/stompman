@@ -35,7 +35,7 @@ def noop_error_handler(exception: Exception, frame: stompman.MessageFrame) -> No
 class BaseMockConnection(stompman.AbstractConnection):
     @classmethod
     async def connect(  # noqa: PLR0913
-        cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
     ) -> Self | None:
         return cls()
 

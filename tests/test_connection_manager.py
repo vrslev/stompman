@@ -30,14 +30,20 @@ async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(  # noqa: PLR0913
-            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
         ) -> Self | None:
             assert (host, port) == (manager.servers[0].host, manager.servers[0].port)
             nonlocal attempts
             attempts += 1
 
             return (
-                await super().connect(host, port, timeout, read_max_chunk_size, read_timeout)
+                await super().connect(
+                    host=host,
+                    port=port,
+                    timeout=timeout,
+                    read_max_chunk_size=read_max_chunk_size,
+                    read_timeout=read_timeout,
+                )
                 if attempts == ok_on_attempt
                 else None
             )
@@ -61,10 +67,16 @@ async def test_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(  # noqa: PLR0913
-            cls, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
         ) -> Self | None:
             return (
-                await super().connect(host, port, timeout, read_max_chunk_size, read_timeout)
+                await super().connect(
+                    host=host,
+                    port=port,
+                    timeout=timeout,
+                    read_max_chunk_size=read_max_chunk_size,
+                    read_timeout=read_timeout,
+                )
                 if port == successful_server.port
                 else None
             )
