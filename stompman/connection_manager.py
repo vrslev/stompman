@@ -27,6 +27,7 @@ class ConnectionManager:
     connect_timeout: int
     read_timeout: int
     read_max_chunk_size: int
+
     _active_connection_state: ActiveConnectionState | None = field(default=None, init=False)
     _reconnect_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
