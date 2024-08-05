@@ -231,6 +231,7 @@ class Client:
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
     _heartbeat_task: asyncio.Task[None] = field(init=False)
     _listen_task: asyncio.Task[None] = field(init=False)
+    _task_group: asyncio.TaskGroup = field(init=False)
 
     def __post_init__(self) -> None:
         self._connection_manager = ConnectionManager(
@@ -245,9 +246,10 @@ class Client:
         )
 
     async def __aenter__(self) -> Self:
-        self._heartbeat_task = asyncio.create_task(asyncio.sleep(0))
+        self._task_group = await self._exit_stack.enter_async_context(asyncio.TaskGroup())
+        self._heartbeat_task = self._task_group.create_task(asyncio.sleep(0))
         await self._exit_stack.enter_async_context(self._connection_manager)
-        self._listen_task = asyncio.create_task(self._listen_to_frames())
+        self._listen_task = self._task_group.create_task(self._listen_to_frames())
         return self
 
     async def __aexit__(
@@ -281,7 +283,7 @@ class Client:
 
     def _restart_heartbeat_task(self, interval: float) -> None:
         self._heartbeat_task.cancel()
-        self._heartbeat_task = asyncio.create_task(self._send_heartbeats_forever(interval))
+        self._heartbeat_task = self._task_group.create_task(self._send_heartbeats_forever(interval))
 
     async def _send_heartbeats_forever(self, interval: float) -> None:
         while True:

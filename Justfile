@@ -20,7 +20,7 @@ test-integration *args:
     docker compose run --build --rm app .venv/bin/pytest tests/integration.py --no-cov {{args}}
 
 run-artemis:
-    docker compose up
+    docker compose run --service-ports artemis
 
 run-consumer:
     ARTEMIS_HOST=0.0.0.0 uv run -q --frozen python testing/consumer.py

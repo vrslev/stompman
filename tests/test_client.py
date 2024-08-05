@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import suppress
+from functools import partial
 from typing import TYPE_CHECKING, Any, get_args
 from unittest import mock
 
@@ -12,6 +13,7 @@ from stompman import (
     AbortFrame,
     AbstractConnection,
     AckFrame,
+    AckMode,
     AnyClientFrame,
     AnyServerFrame,
     BeginFrame,
@@ -23,6 +25,7 @@ from stompman import (
     ConnectionParameters,
     DisconnectFrame,
     ErrorFrame,
+    FailedAllConnectAttemptsError,
     HeartbeatFrame,
     MessageFrame,
     NackFrame,
@@ -32,7 +35,6 @@ from stompman import (
     UnsubscribeFrame,
     UnsupportedProtocolVersionError,
 )
-from stompman.frames import AckMode
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,
@@ -62,6 +64,7 @@ def create_spying_connection(
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
+            await asyncio.Future()
 
     read_frames_iterator = iter(read_frames_yields)
     collected_frames: list[AnyClientFrame | AnyServerFrame] = []
@@ -441,6 +444,30 @@ async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, *, o
         message_frame,
         UnsubscribeFrame(headers={"id": subscription_id}),
     )
+
+
+async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("asyncio.sleep", partial(asyncio.sleep, 0))
+
+    connection_class, _ = create_spying_connection(*get_read_frames_with_lifespan([]))
+    connection_class.connect = mock.AsyncMock(side_effect=[connection_class(), None, None, None])  # type: ignore[method-assign]
+
+    async def close_connection_soon(client: stompman.Client) -> None:
+        await asyncio.sleep(0)
+        client._connection_manager._clear_active_connection_state()
+
+    with pytest.raises(ExceptionGroup) as exc_info:  # noqa: PT012
+        async with asyncio.TaskGroup() as task_group, EnrichedClient(connection_class=connection_class) as client:
+            await client.subscribe(FAKER.pystr(), noop_message_handler, on_suppressed_exception=noop_error_handler)
+            task_group.create_task(close_connection_soon(client))
+
+    assert len(exc_info.value.exceptions) == 1
+    inner_group = exc_info.value.exceptions[0]
+
+    assert isinstance(inner_group, ExceptionGroup)
+    assert len(inner_group.exceptions) == 1
+
+    assert isinstance(inner_group.exceptions[0], FailedAllConnectAttemptsError)
 
 
 async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch) -> None:
