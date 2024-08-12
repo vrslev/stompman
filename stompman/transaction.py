@@ -7,14 +7,14 @@ from stompman.connection import AbstractConnection
 from stompman.connection_manager import ConnectionManager
 from stompman.frames import AbortFrame, BeginFrame, CommitFrame, SendFrame
 
-ActiveTransactionsSet = set["Transaction"]
+ActiveTransactions = set["Transaction"]
 
 
 @dataclass(kw_only=True, slots=True, unsafe_hash=True)
 class Transaction:
     id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
     _connection_manager: ConnectionManager = field(hash=False)
-    _active_transactions: ActiveTransactionsSet = field(hash=False)
+    _active_transactions: ActiveTransactions = field(hash=False)
     sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
 
     async def __aenter__(self) -> Self:
@@ -48,7 +48,7 @@ def _make_transaction_id() -> str:
 
 
 async def commit_pending_transactions(
-    *, active_transactions: ActiveTransactionsSet, connection: AbstractConnection
+    *, active_transactions: ActiveTransactions, connection: AbstractConnection
 ) -> None:
     for transaction in active_transactions:
         for frame in transaction.sent_frames:

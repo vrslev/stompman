@@ -24,7 +24,7 @@ from stompman.frames import (
     SubscribeFrame,
 )
 from stompman.subscription import Subscription
-from stompman.transaction import ActiveTransactionsSet, Transaction, commit_pending_transactions
+from stompman.transaction import ActiveTransactions, Transaction, commit_pending_transactions
 
 
 @dataclass(kw_only=True, slots=True)
@@ -36,7 +36,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     connection_confirmation_timeout: int
     disconnect_confirmation_timeout: int
     active_subscriptions: dict[str, Subscription]
-    active_transactions: ActiveTransactionsSet
+    active_transactions: ActiveTransactions
     set_heartbeat_interval: Callable[[float], None]
 
     async def _establish_connection(self) -> StompProtocolConnectionIssue | None:
