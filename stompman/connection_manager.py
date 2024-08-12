@@ -115,6 +115,7 @@ class ConnectionManager:
                     connection_issues.append(ConnectionLost())
                 else:
                     if lifespan_connection_issue:
+                        self._clear_active_connection_state()
                         connection_issues.append(lifespan_connection_issue)
                     else:
                         return self._active_connection_state
