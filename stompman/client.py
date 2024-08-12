@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Coroutine
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from functools import partial
@@ -12,12 +12,10 @@ from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import AbstractConnectionLifespan, ConnectionManager
 from stompman.errors import (
     ConnectionConfirmationTimeout,
-    ConnectionConfirmationTimeoutError,
     ConnectionIssue,
     ConnectionLost,
     ConnectionLostError,
     UnsupportedProtocolVersion,
-    UnsupportedProtocolVersionError,
 )
 from stompman.frames import (
     AbortFrame,
@@ -37,72 +35,6 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-
-
-@asynccontextmanager
-async def connection_lifespan(
-    *,
-    connection: AbstractConnection,
-    connection_parameters: ConnectionParameters,
-    protocol_version: str,
-    client_heartbeat: Heartbeat,
-    connection_confirmation_timeout: int,
-    disconnect_confirmation_timeout: int,
-) -> AsyncIterator[float]:
-    await connection.write_frame(
-        ConnectFrame(
-            headers={
-                "accept-version": protocol_version,
-                "heart-beat": client_heartbeat.to_header(),
-                "host": connection_parameters.host,
-                "login": connection_parameters.login,
-                "passcode": connection_parameters.unescaped_passcode,
-            },
-        )
-    )
-    collected_frames = []
-
-    async def take_connected_frame_and_collect_other_frames() -> ConnectedFrame:
-        async for frame in connection.read_frames():
-            if isinstance(frame, ConnectedFrame):
-                return frame
-            collected_frames.append(frame)
-        msg = "unreachable"  # pragma: no cover
-        raise AssertionError(msg)  # pragma: no cover
-
-    try:
-        connected_frame = await asyncio.wait_for(
-            take_connected_frame_and_collect_other_frames(), timeout=connection_confirmation_timeout
-        )
-    except TimeoutError as exception:
-        raise ConnectionConfirmationTimeoutError(
-            timeout=connection_confirmation_timeout, frames=collected_frames
-        ) from exception
-
-    if connected_frame.headers["version"] != protocol_version:
-        raise UnsupportedProtocolVersionError(
-            given_version=connected_frame.headers["version"], supported_version=protocol_version
-        )
-
-    server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
-    heartbeat_interval = (
-        max(client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
-    )
-    yield heartbeat_interval
-
-    await connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-
-    async def take_receipt_frame() -> None:
-        async for frame in connection.read_frames():
-            if isinstance(frame, ReceiptFrame):
-                break
-
-    with suppress(TimeoutError):
-        await asyncio.wait_for(take_receipt_frame(), timeout=disconnect_confirmation_timeout)
-
-
-def _make_receipt_id() -> str:
-    return str(uuid4())
 
 
 @dataclass(kw_only=True, slots=True)
@@ -155,21 +87,6 @@ def _make_subscription_id() -> str:
     return str(uuid4())
 
 
-@asynccontextmanager
-async def subscriptions_lifespan(
-    *, connection: AbstractConnection, active_subscriptions: dict[str, Subscription]
-) -> AsyncIterator[None]:
-    for subscription in active_subscriptions.values():
-        await connection.write_frame(
-            SubscribeFrame(
-                headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
-            )
-        )
-    yield
-    for subscription in active_subscriptions.copy().values():
-        await subscription.unsubscribe()
-
-
 @dataclass(kw_only=True, slots=True, unsafe_hash=True)
 class Transaction:
     id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
@@ -205,14 +122,6 @@ class Transaction:
 
 def _make_transaction_id() -> str:
     return str(uuid4())
-
-
-async def commit_pending_transactions(*, connection: AbstractConnection, active_transactions: set[Transaction]) -> None:
-    for transaction in active_transactions:
-        for frame in transaction.sent_frames:
-            await connection.write_frame(frame)
-        await connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
-    active_transactions.clear()
 
 
 @dataclass(kw_only=True, slots=True)
@@ -307,6 +216,10 @@ class ConnectionLifespan(AbstractConnectionLifespan):
             await subscription.unsubscribe()
 
 
+def _make_receipt_id() -> str:
+    return str(uuid4())
+
+
 @dataclass(kw_only=True, slots=True)
 class Client:
     PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
@@ -373,23 +286,6 @@ class Client:
             self._heartbeat_task.cancel()
             await asyncio.wait([self._listen_task, self._heartbeat_task])
             await self._exit_stack.aclose()
-
-    @asynccontextmanager
-    async def _lifespan(
-        self, connection: AbstractConnection, connection_parameters: ConnectionParameters
-    ) -> AsyncGenerator[None, None]:
-        async with connection_lifespan(
-            connection=connection,
-            connection_parameters=connection_parameters,
-            protocol_version=self.PROTOCOL_VERSION,
-            client_heartbeat=self.heartbeat,
-            connection_confirmation_timeout=self.connection_confirmation_timeout,
-            disconnect_confirmation_timeout=self.disconnect_confirmation_timeout,
-        ) as heartbeat_interval:
-            self._restart_heartbeat_task(heartbeat_interval)
-            async with subscriptions_lifespan(connection=connection, active_subscriptions=self._active_subscriptions):
-                await commit_pending_transactions(connection=connection, active_transactions=self._active_transactions)
-                yield
 
     def _restart_heartbeat_task(self, interval: float) -> None:
         self._heartbeat_task.cancel()
