@@ -122,11 +122,6 @@ CONNECT_FRAME = stompman.ConnectFrame(
 CONNECTED_FRAME = stompman.ConnectedFrame(headers={"version": stompman.Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
 
 
-@pytest.fixture(autouse=True)
-def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", lambda: "receipt-id-1")
-
-
 def get_read_frames_with_lifespan(*read_frames: list[stompman.AnyServerFrame]) -> list[list[stompman.AnyServerFrame]]:
     return [
         [CONNECTED_FRAME],

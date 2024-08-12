@@ -266,7 +266,10 @@ class TestConnectionLifespanEnter:
         )
 
 
-async def test_connection_lifespan_exit(faker: Faker) -> None:
+async def test_connection_lifespan_exit(faker: Faker, monkeypatch: pytest.MonkeyPatch) -> None:
+    receipt_id = faker.pystr()
+    monkeypatch.setattr("stompman.connection_lifespan._make_receipt_id", lambda: receipt_id)
+
     written_and_read_frames: list[AnyServerFrame | AnyClientFrame] = []
     connection_manager = mock.Mock(maybe_write_frame=mock.AsyncMock(side_effect=written_and_read_frames.append))
     active_subscriptions: ActiveSubscriptions = {}
@@ -316,7 +319,7 @@ async def test_connection_lifespan_exit(faker: Faker) -> None:
 
     assert written_and_read_frames == [
         *unsubscribe_frames,
-        DisconnectFrame(headers={"receipt": "receipt-id-1"}),
+        DisconnectFrame(headers={"receipt": receipt_id}),
         receipt_frame,
     ]
 

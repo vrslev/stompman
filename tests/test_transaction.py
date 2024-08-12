@@ -29,6 +29,10 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
 
+@pytest.fixture(autouse=True)
+def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", lambda: "receipt-id-1")
+
 
 async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     body, destination, expires, content_type = FAKER.binary(), FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
