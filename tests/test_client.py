@@ -227,7 +227,7 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.parametrize("ack", get_args(AckMode))
 async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
-    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME]))
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     client = EnrichedClient(connection_class=connection_class)
     sub_destination, message_destination, message_body = FAKER.pystr(), FAKER.pystr(), FAKER.binary(length=10)
 
@@ -527,7 +527,7 @@ async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> N
         "_make_transaction_id",
         mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
     )
-    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME]))
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     async with EnrichedClient(connection_class=connection_class) as client:
         async with client.begin() as first_transaction:
             await first_transaction.send(body, destination=destination)
