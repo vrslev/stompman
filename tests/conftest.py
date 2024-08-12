@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
 from unittest import mock
@@ -9,6 +9,8 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
+from stompman.connection_manager import AbstractConnectionLifespan, ConnectionLifespanFactory
+from stompman.errors import ConnectionIssue
 from stompman.frames import HeartbeatFrame
 
 
@@ -63,14 +65,21 @@ async def noop_lifespan(  # noqa: RUF029
     yield
 
 
+@dataclass(frozen=True, kw_only=True, slots=True)
+class NoopLifespan(AbstractConnectionLifespan):
+    connection: stompman.AbstractConnection
+    connection_parameters: stompman.ConnectionParameters
+
+    async def enter(self) -> ConnectionIssue | None: ...
+    async def exit(self) -> None: ...
+
+
 @dataclass(kw_only=True, slots=True)
 class EnrichedConnectionManager(stompman.ConnectionManager):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
-    lifespan: Callable[
-        [stompman.AbstractConnection, stompman.ConnectionParameters], AbstractAsyncContextManager[None]
-    ] = field(default=noop_lifespan)
+    lifespan_factory: ConnectionLifespanFactory = field(default=NoopLifespan)
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 3
