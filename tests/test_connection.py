@@ -12,10 +12,10 @@ from stompman import (
     BeginFrame,
     CommitFrame,
     ConnectedFrame,
-    Connection,
     ConnectionLostError,
     HeartbeatFrame,
 )
+from stompman.connection import Connection
 from stompman.serde import NEWLINE
 
 pytestmark = pytest.mark.anyio

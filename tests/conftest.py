@@ -7,18 +7,9 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
-import stompman.client
-import stompman.connection_lifespan
-import stompman.transaction
-from stompman import (
-    AbstractConnection,
-    AnyClientFrame,
-    AnyServerFrame,
-    Client,
-    ConnectedFrame,
-    ConnectFrame,
-)
-from stompman.frames import DisconnectFrame, ReceiptFrame
+from stompman.connection import AbstractConnection
+from stompman.connection_lifespan import AbstractConnectionLifespan
+from stompman.connection_manager import ConnectionManager
 
 
 @pytest.fixture(
@@ -43,7 +34,7 @@ async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
 def noop_error_handler(exception: Exception, frame: stompman.MessageFrame) -> None: ...
 
 
-class BaseMockConnection(stompman.AbstractConnection):
+class BaseMockConnection(AbstractConnection):
     @classmethod
     async def connect(
         cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
@@ -67,8 +58,8 @@ class EnrichedClient(stompman.Client):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class NoopLifespan(stompman.connection_lifespan.AbstractConnectionLifespan):
-    connection: stompman.AbstractConnection
+class NoopLifespan(AbstractConnectionLifespan):
+    connection: AbstractConnection
     connection_parameters: stompman.ConnectionParameters
 
     async def enter(self) -> stompman.StompProtocolConnectionIssue | None: ...
@@ -76,7 +67,7 @@ class NoopLifespan(stompman.connection_lifespan.AbstractConnectionLifespan):
 
 
 @dataclass(kw_only=True, slots=True)
-class EnrichedConnectionManager(stompman.ConnectionManager):
+class EnrichedConnectionManager(ConnectionManager):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
@@ -105,35 +96,35 @@ class SomeError(Exception):
 
 
 def create_spying_connection(
-    *read_frames_yields: list[AnyServerFrame],
-) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame]]:
+    *read_frames_yields: list[stompman.AnyServerFrame],
+) -> tuple[type[AbstractConnection], list[stompman.AnyClientFrame | stompman.AnyServerFrame]]:
     class BaseCollectingConnection(BaseMockConnection):
         @staticmethod
-        async def write_frame(frame: AnyClientFrame) -> None:
+        async def write_frame(frame: stompman.AnyClientFrame) -> None:
             collected_frames.append(frame)
 
         @staticmethod
-        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
+        async def read_frames() -> AsyncGenerator[stompman.AnyServerFrame, None]:
             for frame in next(read_frames_iterator):
                 collected_frames.append(frame)
                 yield frame
             await asyncio.Future()
 
     read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[AnyClientFrame | AnyServerFrame] = []
+    collected_frames: list[stompman.AnyClientFrame | stompman.AnyServerFrame] = []
     return BaseCollectingConnection, collected_frames
 
 
-CONNECT_FRAME = ConnectFrame(
+CONNECT_FRAME = stompman.ConnectFrame(
     headers={
-        "accept-version": Client.PROTOCOL_VERSION,
+        "accept-version": stompman.Client.PROTOCOL_VERSION,
         "heart-beat": "1000,1000",
         "host": "localhost",
         "login": "login",
         "passcode": "passcode",
     },
 )
-CONNECTED_FRAME = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
+CONNECTED_FRAME = stompman.ConnectedFrame(headers={"version": stompman.Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
 
 
 @pytest.fixture(autouse=True)
@@ -141,19 +132,21 @@ def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", lambda: "receipt-id-1")
 
 
-def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[list[AnyServerFrame]]:
+def get_read_frames_with_lifespan(*read_frames: list[stompman.AnyServerFrame]) -> list[list[stompman.AnyServerFrame]]:
     return [
         [CONNECTED_FRAME],
         *read_frames,
-        [ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
+        [stompman.ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
     ]
 
 
-def enrich_expected_frames(*expected_frames: AnyClientFrame | AnyServerFrame) -> list[AnyClientFrame | AnyServerFrame]:
+def enrich_expected_frames(
+    *expected_frames: stompman.AnyClientFrame | stompman.AnyServerFrame,
+) -> list[stompman.AnyClientFrame | stompman.AnyServerFrame]:
     return [
         CONNECT_FRAME,
         CONNECTED_FRAME,
         *expected_frames,
-        DisconnectFrame(headers={"receipt": "receipt-id-1"}),
-        ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
+        stompman.DisconnectFrame(headers={"receipt": "receipt-id-1"}),
+        stompman.ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
     ]

@@ -1,8 +1,5 @@
 from stompman.client import Client
 from stompman.config import ConnectionParameters, Heartbeat
-from stompman.connection import AbstractConnection, Connection
-from stompman.connection_lifespan import AbstractConnectionLifespan, ConnectionLifespan, ConnectionLifespanFactory
-from stompman.connection_manager import ActiveConnectionState, ConnectionManager
 from stompman.errors import (
     ConnectionConfirmationTimeout,
     ConnectionLostError,
@@ -39,11 +36,8 @@ from stompman.transaction import Transaction
 
 __all__ = [
     "AbortFrame",
-    "AbstractConnection",
-    "AbstractConnectionLifespan",
     "AckFrame",
     "AckMode",
-    "ActiveConnectionState",
     "AnyClientFrame",
     "AnyRealServerFrame",
     "AnyServerFrame",
@@ -52,12 +46,8 @@ __all__ = [
     "CommitFrame",
     "ConnectFrame",
     "ConnectedFrame",
-    "Connection",
     "ConnectionConfirmationTimeout",
-    "ConnectionLifespan",
-    "ConnectionLifespanFactory",
     "ConnectionLostError",
-    "ConnectionManager",
     "ConnectionParameters",
     "DisconnectFrame",
     "Error",
