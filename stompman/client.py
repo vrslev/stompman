@@ -10,13 +10,7 @@ from uuid import uuid4
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import AbstractConnectionLifespan, ConnectionManager
-from stompman.errors import (
-    ConnectionConfirmationTimeout,
-    ConnectionIssue,
-    ConnectionLost,
-    ConnectionLostError,
-    UnsupportedProtocolVersion,
-)
+from stompman.errors import ConnectionConfirmationTimeout, ConnectionIssue, UnsupportedProtocolVersion
 from stompman.frames import (
     AbortFrame,
     AckFrame,
