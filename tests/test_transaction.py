@@ -6,7 +6,6 @@ from unittest import mock
 import faker
 import pytest
 
-import stompman.client
 import stompman.transaction
 from stompman import (
     AbortFrame,
@@ -110,3 +109,7 @@ async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> N
         ),
         CommitFrame(headers={"transaction": second_id}),
     )
+
+
+def test_make_transaction_id() -> None:
+    stompman.transaction._make_transaction_id()

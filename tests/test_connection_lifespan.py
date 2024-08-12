@@ -1,15 +1,12 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Coroutine
+from collections.abc import AsyncGenerator, Coroutine
 from typing import Any
 from unittest import mock
 
 import faker
 import pytest
 
-import stompman.client
 import stompman.connection_lifespan
-import stompman.subscription
-import stompman.transaction
 from stompman import (
     AnyServerFrame,
     Client,
@@ -154,13 +151,5 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
 
 
-@pytest.mark.parametrize(
-    "func",
-    [
-        stompman.connection_lifespan._make_receipt_id,
-        stompman.subscription._make_subscription_id,
-        stompman.transaction._make_transaction_id,
-    ],
-)
-def test_generate_ids(func: Callable[[], str]) -> None:
-    func()
+def test_make_receipt_id() -> None:
+    stompman.connection_lifespan._make_receipt_id()

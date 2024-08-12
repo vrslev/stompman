@@ -6,9 +6,7 @@ from unittest import mock
 import faker
 import pytest
 
-import stompman.client
 import stompman.subscription
-import stompman.transaction
 from stompman import (
     AckFrame,
     AckMode,
@@ -288,3 +286,7 @@ async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch) ->
     assert len(inner_group.exceptions) == 1
 
     assert isinstance(inner_group.exceptions[0], FailedAllConnectAttemptsError)
+
+
+def test_make_subscription_id() -> None:
+    stompman.subscription._make_subscription_id()
