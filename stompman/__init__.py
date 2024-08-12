@@ -55,7 +55,6 @@ __all__ = [
     "ConnectFrame",
     "ConnectedFrame",
     "Connection",
-    "ConnectionAttemptsFailedError",
     "ConnectionConfirmationTimeout",
     "ConnectionLifespan",
     "ConnectionLifespanFactory",
