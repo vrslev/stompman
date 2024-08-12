@@ -59,6 +59,11 @@ def check_stomp_protocol_version(
     )
 
 
+def calculate_heartbeat_interval(*, connected_frame: ConnectedFrame, client_heartbeat: Heartbeat) -> float:
+    server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
+    return max(client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
+
+
 @dataclass(kw_only=True, slots=True)
 class ConnectionLifespan(AbstractConnectionLifespan):
     connection: AbstractConnection
@@ -96,9 +101,8 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         ):
             return unsupported_protocol_version_error
 
-        server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
         self.set_heartbeat_interval(
-            max(self.client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
+            calculate_heartbeat_interval(connected_frame=connected_frame, client_heartbeat=self.client_heartbeat)
         )
         return None
 
