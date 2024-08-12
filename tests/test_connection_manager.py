@@ -82,26 +82,6 @@ class TestConnectionManagerContext:
         connection_close.assert_called_once_with()
 
 
-async def test_write_heartbeat_reconnecting_raises() -> None:
-    class MockConnection(BaseMockConnection):
-        write_heartbeat = mock.Mock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
-
-    manager = EnrichedConnectionManager(connection_class=MockConnection)
-
-    with pytest.raises(FailedAllWriteAttemptsError):
-        await manager.write_heartbeat_reconnecting()
-
-
-async def test_write_frame_reconnecting_raises() -> None:
-    class MockConnection(BaseMockConnection):
-        write_frame = mock.AsyncMock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
-
-    manager = EnrichedConnectionManager(connection_class=MockConnection)
-
-    with pytest.raises(FailedAllWriteAttemptsError):
-        await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
-
-
 RECONNECTING_SIDE_EFFECTS = [
     (None,),
     (ConnectionLostError(), None),
@@ -109,28 +89,48 @@ RECONNECTING_SIDE_EFFECTS = [
 ]
 
 
-@pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
-async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
-    write_heartbeat_mock = mock.Mock(side_effect=side_effect)
+class TestWriteHeartbeatReconnecting:
+    @pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
+    async def test_ok(self, side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+        write_heartbeat_mock = mock.Mock(side_effect=side_effect)
 
-    class MockConnection(BaseMockConnection):
-        write_heartbeat = write_heartbeat_mock
+        class MockConnection(BaseMockConnection):
+            write_heartbeat = write_heartbeat_mock
 
-    manager = EnrichedConnectionManager(connection_class=MockConnection)
-    await manager.write_heartbeat_reconnecting()
-    assert len(write_heartbeat_mock.mock_calls) == len(side_effect)
+        manager = EnrichedConnectionManager(connection_class=MockConnection)
+        await manager.write_heartbeat_reconnecting()
+        assert len(write_heartbeat_mock.mock_calls) == len(side_effect)
+
+    async def test_raises(self) -> None:
+        class MockConnection(BaseMockConnection):
+            write_heartbeat = mock.Mock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
+
+        manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+        with pytest.raises(FailedAllWriteAttemptsError):
+            await manager.write_heartbeat_reconnecting()
 
 
-@pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
-async def test_write_frame_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
-    write_frame_mock = mock.AsyncMock(side_effect=side_effect)
+class TestWriteFrameReconnecting:
+    @pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
+    async def test_ok(self, side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+        write_frame_mock = mock.AsyncMock(side_effect=side_effect)
 
-    class MockConnection(BaseMockConnection):
-        write_frame = write_frame_mock
+        class MockConnection(BaseMockConnection):
+            write_frame = write_frame_mock
 
-    manager = EnrichedConnectionManager(connection_class=MockConnection)
-    await manager.write_frame_reconnecting(frame := build_dataclass(ConnectFrame))
-    assert write_frame_mock.mock_calls == [mock.call(frame)] * len(side_effect)
+        manager = EnrichedConnectionManager(connection_class=MockConnection)
+        await manager.write_frame_reconnecting(frame := build_dataclass(ConnectFrame))
+        assert write_frame_mock.mock_calls == [mock.call(frame)] * len(side_effect)
+
+    async def test_raises(self) -> None:
+        class MockConnection(BaseMockConnection):
+            write_frame = mock.AsyncMock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
+
+        manager = EnrichedConnectionManager(connection_class=MockConnection)
+
+        with pytest.raises(FailedAllWriteAttemptsError):
+            await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
 
 
 @pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
