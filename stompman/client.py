@@ -193,6 +193,9 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         return None
 
     async def exit(self) -> None:
+        for subscription in self.active_subscriptions.copy().values():
+            await subscription.unsubscribe()
+
         await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
 
         async def take_receipt_frame() -> None:
@@ -202,9 +205,6 @@ class ConnectionLifespan(AbstractConnectionLifespan):
 
         with suppress(TimeoutError):
             await asyncio.wait_for(take_receipt_frame(), timeout=self.disconnect_confirmation_timeout)
-
-        for subscription in self.active_subscriptions.copy().values():
-            await subscription.unsubscribe()
 
 
 def _make_receipt_id() -> str:
