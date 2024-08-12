@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
 
+
 @pytest.fixture(autouse=True)
 def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", lambda: "receipt-id-1")
