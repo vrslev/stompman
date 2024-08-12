@@ -62,7 +62,7 @@ class EnrichedClient(stompman.Client):
 async def noop_lifespan(  # noqa: RUF029
     connection: stompman.AbstractConnection, connection_parameters: stompman.ConnectionParameters
 ) -> AsyncIterator[None]:
-    yield
+    yield  # pragma: no cover
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

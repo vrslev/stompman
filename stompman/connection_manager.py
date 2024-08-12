@@ -109,16 +109,17 @@ class ConnectionManager:
                 )
 
                 try:
-                    lifespan_connection_issue = await self._active_connection_state.lifespan.enter()
+                    lifespan_connection_issue: (
+                        StompProtocolConnectionIssue | ConnectionLost | None
+                    ) = await self._active_connection_state.lifespan.enter()
                 except ConnectionLostError:
-                    self._clear_active_connection_state()
-                    connection_issues.append(ConnectionLost())
+                    lifespan_connection_issue = ConnectionLost()
                 else:
-                    if lifespan_connection_issue:
-                        self._clear_active_connection_state()
-                        connection_issues.append(lifespan_connection_issue)
-                    else:
+                    if lifespan_connection_issue is None:
                         return self._active_connection_state
+
+                self._clear_active_connection_state()
+                connection_issues.append(lifespan_connection_issue)
 
         raise RepeatedConnectionFailedError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
 
