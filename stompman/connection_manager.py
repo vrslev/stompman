@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Protocol, Self, TypeVar
+from typing import Protocol, Self
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
@@ -33,9 +33,6 @@ class ConnectionLifespanFactory(Protocol):
 class ActiveConnectionState:
     connection: AbstractConnection
     lifespan: AbstractConnectionLifespan
-
-
-T = TypeVar("T")
 
 
 @dataclass(kw_only=True, slots=True)
