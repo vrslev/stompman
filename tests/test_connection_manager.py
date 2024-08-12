@@ -10,7 +10,6 @@ from stompman import (
     AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
-    ConnectionAttemptsFailedError,
     ConnectionLostError,
     ConnectionParameters,
     ErrorFrame,
@@ -133,7 +132,7 @@ async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
     lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
     manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
 
-    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
+    with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
         await manager._get_active_connection_state()
 
     assert (
