@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import AsyncGenerator, AsyncIterable
 from unittest import mock
 
-import faker
 import pytest
 
 from stompman import (
@@ -18,7 +17,6 @@ from stompman.connection_manager import ActiveConnectionState
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
-FAKER = faker.Faker()
 
 
 async def test_get_active_connection_state_ok_concurrent() -> None:
