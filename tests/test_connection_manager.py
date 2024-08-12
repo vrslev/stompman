@@ -67,7 +67,13 @@ async def test_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(
-            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+            cls,
+            *,
+            host: str,
+            port: int,
+            timeout: int,
+            read_max_chunk_size: int,
+            read_timeout: int,
         ) -> Self | None:
             return (
                 await super().connect(
