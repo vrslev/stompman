@@ -51,5 +51,5 @@ class FailedAllConnectAttemptsError(Error):
 
 
 @dataclass(kw_only=True)
-class ConnectionLostDuringOperationError(Error):
+class FailedAllWriteAttemptsError(Error):
     retry_attempts: int

@@ -11,11 +11,11 @@ from stompman import (
     ConnectedFrame,
     ConnectFrame,
     ConnectionAttemptsFailedError,
-    ConnectionLostDuringOperationError,
     ConnectionLostError,
     ConnectionParameters,
     ErrorFrame,
     FailedAllConnectAttemptsError,
+    FailedAllWriteAttemptsError,
     MessageFrame,
 )
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
@@ -219,7 +219,7 @@ async def test_write_heartbeat_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(ConnectionLostDuringOperationError):
+    with pytest.raises(FailedAllWriteAttemptsError):
         await manager.write_heartbeat_reconnecting()
 
 
@@ -231,7 +231,7 @@ async def test_write_frame_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(ConnectionLostDuringOperationError):
+    with pytest.raises(FailedAllWriteAttemptsError):
         await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
 
 
