@@ -15,10 +15,14 @@ from stompman import (
     SendFrame,
 )
 from tests.conftest import (
+    CONNECT_FRAME,
+    CONNECTED_FRAME,
     EnrichedClient,
     SomeError,
+    create_spying_connection,
+    enrich_expected_frames,
+    get_read_frames_with_lifespan,
 )
-from tests.test_client import create_spying_connection, get_read_frames_with_lifespan
 
 if TYPE_CHECKING:
     from stompman.frames import SendHeaders
