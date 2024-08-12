@@ -48,36 +48,40 @@ async def test_get_active_connection_state_ok_concurrent() -> None:
 
 
 async def test_connection_manager_context_connection_lost() -> None:
-    async with EnrichedConnectionManager(connection_class=BaseMockConnection) as manager:
+    async with EnrichedConnectionManager(connection_class=mock.AsyncMock()) as manager:
         manager._clear_active_connection_state()
 
 
 async def test_connection_manager_context_lifespan_aexit_raises_connection_lost() -> None:
+    enter_mock = mock.AsyncMock(side_effect=[None])
+    exit_mock = mock.AsyncMock(side_effect=[ConnectionLostError])
+
     async with EnrichedConnectionManager(
-        lifespan_factory=mock.Mock(
-            return_value=mock.Mock(
-                enter=mock.AsyncMock(return_value=None), exit=mock.AsyncMock(side_effect=[ConnectionLostError])
-            )
-        ),
-        connection_class=BaseMockConnection,
+        lifespan_factory=mock.Mock(return_value=mock.Mock(enter=enter_mock, exit=exit_mock)),
+        connection_class=mock.AsyncMock(),
     ):
         pass
 
+    enter_mock.assert_called_once_with()
+    exit_mock.assert_called_once_with()
+
 
 async def test_connection_manager_context_exits_ok() -> None:
-    close = mock.AsyncMock()
+    lifespan_exit = mock.AsyncMock()
     connection_close = mock.AsyncMock()
 
     class MockConnection(BaseMockConnection):
         close = connection_close
 
     async with EnrichedConnectionManager(
-        lifespan_factory=mock.Mock(return_value=mock.Mock(enter=mock.AsyncMock(return_value=None), exit=close)),
+        lifespan_factory=mock.Mock(
+            return_value=mock.Mock(enter=mock.AsyncMock(side_effect=[None]), exit=lifespan_exit)
+        ),
         connection_class=MockConnection,
     ):
         pass
 
-    close.assert_called_once()
+    lifespan_exit.assert_called_once()
     connection_close.assert_called_once_with()
 
 
