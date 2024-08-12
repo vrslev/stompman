@@ -27,6 +27,7 @@ from stompman.connection_lifespan import (
     calculate_heartbeat_interval,
     check_stomp_protocol_version,
     take_connected_frame,
+    wait_for_receipt_frame,
 )
 from stompman.frames import HeartbeatFrame, MessageFrame
 from tests.conftest import (
@@ -73,26 +74,21 @@ class TestTakeConnectedFrame:
             await take_connected_frame(frames_iter=make_async_iter([]), connection_confirmation_timeout=1)
 
     async def test_timeout(self, monkeypatch: pytest.MonkeyPatch, faker: Faker) -> None:
-        connection_confirmation_timeout = faker.pyint()
         original_wait_for = asyncio.wait_for
 
         async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
-            assert timeout == connection_confirmation_timeout
-
             task = asyncio.create_task(future)
             await asyncio.sleep(0)
             return await original_wait_for(task, 0)
 
         monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
+        timeout = faker.pyint()
 
         result = await take_connected_frame(
-            frames_iter=make_async_iter([HeartbeatFrame()]),
-            connection_confirmation_timeout=connection_confirmation_timeout,
+            frames_iter=make_async_iter([HeartbeatFrame()]), connection_confirmation_timeout=timeout
         )
 
-        assert result == ConnectionConfirmationTimeout(
-            timeout=connection_confirmation_timeout, frames=[HeartbeatFrame()]
-        )
+        assert result == ConnectionConfirmationTimeout(timeout=timeout, frames=[HeartbeatFrame()])
 
 
 class TestCheckStompProtocolVersion:
@@ -124,6 +120,41 @@ def test_calculate_heartbeat_interval(
 
     result = calculate_heartbeat_interval(connected_frame=connected_frame, client_heartbeat=client_heartbeat)
     assert result == expected_result
+
+
+class TestWaitForReceiptFrame:
+    @pytest.mark.parametrize(
+        "frame_types",
+        [[ReceiptFrame], [MessageFrame, HeartbeatFrame, ReceiptFrame], [HeartbeatFrame, ReceiptFrame]],
+    )
+    async def test_ok(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
+        wait_for_mock = mock.AsyncMock(side_effect=partial(asyncio.wait_for, timeout=0))
+        monkeypatch.setattr("asyncio.wait_for", wait_for_mock)
+        timeout = faker.pyint()
+
+        await wait_for_receipt_frame(
+            frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
+            disconnect_confirmation_timeout=timeout,
+        )
+
+        wait_for_mock.assert_called_once()
+        assert wait_for_mock.mock_calls[0].kwargs["timeout"] == timeout
+
+    @pytest.mark.parametrize("frame_types", [[HeartbeatFrame, HeartbeatFrame, HeartbeatFrame], []])
+    async def test_timeout(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
+        original_wait_for = asyncio.wait_for
+
+        async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
+            task = asyncio.create_task(future)
+            await asyncio.sleep(0)
+            return await original_wait_for(task, 0)
+
+        monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
+
+        await wait_for_receipt_frame(
+            frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
+            disconnect_confirmation_timeout=faker.pyint(),
+        )
 
 
 async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:

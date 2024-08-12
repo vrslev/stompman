@@ -49,18 +49,6 @@ async def take_connected_frame(
         return ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=collected_frames)
 
 
-async def wait_for_receipt_frame(
-    *, frames_iter: AsyncIterable[AnyServerFrame], disconnect_confirmation_timeout: int
-) -> None:
-    async def inner() -> None:
-        async for frame in frames_iter:
-            if isinstance(frame, ReceiptFrame):
-                break
-
-    with suppress(TimeoutError):
-        await asyncio.wait_for(inner(), timeout=disconnect_confirmation_timeout)
-
-
 def check_stomp_protocol_version(
     *, connected_frame: ConnectedFrame, supported_version: str
 ) -> UnsupportedProtocolVersion | None:
@@ -74,6 +62,18 @@ def check_stomp_protocol_version(
 def calculate_heartbeat_interval(*, connected_frame: ConnectedFrame, client_heartbeat: Heartbeat) -> float:
     server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
     return max(client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
+
+
+async def wait_for_receipt_frame(
+    *, frames_iter: AsyncIterable[AnyServerFrame], disconnect_confirmation_timeout: int
+) -> None:
+    async def inner() -> None:
+        async for frame in frames_iter:
+            if isinstance(frame, ReceiptFrame):
+                break
+
+    with suppress(TimeoutError):
+        await asyncio.wait_for(inner(), timeout=disconnect_confirmation_timeout)
 
 
 @dataclass(kw_only=True, slots=True)
