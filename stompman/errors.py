@@ -54,7 +54,7 @@ class UnsupportedProtocolVersion:
 class ConnectionLost: ...
 
 
-ConnectionIssue = ConnectionConfirmationTimeout | UnsupportedProtocolVersion | ConnectionLost
+ConnectionIssue = ConnectionConfirmationTimeout | UnsupportedProtocolVersion
 
 
 @dataclass(kw_only=True)

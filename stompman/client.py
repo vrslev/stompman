@@ -192,13 +192,10 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         self.active_transactions.clear()
 
     async def enter(self) -> ConnectionIssue | None:
-        try:
-            if connection_issue := await self._establish_connection():
-                return connection_issue
-            await self._resubscribe()
-            await self._commit_pending_transactions()
-        except ConnectionLostError:
-            return ConnectionLost()
+        if connection_issue := await self._establish_connection():
+            return connection_issue
+        await self._resubscribe()
+        await self._commit_pending_transactions()
         return None
 
     async def exit(self) -> None:
