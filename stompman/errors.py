@@ -38,6 +38,25 @@ class FailedAllConnectAttemptsError(Error):
     timeout: int
 
 
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ConnectionConfirmationTimeout:
+    timeout: int
+    frames: list[MessageFrame | ReceiptFrame | ErrorFrame | HeartbeatFrame]
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class UnsupportedProtocolVersion:
+    given_version: str
+    supported_version: str
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class ConnectionLost: ...
+
+
+ConnectionIssue = ConnectionConfirmationTimeout | UnsupportedProtocolVersion | ConnectionLost
+
+
 @dataclass(kw_only=True)
 class RepeatedConnectionLostError(Error):
     retry_attempts: int
