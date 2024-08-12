@@ -23,11 +23,6 @@ from stompman.subscription import (
 from stompman.transaction import ActiveTransactions, commit_pending_transactions
 
 
-class AbstractConnectionLifespan(Protocol):
-    async def enter(self) -> StompProtocolConnectionIssue | None: ...
-    async def exit(self) -> None: ...
-
-
 async def take_connected_frame(
     *, frames_iter: AsyncIterable[AnyServerFrame], connection_confirmation_timeout: int
 ) -> ConnectedFrame | ConnectionConfirmationTimeout:
@@ -74,6 +69,11 @@ async def wait_for_receipt_frame(
 
     with suppress(TimeoutError):
         await asyncio.wait_for(inner(), timeout=disconnect_confirmation_timeout)
+
+
+class AbstractConnectionLifespan(Protocol):
+    async def enter(self) -> StompProtocolConnectionIssue | None: ...
+    async def exit(self) -> None: ...
 
 
 @dataclass(kw_only=True, slots=True)
@@ -137,11 +137,11 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         )
 
 
-def _make_receipt_id() -> str:
-    return str(uuid4())
-
-
 class ConnectionLifespanFactory(Protocol):
     def __call__(
         self, *, connection: AbstractConnection, connection_parameters: ConnectionParameters
     ) -> AbstractConnectionLifespan: ...
+
+
+def _make_receipt_id() -> str:
+    return str(uuid4())
