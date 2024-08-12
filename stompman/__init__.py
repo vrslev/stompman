@@ -1,14 +1,15 @@
-from stompman.client import Client, Subscription, Transaction
+from stompman.client import Client, ConnectionLifespan, Subscription, Transaction
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
-from stompman.connection_manager import ActiveConnectionState, ConnectionManager
+from stompman.connection_manager import AbstractConnectionLifespan, ActiveConnectionState, ConnectionManager
 from stompman.errors import (
-    ConnectionConfirmationTimeoutError,
+    ConnectionConfirmationTimeout,
     ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
+    RepeatedConnectionFailedError,
     RepeatedConnectionLostError,
-    UnsupportedProtocolVersionError,
+    UnsupportedProtocolVersion,
 )
 from stompman.frames import (
     AbortFrame,
@@ -35,6 +36,7 @@ from stompman.frames import (
 __all__ = [
     "AbortFrame",
     "AbstractConnection",
+    "AbstractConnectionLifespan",
     "AckFrame",
     "AckMode",
     "ActiveConnectionState",
@@ -47,7 +49,8 @@ __all__ = [
     "ConnectFrame",
     "ConnectedFrame",
     "Connection",
-    "ConnectionConfirmationTimeoutError",
+    "ConnectionConfirmationTimeout",
+    "ConnectionLifespan",
     "ConnectionLostError",
     "ConnectionManager",
     "ConnectionParameters",
@@ -60,11 +63,12 @@ __all__ = [
     "MessageFrame",
     "NackFrame",
     "ReceiptFrame",
+    "RepeatedConnectionFailedError",
     "RepeatedConnectionLostError",
     "SendFrame",
     "SubscribeFrame",
     "Subscription",
     "Transaction",
     "UnsubscribeFrame",
-    "UnsupportedProtocolVersionError",
+    "UnsupportedProtocolVersion",
 ]
