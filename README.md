@@ -37,6 +37,7 @@ async with stompman.Client(
     connection_confirmation_timeout=2,
     disconnect_confirmation_timeout=2,
     read_timeout=2,
+    write_retry_attempts=3,
 ) as client:
     ...
 ```
@@ -107,7 +108,7 @@ stompman takes care of cleaning up resources automatically. When you leave the c
 
 - If multiple servers were provided, stompman will attempt to connect to each one simultaneously and will use the first that succeeds. If all servers fail to connect, an `stompman.FailedAllConnectAttemptsError` will be raised. In normal situation it doesn't need to be handled: tune retry and timeout parameters in `stompman.Client()` to your needs.
 
-- When connection is lost, stompman will handle it automatically. `stompman.FailedAllConnectAttemptsError` will be raised if all connection attempts fail. `stompman.RepeatedConnectionLostError` or `stompman.ConnectionLostDuringOperationError` will be raised if connection succeeds but operation (like sending a frame) leads to connection getting lost.
+- When connection is lost, stompman will attempt to handle it automatically. `stompman.FailedAllConnectAttemptsError` will be raised if all connection attempts fail. `stompman.FailedAllWriteAttemptsError` will be raised if connection succeeds but sending a frame or heartbeat lead to losing connection.
 
 ### ...and caveats
 

@@ -21,7 +21,6 @@ from stompman import (
     CommitFrame,
     ConnectedFrame,
     ConnectFrame,
-    ConnectionAttemptsFailedError,
     ConnectionConfirmationTimeout,
     ConnectionParameters,
     DisconnectFrame,
@@ -133,6 +132,7 @@ async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) ->
     assert collected_frames == [connect_frame, connected_frame, disconnect_frame, receipt_frame]
 
 
+@pytest.mark.usefixtures("mock_sleep")
 async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
     async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
         assert timeout == connection_confirmation_timeout
@@ -151,21 +151,22 @@ async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: 
             yield error_frame
             await asyncio.sleep(0)
 
-    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
+    with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
         await EnrichedClient(
             connection_class=MockConnection, connection_confirmation_timeout=connection_confirmation_timeout
         ).__aenter__()
 
-    assert exc_info.value == ConnectionAttemptsFailedError(
+    assert exc_info.value == FailedAllConnectAttemptsError(
         retry_attempts=3,
         issues=[ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=[error_frame])] * 3,
     )
 
 
+@pytest.mark.usefixtures("mock_sleep")
 async def test_client_connection_lifespan_unsupported_protocol_version() -> None:
     given_version = FAKER.pystr()
 
-    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
+    with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
         await EnrichedClient(
             connection_class=create_spying_connection(
                 [build_dataclass(ConnectedFrame, headers={"version": given_version})]
@@ -173,7 +174,7 @@ async def test_client_connection_lifespan_unsupported_protocol_version() -> None
             connect_retry_attempts=1,
         ).__aenter__()
 
-    assert exc_info.value == ConnectionAttemptsFailedError(
+    assert exc_info.value == FailedAllConnectAttemptsError(
         retry_attempts=1,
         issues=[UnsupportedProtocolVersion(given_version=given_version, supported_version=Client.PROTOCOL_VERSION)],
     )

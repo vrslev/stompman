@@ -225,6 +225,7 @@ class Client:
     connect_timeout: int = 2
     read_timeout: int = 2
     read_max_chunk_size: int = 1024 * 1024
+    write_retry_attempts: int = 3
     connection_confirmation_timeout: int = 2
     disconnect_confirmation_timeout: int = 2
 
@@ -257,6 +258,7 @@ class Client:
             connect_timeout=self.connect_timeout,
             read_timeout=self.read_timeout,
             read_max_chunk_size=self.read_max_chunk_size,
+            write_retry_attempts=self.write_retry_attempts,
         )
 
     async def __aenter__(self) -> Self:

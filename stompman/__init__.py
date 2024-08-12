@@ -8,12 +8,11 @@ from stompman.connection_manager import (
     ConnectionManager,
 )
 from stompman.errors import (
-    ConnectionAttemptsFailedError,
     ConnectionConfirmationTimeout,
-    ConnectionLostDuringOperationError,
     ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
+    FailedAllWriteAttemptsError,
     StompProtocolConnectionIssue,
     UnsupportedProtocolVersion,
 )
@@ -56,11 +55,9 @@ __all__ = [
     "ConnectFrame",
     "ConnectedFrame",
     "Connection",
-    "ConnectionAttemptsFailedError",
     "ConnectionConfirmationTimeout",
     "ConnectionLifespan",
     "ConnectionLifespanFactory",
-    "ConnectionLostDuringOperationError",
     "ConnectionLostError",
     "ConnectionManager",
     "ConnectionParameters",
@@ -68,6 +65,7 @@ __all__ = [
     "Error",
     "ErrorFrame",
     "FailedAllConnectAttemptsError",
+    "FailedAllWriteAttemptsError",
     "FrameParser",
     "Heartbeat",
     "HeartbeatFrame",

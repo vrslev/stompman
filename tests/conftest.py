@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
-from unittest import mock
 
 import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
@@ -22,7 +21,8 @@ def anyio_backend(request: pytest.FixtureRequest) -> object:
 
 @pytest.fixture()
 def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
-    monkeypatch.setattr("asyncio.sleep", mock.AsyncMock())
+    original_sleep = asyncio.sleep
+    monkeypatch.setattr("asyncio.sleep", lambda _: original_sleep(0))
 
 
 async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
@@ -74,6 +74,7 @@ class EnrichedConnectionManager(stompman.ConnectionManager):
     connect_timeout: int = 3
     read_timeout: int = 4
     read_max_chunk_size: int = 5
+    write_retry_attempts: int = 3
 
 
 DataclassType = TypeVar("DataclassType")

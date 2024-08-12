@@ -22,7 +22,7 @@ repository = "https://github.com/vrslev/stompman"
 [tool.uv]
 dev-dependencies = [
     "anyio~=4.4.0",
-    "mypy~=1.10.0",
+    "mypy~=1.11.1",
     "pytest-cov~=5.0.0",
     "pytest~=8.2.2",
     "ruff~=0.4.9",

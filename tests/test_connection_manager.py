@@ -10,21 +10,20 @@ from stompman import (
     AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
-    ConnectionAttemptsFailedError,
-    ConnectionLostDuringOperationError,
     ConnectionLostError,
     ConnectionParameters,
     ErrorFrame,
     FailedAllConnectAttemptsError,
+    FailedAllWriteAttemptsError,
     MessageFrame,
 )
-from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
+from tests.conftest import BaseMockConnection, EnrichedConnectionManager, NoopLifespan, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
 
 
 @pytest.mark.parametrize("ok_on_attempt", [1, 2, 3])
-async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_connect_attempts_ok(ok_on_attempt: int, monkeypatch: pytest.MonkeyPatch) -> None:
     attempts = 0
 
     class MockConnection(BaseMockConnection):
@@ -51,7 +50,8 @@ async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
     manager = EnrichedConnectionManager(connection_class=MockConnection)
-    assert await manager._connect_to_one_server(manager.servers[0])
+    active_connection_state = await manager._get_active_connection_state()
+    assert isinstance(active_connection_state, ActiveConnectionState)
     assert attempts == ok_on_attempt == (len(sleep_mock.mock_calls) + 1)
 
 
@@ -60,7 +60,7 @@ async def test_connect_to_one_server_fails() -> None:
         connect = mock.AsyncMock(return_value=None)
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
-    assert await manager._connect_to_one_server(manager.servers[0]) is None
+    assert await manager._create_connection_to_one_server(manager.servers[0]) is None
 
 
 async def test_connect_to_any_server_ok() -> None:
@@ -91,9 +91,10 @@ async def test_connect_to_any_server_ok() -> None:
         ],
         connection_class=MockConnection,
     )
-    connection, connection_parameters = await manager._connect_to_any_server()
-    assert connection
-    assert connection_parameters == successful_server
+    active_connection_state = await manager._create_connection_to_any_server()
+    assert active_connection_state
+    assert isinstance(active_connection_state.lifespan, NoopLifespan)
+    assert active_connection_state.lifespan.connection_parameters == successful_server
 
 
 async def test_connect_to_any_server_fails() -> None:
@@ -109,9 +110,7 @@ async def test_connect_to_any_server_fails() -> None:
         ],
         connection_class=MockConnection,
     )
-
-    with pytest.raises(FailedAllConnectAttemptsError):
-        await manager._connect_to_any_server()
+    assert not await manager._create_connection_to_any_server()
 
 
 async def test_get_active_connection_state_lifespan_flaky_ok() -> None:
@@ -133,7 +132,7 @@ async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
     lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
     manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
 
-    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
+    with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
         await manager._get_active_connection_state()
 
     assert (
@@ -219,7 +218,7 @@ async def test_write_heartbeat_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(ConnectionLostDuringOperationError):
+    with pytest.raises(FailedAllWriteAttemptsError):
         await manager.write_heartbeat_reconnecting()
 
 
@@ -231,7 +230,7 @@ async def test_write_frame_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(ConnectionLostDuringOperationError):
+    with pytest.raises(FailedAllWriteAttemptsError):
         await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
 
 
