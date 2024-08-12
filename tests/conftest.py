@@ -7,6 +7,17 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
+import stompman.client
+import stompman.transaction
+from stompman import (
+    AbstractConnection,
+    AnyClientFrame,
+    AnyServerFrame,
+    Client,
+    ConnectedFrame,
+    ConnectFrame,
+)
+from stompman.frames import DisconnectFrame, ReceiptFrame
 
 
 @pytest.fixture(
@@ -90,3 +101,53 @@ class SomeError(Exception):
     async def raise_after_tick(cls) -> None:
         await asyncio.sleep(0)
         raise cls
+
+
+def create_spying_connection(
+    *read_frames_yields: list[AnyServerFrame],
+) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame]]:
+    class BaseCollectingConnection(BaseMockConnection):
+        @staticmethod
+        async def write_frame(frame: AnyClientFrame) -> None:
+            collected_frames.append(frame)
+
+        @staticmethod
+        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
+            for frame in next(read_frames_iterator):
+                collected_frames.append(frame)
+                yield frame
+            await asyncio.Future()
+
+    read_frames_iterator = iter(read_frames_yields)
+    collected_frames: list[AnyClientFrame | AnyServerFrame] = []
+    return BaseCollectingConnection, collected_frames
+
+
+CONNECT_FRAME = ConnectFrame(
+    headers={
+        "accept-version": Client.PROTOCOL_VERSION,
+        "heart-beat": "1000,1000",
+        "host": "localhost",
+        "login": "login",
+        "passcode": "passcode",
+    },
+)
+CONNECTED_FRAME = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
+
+
+def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[list[AnyServerFrame]]:
+    return [
+        [CONNECTED_FRAME],
+        *read_frames,
+        [ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
+    ]
+
+
+def enrich_expected_frames(*expected_frames: AnyClientFrame | AnyServerFrame) -> list[AnyClientFrame | AnyServerFrame]:
+    return [
+        CONNECT_FRAME,
+        CONNECTED_FRAME,
+        *expected_frames,
+        DisconnectFrame(headers={"receipt": "receipt-id-1"}),
+        ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
+    ]
