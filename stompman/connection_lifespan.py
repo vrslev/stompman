@@ -15,7 +15,7 @@ from stompman.frames import (
     ReceiptFrame,
     SubscribeFrame,
 )
-from stompman.subscription import ActiveSubscriptions
+from stompman.subscription import ActiveSubscriptions, resubscribe_to_active_subscriptions
 from stompman.transaction import ActiveTransactions, commit_pending_transactions
 
 
@@ -82,7 +82,9 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     async def enter(self) -> StompProtocolConnectionIssue | None:
         if connection_issue := await self._establish_connection():
             return connection_issue
-        await self._resubscribe()
+        await resubscribe_to_active_subscriptions(
+            connection=self.connection, active_subscriptions=self.active_subscriptions
+        )
         await commit_pending_transactions(connection=self.connection, active_transactions=self.active_transactions)
         return None
 
