@@ -12,6 +12,7 @@ from stompman.connection_lifespan import AbstractConnectionLifespan
 from stompman.connection_manager import ConnectionManager
 
 
+@pytest.fixture
 def anyio_backend() -> object:
     return "asyncio"
 
