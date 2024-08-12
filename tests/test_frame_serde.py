@@ -7,10 +7,12 @@ from stompman import (
     ConnectedFrame,
     ConnectFrame,
     ErrorFrame,
+    FrameParser,
     HeartbeatFrame,
     MessageFrame,
+    dump_frame,
 )
-from stompman.serde import NEWLINE, FrameParser, dump_frame
+from stompman.serde import NEWLINE
 
 
 @pytest.mark.parametrize(

@@ -1,23 +1,23 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterable
-from types import SimpleNamespace
 from typing import Self
 from unittest import mock
 
 import pytest
 
 from stompman import (
+    ActiveConnectionState,
     AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
+    ConnectionAttemptsFailedError,
+    ConnectionLostDuringOperationError,
     ConnectionLostError,
     ConnectionParameters,
     ErrorFrame,
     FailedAllConnectAttemptsError,
     MessageFrame,
-    RepeatedConnectionLostError,
 )
-from stompman.connection_manager import ActiveConnectionState
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
@@ -115,31 +115,31 @@ async def test_connect_to_any_server_fails() -> None:
 
 
 async def test_get_active_connection_state_lifespan_flaky_ok() -> None:
-    aenter = mock.AsyncMock(side_effect=[ConnectionLostError, None])
-    lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
-    manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
+    enter = mock.AsyncMock(side_effect=[ConnectionLostError, None])
+    lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
+    manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
 
     await manager._get_active_connection_state()
 
-    assert aenter.mock_calls == [mock.call(), mock.call()]
-    assert lifespan.mock_calls == [
-        mock.call(BaseMockConnection(), manager.servers[0]),
-        mock.call(BaseMockConnection(), manager.servers[0]),
+    assert enter.mock_calls == [mock.call(), mock.call()]
+    assert lifespan_factory.mock_calls == [
+        mock.call(connection=BaseMockConnection(), connection_parameters=manager.servers[0]),
+        mock.call(connection=BaseMockConnection(), connection_parameters=manager.servers[0]),
     ]
 
 
 async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
-    aenter = mock.AsyncMock(side_effect=ConnectionLostError)
-    lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
-    manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
+    enter = mock.AsyncMock(side_effect=ConnectionLostError)
+    lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
+    manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
 
-    with pytest.raises(RepeatedConnectionLostError) as exc_info:
+    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
         await manager._get_active_connection_state()
 
     assert (
         exc_info.value.retry_attempts
-        == len(lifespan.mock_calls)
-        == len(aenter.mock_calls)
+        == len(lifespan_factory.mock_calls)
+        == len(enter.mock_calls)
         == manager.connect_retry_attempts
     )
 
@@ -153,9 +153,9 @@ async def test_get_active_connection_state_fails_to_connect() -> None:
 
 
 async def test_get_active_connection_state_ok_concurrent() -> None:
-    aenter = mock.AsyncMock(side_effect=None)
-    lifespan = mock.Mock(return_value=SimpleNamespace(__aenter__=aenter))
-    manager = EnrichedConnectionManager(lifespan=lifespan, connection_class=BaseMockConnection)
+    enter = mock.AsyncMock(return_value=None)
+    lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
+    manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
 
     first_state, second_state, third_state = await asyncio.gather(
         manager._get_active_connection_state(),
@@ -169,12 +169,12 @@ async def test_get_active_connection_state_ok_concurrent() -> None:
         == second_state
         == third_state
         == fourth_state
-        == ActiveConnectionState(connection=BaseMockConnection(), lifespan=lifespan.return_value)
+        == ActiveConnectionState(connection=BaseMockConnection(), lifespan=lifespan_factory.return_value)
     )
     assert first_state is second_state is third_state is fourth_state
 
-    aenter.assert_called_once_with()
-    lifespan.assert_called_once_with(BaseMockConnection(), manager.servers[0])
+    enter.assert_called_once_with()
+    lifespan_factory.assert_called_once_with(connection=BaseMockConnection(), connection_parameters=manager.servers[0])
 
 
 async def test_connection_manager_context_connection_lost() -> None:
@@ -184,9 +184,9 @@ async def test_connection_manager_context_connection_lost() -> None:
 
 async def test_connection_manager_context_lifespan_aexit_raises_connection_lost() -> None:
     async with EnrichedConnectionManager(
-        lifespan=mock.Mock(
-            return_value=SimpleNamespace(
-                __aenter__=mock.AsyncMock(), __aexit__=mock.AsyncMock(side_effect=[ConnectionLostError])
+        lifespan_factory=mock.Mock(
+            return_value=mock.Mock(
+                enter=mock.AsyncMock(return_value=None), exit=mock.AsyncMock(side_effect=[ConnectionLostError])
             )
         ),
         connection_class=BaseMockConnection,
@@ -194,21 +194,21 @@ async def test_connection_manager_context_lifespan_aexit_raises_connection_lost(
         pass
 
 
-async def test_connection_manager_context_exist_ok() -> None:
-    aexit = mock.AsyncMock()
-    close_mock = mock.AsyncMock()
+async def test_connection_manager_context_exits_ok() -> None:
+    close = mock.AsyncMock()
+    connection_close = mock.AsyncMock()
 
     class MockConnection(BaseMockConnection):
-        close = close_mock
+        close = connection_close
 
     async with EnrichedConnectionManager(
-        lifespan=mock.Mock(return_value=SimpleNamespace(__aenter__=mock.AsyncMock(), __aexit__=aexit)),
+        lifespan_factory=mock.Mock(return_value=mock.Mock(enter=mock.AsyncMock(return_value=None), exit=close)),
         connection_class=MockConnection,
     ):
         pass
 
-    aexit.assert_called_once()
-    close_mock.assert_called_once_with()
+    close.assert_called_once()
+    connection_close.assert_called_once_with()
 
 
 async def test_write_heartbeat_reconnecting_raises() -> None:
@@ -219,7 +219,7 @@ async def test_write_heartbeat_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(RepeatedConnectionLostError):
+    with pytest.raises(ConnectionLostDuringOperationError):
         await manager.write_heartbeat_reconnecting()
 
 
@@ -231,7 +231,7 @@ async def test_write_frame_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(RepeatedConnectionLostError):
+    with pytest.raises(ConnectionLostDuringOperationError):
         await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
 
 

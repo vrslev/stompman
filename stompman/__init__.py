@@ -1,14 +1,21 @@
-from stompman.client import Client, Subscription, Transaction
+from stompman.client import Client, ConnectionLifespan, Subscription, Transaction
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
-from stompman.connection_manager import ActiveConnectionState, ConnectionManager
+from stompman.connection_manager import (
+    AbstractConnectionLifespan,
+    ActiveConnectionState,
+    ConnectionLifespanFactory,
+    ConnectionManager,
+)
 from stompman.errors import (
-    ConnectionConfirmationTimeoutError,
+    ConnectionAttemptsFailedError,
+    ConnectionConfirmationTimeout,
+    ConnectionLostDuringOperationError,
     ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
-    RepeatedConnectionLostError,
-    UnsupportedProtocolVersionError,
+    StompProtocolConnectionIssue,
+    UnsupportedProtocolVersion,
 )
 from stompman.frames import (
     AbortFrame,
@@ -31,10 +38,12 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
+from stompman.serde import FrameParser, dump_frame
 
 __all__ = [
     "AbortFrame",
     "AbstractConnection",
+    "AbstractConnectionLifespan",
     "AckFrame",
     "AckMode",
     "ActiveConnectionState",
@@ -47,7 +56,11 @@ __all__ = [
     "ConnectFrame",
     "ConnectedFrame",
     "Connection",
-    "ConnectionConfirmationTimeoutError",
+    "ConnectionAttemptsFailedError",
+    "ConnectionConfirmationTimeout",
+    "ConnectionLifespan",
+    "ConnectionLifespanFactory",
+    "ConnectionLostDuringOperationError",
     "ConnectionLostError",
     "ConnectionManager",
     "ConnectionParameters",
@@ -55,16 +68,18 @@ __all__ = [
     "Error",
     "ErrorFrame",
     "FailedAllConnectAttemptsError",
+    "FrameParser",
     "Heartbeat",
     "HeartbeatFrame",
     "MessageFrame",
     "NackFrame",
     "ReceiptFrame",
-    "RepeatedConnectionLostError",
     "SendFrame",
+    "StompProtocolConnectionIssue",
     "SubscribeFrame",
     "Subscription",
     "Transaction",
     "UnsubscribeFrame",
-    "UnsupportedProtocolVersionError",
+    "UnsupportedProtocolVersion",
+    "dump_frame",
 ]

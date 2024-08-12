@@ -21,7 +21,8 @@ from stompman import (
     CommitFrame,
     ConnectedFrame,
     ConnectFrame,
-    ConnectionConfirmationTimeoutError,
+    ConnectionAttemptsFailedError,
+    ConnectionConfirmationTimeout,
     ConnectionParameters,
     DisconnectFrame,
     ErrorFrame,
@@ -33,7 +34,7 @@ from stompman import (
     SendFrame,
     SubscribeFrame,
     UnsubscribeFrame,
-    UnsupportedProtocolVersionError,
+    UnsupportedProtocolVersion,
 )
 from tests.conftest import (
     BaseMockConnection,
@@ -150,28 +151,31 @@ async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: 
             yield error_frame
             await asyncio.sleep(0)
 
-    with pytest.raises(ConnectionConfirmationTimeoutError) as exc_info:
+    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
         await EnrichedClient(
             connection_class=MockConnection, connection_confirmation_timeout=connection_confirmation_timeout
         ).__aenter__()
 
-    assert exc_info.value == ConnectionConfirmationTimeoutError(
-        timeout=connection_confirmation_timeout, frames=[error_frame]
+    assert exc_info.value == ConnectionAttemptsFailedError(
+        retry_attempts=3,
+        issues=[ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=[error_frame])] * 3,
     )
 
 
 async def test_client_connection_lifespan_unsupported_protocol_version() -> None:
     given_version = FAKER.pystr()
 
-    with pytest.raises(UnsupportedProtocolVersionError) as exc_info:
+    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
         await EnrichedClient(
             connection_class=create_spying_connection(
                 [build_dataclass(ConnectedFrame, headers={"version": given_version})]
-            )[0]
+            )[0],
+            connect_retry_attempts=1,
         ).__aenter__()
 
-    assert exc_info.value == UnsupportedProtocolVersionError(
-        given_version=given_version, supported_version=Client.PROTOCOL_VERSION
+    assert exc_info.value == ConnectionAttemptsFailedError(
+        retry_attempts=1,
+        issues=[UnsupportedProtocolVersion(given_version=given_version, supported_version=Client.PROTOCOL_VERSION)],
     )
 
 

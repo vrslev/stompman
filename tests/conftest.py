@@ -1,6 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator, Callable
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
 from unittest import mock
@@ -9,7 +8,6 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
-from stompman.frames import HeartbeatFrame
 
 
 @pytest.fixture(
@@ -46,7 +44,7 @@ class BaseMockConnection(stompman.AbstractConnection):
     @staticmethod
     async def read_frames() -> AsyncGenerator[stompman.AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
-        yield HeartbeatFrame()
+        yield stompman.HeartbeatFrame()
 
 
 @dataclass(kw_only=True, slots=True)
@@ -56,11 +54,13 @@ class EnrichedClient(stompman.Client):
     )
 
 
-@asynccontextmanager
-async def noop_lifespan(  # noqa: RUF029
-    connection: stompman.AbstractConnection, connection_parameters: stompman.ConnectionParameters
-) -> AsyncIterator[None]:
-    yield
+@dataclass(frozen=True, kw_only=True, slots=True)
+class NoopLifespan(stompman.AbstractConnectionLifespan):
+    connection: stompman.AbstractConnection
+    connection_parameters: stompman.ConnectionParameters
+
+    async def enter(self) -> stompman.StompProtocolConnectionIssue | None: ...
+    async def exit(self) -> None: ...
 
 
 @dataclass(kw_only=True, slots=True)
@@ -68,9 +68,7 @@ class EnrichedConnectionManager(stompman.ConnectionManager):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
-    lifespan: Callable[
-        [stompman.AbstractConnection, stompman.ConnectionParameters], AbstractAsyncContextManager[None]
-    ] = field(default=noop_lifespan)
+    lifespan_factory: stompman.ConnectionLifespanFactory = field(default=NoopLifespan)
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 3
