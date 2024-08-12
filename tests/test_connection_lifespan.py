@@ -1,10 +1,12 @@
 import asyncio
-from collections.abc import AsyncGenerator, Coroutine
-from typing import Any
+from collections.abc import AsyncGenerator, AsyncIterable, Coroutine, Iterable
+from functools import partial
+from typing import Any, TypeVar
 from unittest import mock
 
 import faker
 import pytest
+from faker import Faker
 
 import stompman.connection_lifespan
 from stompman import (
@@ -20,6 +22,8 @@ from stompman import (
     ReceiptFrame,
     UnsupportedProtocolVersion,
 )
+from stompman.connection_lifespan import take_connected_frame
+from stompman.frames import HeartbeatFrame, MessageFrame
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,
@@ -30,6 +34,60 @@ from tests.conftest import (
 
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
+
+IterableItemT = TypeVar("IterableItemT")
+
+
+async def make_async_iter(iterable: Iterable[IterableItemT]) -> AsyncIterable[IterableItemT]:
+    for item in iterable:
+        yield item
+    await asyncio.sleep(0)
+
+
+class TestTakeConnectedFrame:
+    @pytest.mark.parametrize(
+        "frame_types",
+        [[ConnectedFrame], [MessageFrame, HeartbeatFrame, ConnectedFrame], [HeartbeatFrame, ConnectedFrame]],
+    )
+    async def test_ok(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
+        wait_for_mock = mock.AsyncMock(side_effect=partial(asyncio.wait_for, timeout=0))
+        monkeypatch.setattr("asyncio.wait_for", wait_for_mock)
+        timeout = faker.pyint()
+
+        result = await take_connected_frame(
+            frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
+            connection_confirmation_timeout=timeout,
+        )
+
+        assert isinstance(result, ConnectedFrame)
+        wait_for_mock.assert_called_once()
+        assert wait_for_mock.mock_calls[0].kwargs["timeout"] == timeout
+
+    async def test_unreachable(self) -> None:
+        with pytest.raises(AssertionError, match="unreachable"):
+            await take_connected_frame(frames_iter=make_async_iter([]), connection_confirmation_timeout=1)
+
+    async def test_timeout(self, monkeypatch: pytest.MonkeyPatch, faker: Faker) -> None:
+        connection_confirmation_timeout = faker.pyint()
+        original_wait_for = asyncio.wait_for
+
+        async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
+            assert timeout == connection_confirmation_timeout
+
+            task = asyncio.create_task(future)
+            await asyncio.sleep(0)
+            return await original_wait_for(task, 0)
+
+        monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
+
+        result = await take_connected_frame(
+            frames_iter=make_async_iter([HeartbeatFrame()]),
+            connection_confirmation_timeout=connection_confirmation_timeout,
+        )
+
+        assert result == ConnectionConfirmationTimeout(
+            timeout=connection_confirmation_timeout, frames=[HeartbeatFrame()]
+        )
 
 
 async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
