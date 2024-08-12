@@ -10,7 +10,7 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
 from stompman.connection_manager import AbstractConnectionLifespan, ConnectionLifespanFactory
-from stompman.errors import ConnectionIssue
+from stompman.errors import StompProtocolConnectionIssue
 from stompman.frames import HeartbeatFrame
 
 
@@ -70,7 +70,7 @@ class NoopLifespan(AbstractConnectionLifespan):
     connection: stompman.AbstractConnection
     connection_parameters: stompman.ConnectionParameters
 
-    async def enter(self) -> ConnectionIssue | None: ...
+    async def enter(self) -> StompProtocolConnectionIssue | None: ...
     async def exit(self) -> None: ...
 
 

@@ -10,7 +10,7 @@ from uuid import uuid4
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import AbstractConnectionLifespan, ConnectionManager
-from stompman.errors import ConnectionConfirmationTimeout, ConnectionIssue, UnsupportedProtocolVersion
+from stompman.errors import ConnectionConfirmationTimeout, StompProtocolConnectionIssue, UnsupportedProtocolVersion
 from stompman.frames import (
     AbortFrame,
     AckFrame,
@@ -130,7 +130,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     active_transactions: set[Transaction]
     set_heartbeat: Callable[[float], None]
 
-    async def _establish_connection(self) -> ConnectionIssue | None:
+    async def _establish_connection(self) -> StompProtocolConnectionIssue | None:
         await self.connection.write_frame(
             ConnectFrame(
                 headers={
@@ -185,7 +185,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
             await self.connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
         self.active_transactions.clear()
 
-    async def enter(self) -> ConnectionIssue | None:
+    async def enter(self) -> StompProtocolConnectionIssue | None:
         if connection_issue := await self._establish_connection():
             return connection_issue
         await self._resubscribe()

@@ -7,16 +7,18 @@ from typing import Protocol, Self
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
 from stompman.errors import (
-    ConnectionIssue,
+    ConnectionLost,
     ConnectionLostError,
     FailedAllConnectAttemptsError,
+    RepeatedConnectionFailedError,
     RepeatedConnectionLostError,
+    StompProtocolConnectionIssue,
 )
 from stompman.frames import AnyClientFrame, AnyServerFrame
 
 
 class AbstractConnectionLifespan(Protocol):
-    async def enter(self) -> ConnectionIssue | None: ...
+    async def enter(self) -> StompProtocolConnectionIssue | None: ...
     async def exit(self) -> None: ...
 
 
@@ -90,6 +92,8 @@ class ConnectionManager:
         )
 
     async def _get_active_connection_state(self) -> ActiveConnectionState:
+        connection_issues: list[StompProtocolConnectionIssue | ConnectionLost] = []
+
         for _ in range(self.connect_retry_attempts):
             if self._active_connection_state:
                 return self._active_connection_state
@@ -105,13 +109,17 @@ class ConnectionManager:
                 )
 
                 try:
-                    await self._active_connection_state.lifespan.enter()
+                    lifespan_connection_issue = await self._active_connection_state.lifespan.enter()
                 except ConnectionLostError:
                     self._clear_active_connection_state()
+                    connection_issues.append(ConnectionLost())
                 else:
-                    return self._active_connection_state
+                    if lifespan_connection_issue:
+                        connection_issues.append(lifespan_connection_issue)
+                    else:
+                        return self._active_connection_state
 
-        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
+        raise RepeatedConnectionFailedError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None

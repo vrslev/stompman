@@ -19,18 +19,6 @@ class ConnectionLostError(Error):
 
 
 @dataclass(kw_only=True)
-class ConnectionConfirmationTimeoutError(Error):
-    timeout: int
-    frames: list[MessageFrame | ReceiptFrame | ErrorFrame | HeartbeatFrame]
-
-
-@dataclass(kw_only=True)
-class UnsupportedProtocolVersionError(Error):
-    given_version: str
-    supported_version: str
-
-
-@dataclass(kw_only=True)
 class FailedAllConnectAttemptsError(Error):
     servers: list["ConnectionParameters"]
     retry_attempts: int
@@ -54,7 +42,13 @@ class UnsupportedProtocolVersion:
 class ConnectionLost: ...
 
 
-ConnectionIssue = ConnectionConfirmationTimeout | UnsupportedProtocolVersion
+StompProtocolConnectionIssue = ConnectionConfirmationTimeout | UnsupportedProtocolVersion
+
+
+@dataclass(kw_only=True)
+class RepeatedConnectionFailedError(Error):
+    retry_attempts: int
+    issues: list[StompProtocolConnectionIssue | ConnectionLost]
 
 
 @dataclass(kw_only=True)
