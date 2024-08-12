@@ -86,10 +86,8 @@ async def test_connection_manager_context_exits_ok() -> None:
 
 
 async def test_write_heartbeat_reconnecting_raises() -> None:
-    write_heartbeat_mock = mock.Mock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
-
     class MockConnection(BaseMockConnection):
-        write_heartbeat = write_heartbeat_mock
+        write_heartbeat = mock.Mock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
@@ -98,10 +96,8 @@ async def test_write_heartbeat_reconnecting_raises() -> None:
 
 
 async def test_write_frame_reconnecting_raises() -> None:
-    write_frame_mock = mock.AsyncMock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
-
     class MockConnection(BaseMockConnection):
-        write_frame = write_frame_mock
+        write_frame = mock.AsyncMock(side_effect=[ConnectionLostError, ConnectionLostError, ConnectionLostError])
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
@@ -109,10 +105,14 @@ async def test_write_frame_reconnecting_raises() -> None:
         await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
 
 
-SIDE_EFFECTS = [(None,), (ConnectionLostError(), None), (ConnectionLostError(), ConnectionLostError(), None)]
+RECONNECTING_SIDE_EFFECTS = [
+    (None,),
+    (ConnectionLostError(), None),
+    (ConnectionLostError(), ConnectionLostError(), None),
+]
 
 
-@pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
+@pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
 async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
     write_heartbeat_mock = mock.Mock(side_effect=side_effect)
 
@@ -120,13 +120,11 @@ async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | Connect
         write_heartbeat = write_heartbeat_mock
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
-
     await manager.write_heartbeat_reconnecting()
-
     assert len(write_heartbeat_mock.mock_calls) == len(side_effect)
 
 
-@pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
+@pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
 async def test_write_frame_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
     write_frame_mock = mock.AsyncMock(side_effect=side_effect)
 
@@ -134,13 +132,11 @@ async def test_write_frame_reconnecting_ok(side_effect: tuple[None | ConnectionL
         write_frame = write_frame_mock
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
-
     await manager.write_frame_reconnecting(frame := build_dataclass(ConnectFrame))
-
     assert write_frame_mock.mock_calls == [mock.call(frame)] * len(side_effect)
 
 
-@pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
+@pytest.mark.parametrize("side_effect", RECONNECTING_SIDE_EFFECTS)
 async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
     frames: list[AnyServerFrame] = [
         build_dataclass(ConnectedFrame),
@@ -171,7 +167,7 @@ async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionL
 
 
 async def test_maybe_write_frame_connection_already_lost() -> None:
-    manager = EnrichedConnectionManager(connection_class=BaseMockConnection)
+    manager = EnrichedConnectionManager(connection_class=mock.AsyncMock())
     assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
 
 
@@ -184,5 +180,5 @@ async def test_maybe_write_frame_connection_now_lost() -> None:
 
 
 async def test_maybe_write_frame_ok() -> None:
-    async with EnrichedConnectionManager(connection_class=BaseMockConnection) as manager:
+    async with EnrichedConnectionManager(connection_class=mock.AsyncMock()) as manager:
         assert await manager.maybe_write_frame(build_dataclass(ConnectFrame))
