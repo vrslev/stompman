@@ -27,8 +27,18 @@ from stompman.connection_lifespan import (
     take_connected_frame,
     wait_for_receipt_frame,
 )
-from stompman.frames import AckMode, CommitFrame, ConnectFrame, HeartbeatFrame, MessageFrame, SubscribeFrame
-from stompman.subscription import Subscription
+from stompman.frames import (
+    AckMode,
+    AnyClientFrame,
+    CommitFrame,
+    ConnectFrame,
+    DisconnectFrame,
+    HeartbeatFrame,
+    MessageFrame,
+    SubscribeFrame,
+    UnsubscribeFrame,
+)
+from stompman.subscription import ActiveSubscriptions, Subscription
 from stompman.transaction import Transaction
 from tests.conftest import (
     BaseMockConnection,
@@ -261,6 +271,61 @@ class TestConnectionLifespanEnter:
         assert await connection_lifespan.enter() == UnsupportedProtocolVersion(
             given_version=given_version, supported_version=supported_version
         )
+
+
+async def test_connection_lifespan_exit(faker: Faker) -> None:
+    written_and_read_frames: list[AnyServerFrame | AnyClientFrame] = []
+    connection_manager = mock.Mock(maybe_write_frame=mock.AsyncMock(side_effect=written_and_read_frames.append))
+    active_subscriptions: ActiveSubscriptions = {}
+    subscriptions_list = [
+        Subscription(
+            destination=faker.pystr(),
+            handler=noop_message_handler,
+            ack=faker.random_element(get_args(AckMode)),
+            on_suppressed_exception=noop_error_handler,
+            supressed_exception_classes=(),
+            _connection_manager=connection_manager,
+            _active_subscriptions=active_subscriptions,
+        )
+        for _ in range(4)
+    ]
+    active_subscriptions |= {subscription.id: subscription for subscription in subscriptions_list}
+    unsubscribe_frames = [
+        UnsubscribeFrame(headers={"id": subscription.id}) for subscription in active_subscriptions.values()
+    ]
+    active_transactions_mock = mock.Mock()
+    active_transactions = [
+        Transaction(_connection_manager=connection_manager, _active_transactions=active_transactions_mock)
+        for _ in range(4)
+    ]
+    receipt_frame = build_dataclass(ReceiptFrame)
+
+    async def mock_read_frames(iterable: Iterable[AnyServerFrame]) -> AsyncIterable[AnyServerFrame]:
+        async for frame in make_async_iter(iterable):
+            written_and_read_frames.append(frame)
+            yield frame
+
+    connection_lifespan = ConnectionLifespan(
+        connection=mock.AsyncMock(
+            write_frame=mock.AsyncMock(side_effect=written_and_read_frames.append),
+            read_frames=mock.Mock(side_effect=[mock_read_frames([receipt_frame])]),
+        ),
+        connection_parameters=mock.Mock(),
+        protocol_version=faker.pystr(),
+        client_heartbeat=mock.Mock(),
+        connection_confirmation_timeout=faker.pyint(min_value=1),
+        disconnect_confirmation_timeout=faker.pyint(),
+        active_subscriptions=active_subscriptions,
+        active_transactions=active_transactions,  # type: ignore[arg-type]
+        set_heartbeat_interval=mock.Mock(),
+    )
+    await connection_lifespan.exit()
+
+    assert written_and_read_frames == [
+        *unsubscribe_frames,
+        DisconnectFrame(headers={"receipt": "receipt-id-1"}),
+        receipt_frame,
+    ]
 
 
 @pytest.mark.usefixtures("mock_sleep")
