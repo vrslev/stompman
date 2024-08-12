@@ -120,17 +120,13 @@ class ConnectionManager:
         raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
 
     async def read_frames_reconnecting(self) -> AsyncGenerator[AnyServerFrame, None]:
-        for _ in range(self.connect_retry_attempts):
+        while True:
             connection_state = await self._get_active_connection_state()
             try:
                 async for frame in connection_state.connection.read_frames():
                     yield frame
             except ConnectionLostError:
                 self._clear_active_connection_state()
-            else:
-                return
-
-        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
 
     async def maybe_write_frame(self, frame: AnyClientFrame) -> bool:
         if not self._active_connection_state:
