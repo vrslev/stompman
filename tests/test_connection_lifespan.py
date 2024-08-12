@@ -4,11 +4,9 @@ from functools import partial
 from typing import Any, TypeVar, get_args
 from unittest import mock
 
-import faker
 import pytest
 from faker import Faker
 
-import stompman.connection_lifespan
 from stompman import (
     AnyServerFrame,
     ConnectedFrame,
@@ -19,6 +17,7 @@ from stompman import (
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection_lifespan import (
     ConnectionLifespan,
+    _make_receipt_id,  # noqa: PLC2701
     calculate_heartbeat_interval,
     check_stomp_protocol_version,
     take_connected_frame,
@@ -37,14 +36,9 @@ from stompman.frames import (
 )
 from stompman.subscription import ActiveSubscriptions, Subscription
 from stompman.transaction import Transaction
-from tests.conftest import (
-    build_dataclass,
-    noop_error_handler,
-    noop_message_handler,
-)
+from tests.conftest import build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
-FAKER = faker.Faker()
 
 IterableItemT = TypeVar("IterableItemT")
 
@@ -324,6 +318,5 @@ async def test_connection_lifespan_exit(faker: Faker, monkeypatch: pytest.Monkey
     ]
 
 
-def test_make_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.undo()
-    stompman.connection_lifespan._make_receipt_id()
+def test_make_receipt_id() -> None:
+    _make_receipt_id()
