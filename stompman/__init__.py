@@ -1,7 +1,12 @@
 from stompman.client import Client, ConnectionLifespan, Subscription, Transaction
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
-from stompman.connection_manager import AbstractConnectionLifespan, ActiveConnectionState, ConnectionManager
+from stompman.connection_manager import (
+    AbstractConnectionLifespan,
+    ActiveConnectionState,
+    ConnectionLifespanFactory,
+    ConnectionManager,
+)
 from stompman.errors import (
     ConnectionAttemptsFailedError,
     ConnectionConfirmationTimeout,
@@ -33,6 +38,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
+from stompman.serde import FrameParser, dump_frame
 
 __all__ = [
     "AbortFrame",
@@ -53,6 +59,7 @@ __all__ = [
     "ConnectionAttemptsFailedError",
     "ConnectionConfirmationTimeout",
     "ConnectionLifespan",
+    "ConnectionLifespanFactory",
     "ConnectionLostDuringOperationError",
     "ConnectionLostError",
     "ConnectionManager",
@@ -61,6 +68,7 @@ __all__ = [
     "Error",
     "ErrorFrame",
     "FailedAllConnectAttemptsError",
+    "FrameParser",
     "Heartbeat",
     "HeartbeatFrame",
     "MessageFrame",
@@ -73,4 +81,5 @@ __all__ = [
     "Transaction",
     "UnsubscribeFrame",
     "UnsupportedProtocolVersion",
+    "dump_frame",
 ]

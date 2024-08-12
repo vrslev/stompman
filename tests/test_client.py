@@ -21,6 +21,8 @@ from stompman import (
     CommitFrame,
     ConnectedFrame,
     ConnectFrame,
+    ConnectionAttemptsFailedError,
+    ConnectionConfirmationTimeout,
     ConnectionParameters,
     DisconnectFrame,
     ErrorFrame,
@@ -32,8 +34,8 @@ from stompman import (
     SendFrame,
     SubscribeFrame,
     UnsubscribeFrame,
+    UnsupportedProtocolVersion,
 )
-from stompman.errors import ConnectionAttemptsFailedError, ConnectionConfirmationTimeout, UnsupportedProtocolVersion
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,

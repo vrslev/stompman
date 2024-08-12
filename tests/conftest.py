@@ -8,9 +8,6 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
-from stompman import HeartbeatFrame
-from stompman.connection_manager import AbstractConnectionLifespan, ConnectionLifespanFactory
-from stompman.errors import StompProtocolConnectionIssue
 
 
 @pytest.fixture(
@@ -47,7 +44,7 @@ class BaseMockConnection(stompman.AbstractConnection):
     @staticmethod
     async def read_frames() -> AsyncGenerator[stompman.AnyServerFrame, None]:  # pragma: no cover
         await asyncio.Future()
-        yield HeartbeatFrame()
+        yield stompman.HeartbeatFrame()
 
 
 @dataclass(kw_only=True, slots=True)
@@ -58,11 +55,11 @@ class EnrichedClient(stompman.Client):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class NoopLifespan(AbstractConnectionLifespan):
+class NoopLifespan(stompman.AbstractConnectionLifespan):
     connection: stompman.AbstractConnection
     connection_parameters: stompman.ConnectionParameters
 
-    async def enter(self) -> StompProtocolConnectionIssue | None: ...
+    async def enter(self) -> stompman.StompProtocolConnectionIssue | None: ...
     async def exit(self) -> None: ...
 
 
@@ -71,7 +68,7 @@ class EnrichedConnectionManager(stompman.ConnectionManager):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
-    lifespan_factory: ConnectionLifespanFactory = field(default=NoopLifespan)
+    lifespan_factory: stompman.ConnectionLifespanFactory = field(default=NoopLifespan)
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 3

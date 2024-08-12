@@ -6,9 +6,11 @@ from unittest import mock
 import pytest
 
 from stompman import (
+    ActiveConnectionState,
     AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
+    ConnectionAttemptsFailedError,
     ConnectionLostDuringOperationError,
     ConnectionLostError,
     ConnectionParameters,
@@ -16,8 +18,6 @@ from stompman import (
     FailedAllConnectAttemptsError,
     MessageFrame,
 )
-from stompman.connection_manager import ActiveConnectionState
-from stompman.errors import ConnectionAttemptsFailedError
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
