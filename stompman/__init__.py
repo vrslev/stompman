@@ -9,6 +9,7 @@ from stompman.errors import (
     ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
+    StompProtocolConnectionIssue,
     UnsupportedProtocolVersion,
 )
 from stompman.frames import (
@@ -66,6 +67,7 @@ __all__ = [
     "NackFrame",
     "ReceiptFrame",
     "SendFrame",
+    "StompProtocolConnectionIssue",
     "SubscribeFrame",
     "Subscription",
     "Transaction",

@@ -8,9 +8,9 @@ import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
+from stompman import HeartbeatFrame
 from stompman.connection_manager import AbstractConnectionLifespan, ConnectionLifespanFactory
 from stompman.errors import StompProtocolConnectionIssue
-from stompman.frames import HeartbeatFrame
 
 
 @pytest.fixture(
