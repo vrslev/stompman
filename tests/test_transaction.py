@@ -26,6 +26,7 @@ from tests.conftest import (
 
 if TYPE_CHECKING:
     from stompman.frames import SendHeaders
+
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
 
