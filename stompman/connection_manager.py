@@ -45,6 +45,29 @@ async def attempt_to_connect(
     raise FailedAllConnectAttemptsError(retry_attempts=connect_retry_attempts, issues=connection_issues)
 
 
+async def connect_to_first_server(
+    connect_awaitables: list[Awaitable[ActiveConnectionState | None]],
+) -> ActiveConnectionState | None:
+    for maybe_connection_future in asyncio.as_completed(connect_awaitables):
+        if connection_state := await maybe_connection_future:
+            return connection_state
+    return None
+
+
+async def make_healthy_connection(
+    *, active_connection_state: ActiveConnectionState | None, servers: list[ConnectionParameters], connect_timeout: int
+) -> ActiveConnectionState | AnyConnectionIssue:
+    if not active_connection_state:
+        return AllServersUnavailable(servers=servers, timeout=connect_timeout)
+
+    try:
+        connection_issue = await active_connection_state.lifespan.enter()
+    except ConnectionLostError:
+        return ConnectionLost()
+
+    return active_connection_state if connection_issue is None else connection_issue
+
+
 @dataclass(kw_only=True, slots=True)
 class ConnectionManager:
     servers: list[ConnectionParameters]
@@ -89,25 +112,13 @@ class ConnectionManager:
             )
         return None
 
-    async def _create_connection_to_any_server(self) -> ActiveConnectionState | None:
-        for maybe_connection_future in asyncio.as_completed(
-            [self._create_connection_to_one_server(server) for server in self.servers]
-        ):
-            if connection_state := await maybe_connection_future:
-                return connection_state
-        return None
-
     async def _connect_to_any_server(self) -> ActiveConnectionState | AnyConnectionIssue:
-        if not (active_connection_state := await self._create_connection_to_any_server()):
-            return AllServersUnavailable(servers=self.servers, timeout=self.connect_timeout)
-
-        try:
-            if connection_issue := await active_connection_state.lifespan.enter():
-                return connection_issue
-        except ConnectionLostError:
-            return ConnectionLost()
-
-        return active_connection_state
+        active_connection_state = await connect_to_first_server(
+            [self._create_connection_to_one_server(server) for server in self.servers]
+        )
+        return await make_healthy_connection(
+            active_connection_state=active_connection_state, servers=self.servers, connect_timeout=self.connect_timeout
+        )
 
     async def _get_active_connection_state(self) -> ActiveConnectionState:
         if self._active_connection_state:

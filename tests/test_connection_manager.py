@@ -1,7 +1,7 @@
 import asyncio
 import itertools
 from collections.abc import AsyncGenerator, AsyncIterable
-from typing import Self, get_args
+from typing import Any, Self, get_args
 from unittest import mock
 
 import faker
@@ -12,15 +12,14 @@ from stompman import (
     ConnectedFrame,
     ConnectFrame,
     ConnectionLostError,
-    ConnectionParameters,
     ErrorFrame,
     FailedAllConnectAttemptsError,
     FailedAllWriteAttemptsError,
     MessageFrame,
 )
-from stompman.connection_manager import ActiveConnectionState, attempt_to_connect
+from stompman.connection_manager import ActiveConnectionState, attempt_to_connect, connect_to_first_server
 from stompman.errors import AnyConnectionIssue
-from tests.conftest import BaseMockConnection, EnrichedConnectionManager, NoopLifespan, build_dataclass
+from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
 FAKER = faker.Faker()
@@ -100,54 +99,33 @@ async def test_connect_to_one_server_fails() -> None:
     assert await manager._create_connection_to_one_server(manager.servers[0]) is None
 
 
-async def test_connect_to_any_server_ok() -> None:
-    class MockConnection(BaseMockConnection):
-        @classmethod
-        async def connect(
-            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
-        ) -> Self | None:
-            return (
-                await super().connect(
-                    host=host,
-                    port=port,
-                    timeout=timeout,
-                    read_max_chunk_size=read_max_chunk_size,
-                    read_timeout=read_timeout,
-                )
-                if port == successful_server.port
-                else None
-            )
+async def return_argument_async(arg: Any) -> Any:  # noqa: ANN401, RUF029
+    return arg
 
-    successful_server = build_dataclass(ConnectionParameters)
-    manager = EnrichedConnectionManager(
-        servers=[
-            build_dataclass(ConnectionParameters),
-            build_dataclass(ConnectionParameters),
-            successful_server,
-            build_dataclass(ConnectionParameters),
-        ],
-        connection_class=MockConnection,
+
+async def test_connect_to_first_server_ok() -> None:
+    expected_active_connection_state = ActiveConnectionState(connection=mock.AsyncMock(), lifespan=mock.AsyncMock())
+    active_connection_state = await connect_to_first_server(
+        [
+            return_argument_async(None),
+            return_argument_async(None),
+            return_argument_async(expected_active_connection_state),
+            return_argument_async(None),
+        ]
     )
-    active_connection_state = await manager._create_connection_to_any_server()
-    assert active_connection_state
-    assert isinstance(active_connection_state.lifespan, NoopLifespan)
-    assert active_connection_state.lifespan.connection_parameters == successful_server
+    assert active_connection_state is expected_active_connection_state
 
 
-async def test_connect_to_any_server_fails() -> None:
-    class MockConnection(BaseMockConnection):
-        connect = mock.AsyncMock(return_value=None)
-
-    manager = EnrichedConnectionManager(
-        servers=[
-            build_dataclass(ConnectionParameters),
-            build_dataclass(ConnectionParameters),
-            build_dataclass(ConnectionParameters),
-            build_dataclass(ConnectionParameters),
-        ],
-        connection_class=MockConnection,
+async def test_connect_to_first_server_fails() -> None:
+    active_connection_state = await connect_to_first_server(
+        [
+            return_argument_async(None),
+            return_argument_async(None),
+            return_argument_async(None),
+            return_argument_async(None),
+        ]
     )
-    assert not await manager._create_connection_to_any_server()
+    assert active_connection_state is None
 
 
 async def test_get_active_connection_state_lifespan_flaky_ok() -> None:
