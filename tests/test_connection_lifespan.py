@@ -17,7 +17,6 @@ from stompman import (
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection_lifespan import (
     ConnectionLifespan,
-    _make_receipt_id,  # noqa: PLC2701
     calculate_heartbeat_interval,
     check_stomp_protocol_version,
     take_connected_frame,
@@ -316,7 +315,3 @@ async def test_connection_lifespan_exit(faker: Faker, monkeypatch: pytest.Monkey
         DisconnectFrame(headers={"receipt": receipt_id}),
         receipt_frame,
     ]
-
-
-def test_make_receipt_id() -> None:
-    _make_receipt_id()
