@@ -27,6 +27,7 @@ class ActiveConnectionState:
 
 
 async def attempt_to_connect(
+    *,
     connect: Callable[[], Awaitable[ActiveConnectionState | AnyConnectionIssue]],
     connect_retry_interval: int,
     connect_retry_attempts: int,
