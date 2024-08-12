@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterable, Coroutine, Iterable
 from functools import partial
-from typing import Any, TypeVar
+from typing import Any, TypeVar, get_args
 from unittest import mock
 
 import faker
@@ -13,29 +13,31 @@ from stompman import (
     AnyServerFrame,
     Client,
     ConnectedFrame,
-    ConnectFrame,
     ConnectionConfirmationTimeout,
-    ConnectionParameters,
-    DisconnectFrame,
     ErrorFrame,
     FailedAllConnectAttemptsError,
     ReceiptFrame,
     UnsupportedProtocolVersion,
 )
-from stompman.config import Heartbeat
+from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection_lifespan import (
+    ConnectionLifespan,
     calculate_heartbeat_interval,
     check_stomp_protocol_version,
     take_connected_frame,
     wait_for_receipt_frame,
 )
-from stompman.frames import HeartbeatFrame, MessageFrame
+from stompman.frames import AckMode, CommitFrame, ConnectFrame, HeartbeatFrame, MessageFrame, SubscribeFrame
+from stompman.subscription import Subscription
+from stompman.transaction import Transaction
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,
     build_dataclass,
     create_spying_connection,
     get_read_frames_with_lifespan,
+    noop_error_handler,
+    noop_message_handler,
 )
 
 pytestmark = pytest.mark.anyio
@@ -157,30 +159,71 @@ class TestWaitForReceiptFrame:
         )
 
 
-async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    connected_frame = build_dataclass(ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
-    connection_class, collected_frames = create_spying_connection(
-        [connected_frame], [], [(receipt_frame := build_dataclass(ReceiptFrame))]
+async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch, faker: Faker) -> None:
+    protocol_version = faker.pystr()
+    connected_frame = build_dataclass(ConnectedFrame, headers={"version": protocol_version, "heart-beat": "1,1"})
+    client_heartbeat = Heartbeat.from_header("1,1")
+    subscriptions_list = [
+        Subscription(
+            destination=faker.pystr(),
+            handler=noop_message_handler,
+            ack=faker.random_element(get_args(AckMode)),
+            on_suppressed_exception=noop_error_handler,
+            supressed_exception_classes=(),
+            _connection_manager=mock.Mock(),
+            _active_subscriptions=mock.Mock(),
+        )
+        for _ in range(4)
+    ]
+    active_subscriptions = {subscription.id: subscription for subscription in subscriptions_list}
+    active_transactions = [
+        Transaction(_connection_manager=mock.Mock(), _active_transactions=mock.Mock()) for _ in range(4)
+    ]
+    connection_parameters = build_dataclass(ConnectionParameters)
+    written_and_read_frames = []
+    set_heartbeat_interval = mock.Mock(side_effect=[None])
+
+    async def mock_read_frames(iterable: Iterable[AnyServerFrame]) -> AsyncIterable[AnyServerFrame]:
+        async for frame in make_async_iter(iterable):
+            written_and_read_frames.append(frame)
+            yield frame
+
+    connection_lifespan = ConnectionLifespan(
+        connection=mock.AsyncMock(
+            write_frame=mock.AsyncMock(side_effect=written_and_read_frames.append),
+            read_frames=mock.Mock(side_effect=[mock_read_frames([connected_frame])]),
+        ),
+        connection_parameters=connection_parameters,
+        protocol_version=protocol_version,
+        client_heartbeat=client_heartbeat,
+        connection_confirmation_timeout=faker.pyint(),
+        disconnect_confirmation_timeout=faker.pyint(),
+        active_subscriptions=active_subscriptions,
+        active_transactions=active_transactions.copy(),  # type: ignore[arg-type]
+        set_heartbeat_interval=set_heartbeat_interval,
     )
 
-    disconnect_frame = DisconnectFrame(headers={"receipt": (receipt_id := FAKER.pystr())})
-    monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", mock.Mock(return_value=receipt_id))
-
-    async with EnrichedClient(
-        [ConnectionParameters("localhost", 10, "login", "%3Dpasscode")], connection_class=connection_class
-    ) as client:
-        await asyncio.sleep(0)
-
-    connect_frame = ConnectFrame(
-        headers={
-            "host": "localhost",
-            "accept-version": Client.PROTOCOL_VERSION,
-            "heart-beat": client.heartbeat.to_header(),
-            "login": "login",
-            "passcode": "=passcode",
-        }
-    )
-    assert collected_frames == [connect_frame, connected_frame, disconnect_frame, receipt_frame]
+    await connection_lifespan.enter()
+    set_heartbeat_interval.assert_called_once_with(0.001)
+    assert written_and_read_frames == [
+        ConnectFrame(
+            headers={
+                "accept-version": protocol_version,
+                "heart-beat": client_heartbeat.to_header(),
+                "host": connection_parameters.host,
+                "login": connection_parameters.login,
+                "passcode": connection_parameters.unescaped_passcode,
+            },
+        ),
+        connected_frame,
+        *(
+            SubscribeFrame(
+                headers={"ack": subscription.ack, "destination": subscription.destination, "id": subscription.id},
+            )
+            for subscription in active_subscriptions.values()
+        ),
+        *(CommitFrame(headers={"transaction": transaction.id}) for transaction in active_transactions),
+    ]
 
 
 @pytest.mark.usefixtures("mock_sleep")
