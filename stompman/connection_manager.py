@@ -1,26 +1,41 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable
-from contextlib import AbstractAsyncContextManager
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Self
+from typing import Protocol, Self
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
-from stompman.errors import ConnectionLostError, FailedAllConnectAttemptsError, RepeatedConnectionLostError
+from stompman.errors import (
+    ConnectionIssue,
+    ConnectionLostError,
+    FailedAllConnectAttemptsError,
+    RepeatedConnectionLostError,
+)
 from stompman.frames import AnyClientFrame, AnyServerFrame
+
+
+class AbstractConnectionLifespan(Protocol):
+    async def enter(self) -> ConnectionIssue | None: ...
+    async def exit(self) -> None: ...
+
+
+class ConnectionLifespanFactory(Protocol):
+    def __call__(
+        self, *, connection: AbstractConnection, connection_parameters: ConnectionParameters
+    ) -> AbstractConnectionLifespan: ...
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class ActiveConnectionState:
     connection: AbstractConnection
-    lifespan: AbstractAsyncContextManager[None]
+    lifespan: AbstractConnectionLifespan
 
 
 @dataclass(kw_only=True, slots=True)
 class ConnectionManager:
     servers: list[ConnectionParameters]
-    lifespan: Callable[[AbstractConnection, ConnectionParameters], AbstractAsyncContextManager[None]]
+    lifespan_factory: ConnectionLifespanFactory
     connection_class: type[AbstractConnection]
     connect_retry_attempts: int
     connect_retry_interval: int
@@ -41,7 +56,7 @@ class ConnectionManager:
         if not self._active_connection_state:
             return
         try:
-            await self._active_connection_state.lifespan.__aexit__(exc_type, exc_value, traceback)
+            await self._active_connection_state.lifespan.exit()
         except ConnectionLostError:
             return
         await self._active_connection_state.connection.close()
@@ -84,11 +99,13 @@ class ConnectionManager:
                     return self._active_connection_state
 
                 connection, connection_parameters = await self._connect_to_any_server()
-                lifespan = self.lifespan(connection, connection_parameters)
-                self._active_connection_state = ActiveConnectionState(connection=connection, lifespan=lifespan)
+                self._active_connection_state = ActiveConnectionState(
+                    connection=connection,
+                    lifespan=self.lifespan_factory(connection=connection, connection_parameters=connection_parameters),
+                )
 
                 try:
-                    await lifespan.__aenter__()
+                    await self._active_connection_state.lifespan.enter()
                 except ConnectionLostError:
                     self._clear_active_connection_state()
                 else:
