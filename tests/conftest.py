@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
-from unittest import mock
 
 import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory

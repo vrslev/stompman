@@ -109,6 +109,9 @@ class ConnectionManager:
         connection_issues: list[AnyConnectionIssue] = []
 
         async with self._reconnect_lock:
+            if self._active_connection_state:
+                return self._active_connection_state
+
             for attempt in range(self.connect_retry_attempts):
                 connection_result = await self._connect_to_any_server()
 
