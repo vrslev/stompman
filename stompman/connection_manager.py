@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Protocol, Self
+from typing import TYPE_CHECKING, Self
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
@@ -13,32 +13,23 @@ from stompman.errors import (
     ConnectionLostError,
     FailedAllConnectAttemptsError,
     FailedAllWriteAttemptsError,
-    StompProtocolConnectionIssue,
 )
 from stompman.frames import AnyClientFrame, AnyServerFrame
 
-
-class AbstractConnectionLifespan(Protocol):
-    async def enter(self) -> StompProtocolConnectionIssue | None: ...
-    async def exit(self) -> None: ...
-
-
-class ConnectionLifespanFactory(Protocol):
-    def __call__(
-        self, *, connection: AbstractConnection, connection_parameters: ConnectionParameters
-    ) -> AbstractConnectionLifespan: ...
+if TYPE_CHECKING:
+    from stompman.connection_lifespan import AbstractConnectionLifespan, ConnectionLifespanFactory
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class ActiveConnectionState:
     connection: AbstractConnection
-    lifespan: AbstractConnectionLifespan
+    lifespan: "AbstractConnectionLifespan"
 
 
 @dataclass(kw_only=True, slots=True)
 class ConnectionManager:
     servers: list[ConnectionParameters]
-    lifespan_factory: ConnectionLifespanFactory
+    lifespan_factory: "ConnectionLifespanFactory"
     connection_class: type[AbstractConnection]
     connect_retry_attempts: int
     connect_retry_interval: int

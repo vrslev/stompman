@@ -2,11 +2,11 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from typing import Protocol
 from uuid import uuid4
 
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection
-from stompman.connection_manager import AbstractConnectionLifespan
 from stompman.errors import ConnectionConfirmationTimeout, StompProtocolConnectionIssue, UnsupportedProtocolVersion
 from stompman.frames import (
     ConnectedFrame,
@@ -20,6 +20,11 @@ from stompman.subscription import (
     unsubscribe_from_all_active_subscriptions,
 )
 from stompman.transaction import ActiveTransactions, commit_pending_transactions
+
+
+class AbstractConnectionLifespan(Protocol):
+    async def enter(self) -> StompProtocolConnectionIssue | None: ...
+    async def exit(self) -> None: ...
 
 
 @dataclass(kw_only=True, slots=True)
@@ -98,3 +103,9 @@ class ConnectionLifespan(AbstractConnectionLifespan):
 
 def _make_receipt_id() -> str:
     return str(uuid4())
+
+
+class ConnectionLifespanFactory(Protocol):
+    def __call__(
+        self, *, connection: AbstractConnection, connection_parameters: ConnectionParameters
+    ) -> AbstractConnectionLifespan: ...

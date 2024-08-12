@@ -67,7 +67,7 @@ class EnrichedClient(stompman.Client):
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class NoopLifespan(stompman.AbstractConnectionLifespan):
+class NoopLifespan(stompman.connection_lifespan.AbstractConnectionLifespan):
     connection: stompman.AbstractConnection
     connection_parameters: stompman.ConnectionParameters
 
@@ -80,7 +80,7 @@ class EnrichedConnectionManager(stompman.ConnectionManager):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
     )
-    lifespan_factory: stompman.ConnectionLifespanFactory = field(default=NoopLifespan)
+    lifespan_factory: stompman.connection_lifespan.ConnectionLifespanFactory = field(default=NoopLifespan)
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 3
