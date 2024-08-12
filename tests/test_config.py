@@ -8,7 +8,7 @@ import stompman
 FAKER = faker.Faker()
 
 
-@pytest.mark.parametrize("key", ("username", "password", "host", "port"))
+@pytest.mark.parametrize("key", ["username", "password", "host", "port"])
 def test_connection_parameters_from_pydantic_multihost_hosts(key: str) -> None:
     full_host: dict[str, Any] = {
         "username": FAKER.pystr(),
@@ -19,9 +19,7 @@ def test_connection_parameters_from_pydantic_multihost_hosts(key: str) -> None:
     assert stompman.ConnectionParameters.from_pydantic_multihost_hosts(
         [{**full_host, "port": index} for index in range(5)]  # type: ignore[typeddict-item]
     ) == [
-        stompman.ConnectionParameters(
-            full_host["host"], index, full_host["username"], full_host["password"]
-        )
+        stompman.ConnectionParameters(full_host["host"], index, full_host["username"], full_host["password"])
         for index in range(5)
     ]
 
