@@ -67,7 +67,7 @@ ignore = [
     "PLC2801",
     "PLR0913",
 ]
-extend-per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG"] }
+extend-per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG", "PLR6301"] }
 
 [tool.pytest.ini_options]
 addopts = "--cov -s -vv"
