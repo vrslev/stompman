@@ -49,6 +49,18 @@ async def take_connected_frame(
         return ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=collected_frames)
 
 
+async def wait_for_receipt_frame(
+    *, frames_iter: AsyncIterable[AnyServerFrame], disconnect_confirmation_timeout: int
+) -> None:
+    async def inner() -> None:
+        async for frame in frames_iter:
+            if isinstance(frame, ReceiptFrame):
+                break
+
+    with suppress(TimeoutError):
+        await asyncio.wait_for(inner(), timeout=disconnect_confirmation_timeout)
+
+
 def check_stomp_protocol_version(
     *, connected_frame: ConnectedFrame, supported_version: str
 ) -> UnsupportedProtocolVersion | None:
@@ -107,25 +119,22 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         return None
 
     async def enter(self) -> StompProtocolConnectionIssue | None:
-        if connection_issue := await self._establish_connection():
-            return connection_issue
+        if protocol_connection_issue := await self._establish_connection():
+            return protocol_connection_issue
+
         await resubscribe_to_active_subscriptions(
             connection=self.connection, active_subscriptions=self.active_subscriptions
         )
         await commit_pending_transactions(connection=self.connection, active_transactions=self.active_transactions)
         return None
 
-    async def _take_receipt_frame(self) -> None:
-        async for frame in self.connection.read_frames():
-            if isinstance(frame, ReceiptFrame):
-                break
-
     async def exit(self) -> None:
         await unsubscribe_from_all_active_subscriptions(active_subscriptions=self.active_subscriptions)
         await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-
-        with suppress(TimeoutError):
-            await asyncio.wait_for(self._take_receipt_frame(), timeout=self.disconnect_confirmation_timeout)
+        await wait_for_receipt_frame(
+            frames_iter=self.connection.read_frames(),
+            disconnect_confirmation_timeout=self.disconnect_confirmation_timeout,
+        )
 
 
 def _make_receipt_id() -> str:
