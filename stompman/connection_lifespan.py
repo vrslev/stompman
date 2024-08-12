@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Callable
+from collections.abc import AsyncIterable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Protocol
@@ -9,6 +9,7 @@ from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection
 from stompman.errors import ConnectionConfirmationTimeout, StompProtocolConnectionIssue, UnsupportedProtocolVersion
 from stompman.frames import (
+    AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
     DisconnectFrame,
@@ -25,6 +26,27 @@ from stompman.transaction import ActiveTransactions, commit_pending_transactions
 class AbstractConnectionLifespan(Protocol):
     async def enter(self) -> StompProtocolConnectionIssue | None: ...
     async def exit(self) -> None: ...
+
+
+async def take_connected_frame(
+    *, frames_iter: AsyncIterable[AnyServerFrame], connection_confirmation_timeout: int
+) -> ConnectedFrame | ConnectionConfirmationTimeout:
+    collected_frames = []
+
+    async def take_connected_frame_and_collect_other_frames() -> ConnectedFrame:
+        async for frame in frames_iter:
+            if isinstance(frame, ConnectedFrame):
+                return frame
+            collected_frames.append(frame)
+        msg = "unreachable"
+        raise AssertionError(msg)
+
+    try:
+        return await asyncio.wait_for(
+            take_connected_frame_and_collect_other_frames(), timeout=connection_confirmation_timeout
+        )
+    except TimeoutError:
+        return ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=collected_frames)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -51,22 +73,13 @@ class ConnectionLifespan(AbstractConnectionLifespan):
                 },
             )
         )
-        collected_frames = []
-
-        async def take_connected_frame_and_collect_other_frames() -> ConnectedFrame:
-            async for frame in self.connection.read_frames():
-                if isinstance(frame, ConnectedFrame):
-                    return frame
-                collected_frames.append(frame)
-            msg = "unreachable"  # pragma: no cover
-            raise AssertionError(msg)  # pragma: no cover
-
-        try:
-            connected_frame = await asyncio.wait_for(
-                take_connected_frame_and_collect_other_frames(), timeout=self.connection_confirmation_timeout
-            )
-        except TimeoutError:
-            return ConnectionConfirmationTimeout(timeout=self.connection_confirmation_timeout, frames=collected_frames)
+        connected_frame_or_error = await take_connected_frame(
+            frames_iter=self.connection.read_frames(),
+            connection_confirmation_timeout=self.connection_confirmation_timeout,
+        )
+        if isinstance(connected_frame_or_error, ConnectionConfirmationTimeout):
+            return connected_frame_or_error
+        connected_frame = connected_frame_or_error
 
         if connected_frame.headers["version"] != self.protocol_version:
             return UnsupportedProtocolVersion(
