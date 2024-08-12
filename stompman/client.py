@@ -201,7 +201,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
             return ConnectionLost()
         return None
 
-    async def close(self) -> None:
+    async def exit(self) -> None:
         await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
 
         async def take_receipt_frame() -> None:
