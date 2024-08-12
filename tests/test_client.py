@@ -9,6 +9,7 @@ import faker
 import pytest
 
 import stompman.client
+import stompman.transaction
 from stompman import (
     AbortFrame,
     AbstractConnection,
@@ -479,7 +480,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     body, destination, expires, content_type = FAKER.binary(), FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
 
     transaction_id = FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_transaction_id", mock.Mock(return_value=transaction_id))
+    monkeypatch.setattr(stompman.transaction, "_make_transaction_id", mock.Mock(return_value=transaction_id))
 
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
@@ -506,7 +507,7 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
 
 async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
     transaction_id = FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_transaction_id", mock.Mock(return_value=transaction_id))
+    monkeypatch.setattr(stompman.transaction, "_make_transaction_id", mock.Mock(return_value=transaction_id))
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
@@ -523,7 +524,7 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
 async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
     body, destination = FAKER.binary(length=10), FAKER.pystr()
     monkeypatch.setattr(
-        stompman.client,
+        stompman.transaction,
         "_make_transaction_id",
         mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
     )
@@ -558,7 +559,11 @@ async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.parametrize(
     "func",
-    [stompman.client._make_receipt_id, stompman.client._make_subscription_id, stompman.client._make_transaction_id],
+    [
+        stompman.client._make_receipt_id,
+        stompman.client._make_subscription_id,
+        stompman.transaction._make_transaction_id,
+    ],
 )
 def test_generate_ids(func: Callable[[], str]) -> None:
     func()

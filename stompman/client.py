@@ -12,10 +12,8 @@ from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import AbstractConnectionLifespan, ConnectionManager
 from stompman.errors import ConnectionConfirmationTimeout, StompProtocolConnectionIssue, UnsupportedProtocolVersion
 from stompman.frames import (
-    AbortFrame,
     AckFrame,
     AckMode,
-    BeginFrame,
     CommitFrame,
     ConnectedFrame,
     ConnectFrame,
@@ -29,6 +27,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
+from stompman.transaction import Transaction
 
 
 @dataclass(kw_only=True, slots=True)
@@ -171,43 +170,6 @@ class Subscription:
 
 
 def _make_subscription_id() -> str:
-    return str(uuid4())
-
-
-@dataclass(kw_only=True, slots=True, unsafe_hash=True)
-class Transaction:
-    id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
-    _connection_manager: ConnectionManager = field(hash=False)
-    _active_transactions: set["Transaction"] = field(hash=False)
-    sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
-
-    async def __aenter__(self) -> Self:
-        await self._connection_manager.write_frame_reconnecting(BeginFrame(headers={"transaction": self.id}))
-        self._active_transactions.add(self)
-        return self
-
-    async def __aexit__(
-        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
-    ) -> None:
-        if exc_value:
-            await self._connection_manager.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
-            self._active_transactions.remove(self)
-        else:
-            commited = await self._connection_manager.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
-            if commited:
-                self._active_transactions.remove(self)
-
-    async def send(
-        self, body: bytes, destination: str, *, content_type: str | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        frame = SendFrame.build(
-            body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
-        )
-        self.sent_frames.append(frame)
-        await self._connection_manager.write_frame_reconnecting(frame)
-
-
-def _make_transaction_id() -> str:
     return str(uuid4())
 
 

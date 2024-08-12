@@ -1,4 +1,4 @@
-from stompman.client import Client, ConnectionLifespan, Subscription, Transaction
+from stompman.client import Client, ConnectionLifespan, Subscription
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import (
@@ -38,6 +38,7 @@ from stompman.frames import (
     UnsubscribeFrame,
 )
 from stompman.serde import FrameParser, dump_frame
+from stompman.transaction import Transaction
 
 __all__ = [
     "AbortFrame",
