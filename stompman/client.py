@@ -23,7 +23,7 @@ from stompman.frames import (
     SendFrame,
     SubscribeFrame,
 )
-from stompman.subscription import Subscription
+from stompman.subscription import ActiveSubscriptions, Subscription
 from stompman.transaction import ActiveTransactions, Transaction, commit_pending_transactions
 
 
@@ -35,7 +35,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     client_heartbeat: Heartbeat
     connection_confirmation_timeout: int
     disconnect_confirmation_timeout: int
-    active_subscriptions: dict[str, Subscription]
+    active_subscriptions: ActiveSubscriptions
     active_transactions: ActiveTransactions
     set_heartbeat_interval: Callable[[float], None]
 
