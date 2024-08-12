@@ -49,6 +49,16 @@ async def take_connected_frame(
         return ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=collected_frames)
 
 
+def check_stomp_protocol_version(
+    *, connected_frame: ConnectedFrame, supported_version: str
+) -> UnsupportedProtocolVersion | None:
+    if connected_frame.headers["version"] == supported_version:
+        return None
+    return UnsupportedProtocolVersion(
+        given_version=connected_frame.headers["version"], supported_version=supported_version
+    )
+
+
 @dataclass(kw_only=True, slots=True)
 class ConnectionLifespan(AbstractConnectionLifespan):
     connection: AbstractConnection
@@ -81,10 +91,10 @@ class ConnectionLifespan(AbstractConnectionLifespan):
             return connected_frame_or_error
         connected_frame = connected_frame_or_error
 
-        if connected_frame.headers["version"] != self.protocol_version:
-            return UnsupportedProtocolVersion(
-                given_version=connected_frame.headers["version"], supported_version=self.protocol_version
-            )
+        if unsupported_protocol_version_error := check_stomp_protocol_version(
+            connected_frame=connected_frame, supported_version=self.protocol_version
+        ):
+            return unsupported_protocol_version_error
 
         server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
         self.set_heartbeat_interval(

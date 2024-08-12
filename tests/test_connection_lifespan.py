@@ -22,7 +22,7 @@ from stompman import (
     ReceiptFrame,
     UnsupportedProtocolVersion,
 )
-from stompman.connection_lifespan import take_connected_frame
+from stompman.connection_lifespan import check_stomp_protocol_version, take_connected_frame
 from stompman.frames import HeartbeatFrame, MessageFrame
 from tests.conftest import (
     BaseMockConnection,
@@ -88,6 +88,23 @@ class TestTakeConnectedFrame:
         assert result == ConnectionConfirmationTimeout(
             timeout=connection_confirmation_timeout, frames=[HeartbeatFrame()]
         )
+
+
+class TestCheckStompProtocolVersion:
+    def test_ok(self, faker: Faker) -> None:
+        supported_version = faker.pystr()
+        connected_frame = build_dataclass(ConnectedFrame, headers={"version": supported_version})
+
+        result = check_stomp_protocol_version(connected_frame=connected_frame, supported_version=supported_version)
+        assert result is None
+
+    def test_unsupported(self, faker: Faker) -> None:
+        supported_version = faker.pystr()
+        given_version = faker.pystr()
+        connected_frame = build_dataclass(ConnectedFrame, headers={"version": given_version})
+
+        result = check_stomp_protocol_version(connected_frame=connected_frame, supported_version=supported_version)
+        assert result == UnsupportedProtocolVersion(given_version=given_version, supported_version=supported_version)
 
 
 async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
