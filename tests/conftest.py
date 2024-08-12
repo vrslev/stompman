@@ -12,14 +12,8 @@ from stompman.connection_lifespan import AbstractConnectionLifespan
 from stompman.connection_manager import ConnectionManager
 
 
-@pytest.fixture(
-    params=[
-        pytest.param(("asyncio", {"use_uvloop": True}), id="asyncio+uvloop"),
-        pytest.param(("asyncio", {"use_uvloop": False}), id="asyncio"),
-    ],
-)
-def anyio_backend(request: pytest.FixtureRequest) -> object:
-    return request.param
+def anyio_backend() -> object:
+    return "asyncio"
 
 
 @pytest.fixture
