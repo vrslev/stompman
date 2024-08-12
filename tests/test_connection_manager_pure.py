@@ -3,6 +3,7 @@ from typing import Any, get_args
 from unittest import mock
 
 import pytest
+from faker import Faker
 
 from stompman import FailedAllConnectAttemptsError
 from stompman.config import ConnectionParameters
@@ -20,7 +21,6 @@ from stompman.errors import (
     StompProtocolConnectionIssue,
 )
 from tests.conftest import build_dataclass
-from tests.test_connection_manager import FAKER
 
 pytestmark = [pytest.mark.anyio]
 
@@ -41,17 +41,17 @@ class TestAttemptToConnect:
         assert sleep_mock.mock_calls == [mock.call(5), mock.call(10), mock.call(15), mock.call(20)]
 
     @pytest.mark.usefixtures("mock_sleep")
-    async def test_fails(self) -> None:
+    async def test_fails(self, faker: Faker) -> None:
         connection_issues_generator = (
             build_dataclass(issue_type) for issue_type in itertools.cycle(get_args(AnyConnectionIssue))
         )
-        attempts = FAKER.pyint(min_value=1, max_value=10)
+        attempts = faker.pyint(min_value=1, max_value=10)
         connection_issues = [next(connection_issues_generator) for _ in range(attempts)]
 
         with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
             await attempt_to_connect(
                 connect=mock.AsyncMock(side_effect=connection_issues),
-                connect_retry_interval=FAKER.pyint(),
+                connect_retry_interval=faker.pyint(),
                 connect_retry_attempts=attempts,
             )
 
@@ -100,9 +100,9 @@ class TestMakeHealthyConnection:
 
         assert result is active_connection_state
 
-    async def test_make_healthy_connection_no_active_state(self) -> None:
-        servers = [build_dataclass(ConnectionParameters) for _ in range(FAKER.pyint(max_value=10))]
-        connect_timeout = FAKER.pyint()
+    async def test_make_healthy_connection_no_active_state(self, faker: Faker) -> None:
+        servers = [build_dataclass(ConnectionParameters) for _ in range(faker.pyint(max_value=10))]
+        connect_timeout = faker.pyint()
         result = await make_healthy_connection(
             active_connection_state=None, servers=servers, connect_timeout=connect_timeout
         )
