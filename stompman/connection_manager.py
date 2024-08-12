@@ -9,10 +9,10 @@ from stompman.connection import AbstractConnection
 from stompman.errors import (
     AllServersUnavailable,
     AnyConnectionIssue,
-    ConnectionAttemptsFailedError,
     ConnectionLost,
     ConnectionLostDuringOperationError,
     ConnectionLostError,
+    FailedAllConnectAttemptsError,
     StompProtocolConnectionIssue,
 )
 from stompman.frames import AnyClientFrame, AnyServerFrame
@@ -45,6 +45,7 @@ class ConnectionManager:
     connect_timeout: int
     read_timeout: int
     read_max_chunk_size: int
+    write_retry_attempts: int
 
     _active_connection_state: ActiveConnectionState | None = field(default=None, init=False)
     _reconnect_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -121,13 +122,13 @@ class ConnectionManager:
                 connection_issues.append(connection_result)
                 await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
 
-        raise ConnectionAttemptsFailedError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
+        raise FailedAllConnectAttemptsError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None
 
     async def write_heartbeat_reconnecting(self) -> None:
-        for _ in range(self.connect_retry_attempts):
+        for _ in range(self.write_retry_attempts):
             connection_state = await self._get_active_connection_state()
             try:
                 return connection_state.connection.write_heartbeat()
@@ -137,7 +138,7 @@ class ConnectionManager:
         raise ConnectionLostDuringOperationError(retry_attempts=self.connect_retry_attempts)
 
     async def write_frame_reconnecting(self, frame: AnyClientFrame) -> None:
-        for _ in range(self.connect_retry_attempts):
+        for _ in range(self.write_retry_attempts):
             connection_state = await self._get_active_connection_state()
             try:
                 return await connection_state.connection.write_frame(frame)

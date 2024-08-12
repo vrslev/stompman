@@ -74,6 +74,7 @@ class EnrichedConnectionManager(stompman.ConnectionManager):
     connect_timeout: int = 3
     read_timeout: int = 4
     read_max_chunk_size: int = 5
+    write_retry_attempts: int = 3
 
 
 DataclassType = TypeVar("DataclassType")
