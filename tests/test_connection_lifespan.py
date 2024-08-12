@@ -151,5 +151,6 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
 
 
-def test_make_receipt_id() -> None:
+def test_make_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.undo()
     stompman.connection_lifespan._make_receipt_id()
