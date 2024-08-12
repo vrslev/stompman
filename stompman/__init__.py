@@ -1,7 +1,7 @@
-from stompman.client import Client, ConnectionLifespan
+from stompman.client import Client
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
-from stompman.connection_lifespan import AbstractConnectionLifespan, ConnectionLifespanFactory
+from stompman.connection_lifespan import AbstractConnectionLifespan, ConnectionLifespan, ConnectionLifespanFactory
 from stompman.connection_manager import (
     ActiveConnectionState,
     ConnectionManager,
