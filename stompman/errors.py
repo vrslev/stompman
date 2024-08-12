@@ -18,14 +18,6 @@ class ConnectionLostError(Error):
     """Raised in stompman.AbstractConnection—and handled in stompman.ConnectionManager, therefore is private."""
 
 
-@dataclass(kw_only=True)
-class FailedAllConnectAttemptsError(Error):
-    servers: list["ConnectionParameters"]
-    retry_attempts: int
-    retry_interval: int
-    timeout: int
-
-
 @dataclass(frozen=True, kw_only=True, slots=True)
 class ConnectionConfirmationTimeout:
     timeout: int
@@ -42,13 +34,20 @@ class UnsupportedProtocolVersion:
 class ConnectionLost: ...
 
 
+@dataclass(frozen=True, kw_only=True, slots=True)
+class AllServersUnavailable:
+    servers: list["ConnectionParameters"]
+    timeout: int
+
+
 StompProtocolConnectionIssue = ConnectionConfirmationTimeout | UnsupportedProtocolVersion
+AnyConnectionIssue = StompProtocolConnectionIssue | ConnectionLost | AllServersUnavailable
 
 
 @dataclass(kw_only=True)
-class ConnectionAttemptsFailedError(Error):
+class FailedAllConnectAttemptsError(Error):
     retry_attempts: int
-    issues: list[StompProtocolConnectionIssue | ConnectionLost]
+    issues: list[AnyConnectionIssue]
 
 
 @dataclass(kw_only=True)

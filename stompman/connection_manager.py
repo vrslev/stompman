@@ -7,11 +7,12 @@ from typing import Protocol, Self
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
 from stompman.errors import (
+    AllServersUnavailable,
+    AnyConnectionIssue,
     ConnectionAttemptsFailedError,
     ConnectionLost,
     ConnectionLostDuringOperationError,
     ConnectionLostError,
-    FailedAllConnectAttemptsError,
     StompProtocolConnectionIssue,
 )
 from stompman.frames import AnyClientFrame, AnyServerFrame
@@ -66,60 +67,59 @@ class ConnectionManager:
     async def _connect_to_one_server(
         self, server: ConnectionParameters
     ) -> tuple[AbstractConnection, ConnectionParameters] | None:
-        for attempt in range(self.connect_retry_attempts):
-            if connection := await self.connection_class.connect(
-                host=server.host,
-                port=server.port,
-                timeout=self.connect_timeout,
-                read_max_chunk_size=self.read_max_chunk_size,
-                read_timeout=self.read_timeout,
-            ):
-                return connection, server
-            await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
+        if connection := await self.connection_class.connect(
+            host=server.host,
+            port=server.port,
+            timeout=self.connect_timeout,
+            read_max_chunk_size=self.read_max_chunk_size,
+            read_timeout=self.read_timeout,
+        ):
+            return connection, server
         return None
 
-    async def _connect_to_any_server(self) -> tuple[AbstractConnection, ConnectionParameters]:
+    async def _connect_to_any_server(self) -> tuple[AbstractConnection, ConnectionParameters] | None:
         for maybe_connection_future in asyncio.as_completed(
             [self._connect_to_one_server(server) for server in self.servers]
         ):
             if maybe_result := await maybe_connection_future:
                 return maybe_result
-        raise FailedAllConnectAttemptsError(
-            servers=self.servers,
-            retry_attempts=self.connect_retry_attempts,
-            retry_interval=self.connect_retry_interval,
-            timeout=self.connect_timeout,
+        return None
+
+    async def _connect_to_any_server_and_lifespan(self) -> ActiveConnectionState | AnyConnectionIssue:
+        if not (connection_and_connection_parameters := await self._connect_to_any_server()):
+            return AllServersUnavailable(servers=self.servers, timeout=self.connect_timeout)
+        connection, connection_parameters = connection_and_connection_parameters
+
+        active_connection_state = ActiveConnectionState(
+            connection=connection,
+            lifespan=self.lifespan_factory(connection=connection, connection_parameters=connection_parameters),
         )
 
+        try:
+            connection_issue = await active_connection_state.lifespan.enter()
+        except ConnectionLostError:
+            return ConnectionLost()
+
+        if connection_issue is None:
+            return active_connection_state
+        return connection_issue
+
     async def _get_active_connection_state(self) -> ActiveConnectionState:
-        connection_issues: list[StompProtocolConnectionIssue | ConnectionLost] = []
+        if self._active_connection_state:
+            return self._active_connection_state
 
-        for _ in range(self.connect_retry_attempts):
-            if self._active_connection_state:
-                return self._active_connection_state
+        connection_issues: list[AnyConnectionIssue] = []
 
-            async with self._reconnect_lock:
-                if self._active_connection_state:
-                    return self._active_connection_state
+        async with self._reconnect_lock:
+            for attempt in range(self.connect_retry_attempts):
+                connection_result = await self._connect_to_any_server_and_lifespan()
 
-                connection, connection_parameters = await self._connect_to_any_server()
-                self._active_connection_state = ActiveConnectionState(
-                    connection=connection,
-                    lifespan=self.lifespan_factory(connection=connection, connection_parameters=connection_parameters),
-                )
+                if isinstance(connection_result, ActiveConnectionState):
+                    self._active_connection_state = connection_result
+                    return connection_result
 
-                try:
-                    lifespan_connection_issue: (
-                        StompProtocolConnectionIssue | ConnectionLost | None
-                    ) = await self._active_connection_state.lifespan.enter()
-                except ConnectionLostError:
-                    lifespan_connection_issue = ConnectionLost()
-                else:
-                    if lifespan_connection_issue is None:
-                        return self._active_connection_state
-
-                self._clear_active_connection_state()
-                connection_issues.append(lifespan_connection_issue)
+                connection_issues.append(connection_result)
+                await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
 
         raise ConnectionAttemptsFailedError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
 
