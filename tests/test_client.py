@@ -201,7 +201,7 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
 
 async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        stompman.client,
+        stompman.subscription,
         "_make_subscription_id",
         mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
     )
@@ -234,7 +234,7 @@ async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
     direct_error: bool,
 ) -> None:
     subscription_id, destination = FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     if direct_error:
@@ -262,7 +262,7 @@ async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
 
 async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        stompman.client,
+        stompman.subscription,
         "_make_subscription_id",
         mock.Mock(side_effect=[(first_sub_id := FAKER.pystr()), (second_sub_id := FAKER.pystr())]),
     )
@@ -314,7 +314,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
     monkeypatch: pytest.MonkeyPatch, ack: AckMode, side_effect: object
 ) -> None:
     subscription_id, destination = FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(MessageFrame, headers={"subscription": subscription_id})
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([message_frame]))
@@ -340,7 +340,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
 async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack: AckMode, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(
         MessageFrame, headers={"destination": destination, "message-id": message_id, "subscription": subscription_id}
@@ -370,7 +370,7 @@ async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack:
 @pytest.mark.parametrize("ok", [True, False])
 async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(
         MessageFrame, headers={"destination": destination, "message-id": message_id, "subscription": subscription_id}
