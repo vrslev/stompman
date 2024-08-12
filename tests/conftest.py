@@ -1,6 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
 from unittest import mock
@@ -56,13 +55,6 @@ class EnrichedClient(stompman.Client):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
     )
-
-
-@asynccontextmanager
-async def noop_lifespan(  # noqa: RUF029
-    connection: stompman.AbstractConnection, connection_parameters: stompman.ConnectionParameters
-) -> AsyncIterator[None]:
-    yield  # pragma: no cover
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
