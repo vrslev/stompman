@@ -14,7 +14,6 @@ from stompman.errors import ConnectionConfirmationTimeout, StompProtocolConnecti
 from stompman.frames import (
     AckFrame,
     AckMode,
-    CommitFrame,
     ConnectedFrame,
     ConnectFrame,
     DisconnectFrame,
@@ -27,7 +26,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.transaction import Transaction
+from stompman.transaction import Transaction, commit_pending_transactions
 
 
 @dataclass(kw_only=True, slots=True)
@@ -90,18 +89,11 @@ class ConnectionLifespan(AbstractConnectionLifespan):
                 )
             )
 
-    async def _commit_pending_transactions(self) -> None:
-        for transaction in self.active_transactions:
-            for frame in transaction.sent_frames:
-                await self.connection.write_frame(frame)
-            await self.connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
-        self.active_transactions.clear()
-
     async def enter(self) -> StompProtocolConnectionIssue | None:
         if connection_issue := await self._establish_connection():
             return connection_issue
         await self._resubscribe()
-        await self._commit_pending_transactions()
+        await commit_pending_transactions(connection=self.connection, active_transactions=self.active_transactions)
         return None
 
     async def exit(self) -> None:

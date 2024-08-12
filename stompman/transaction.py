@@ -3,6 +3,7 @@ from types import TracebackType
 from typing import Self
 from uuid import uuid4
 
+from stompman.connection import AbstractConnection
 from stompman.connection_manager import ConnectionManager
 from stompman.frames import AbortFrame, BeginFrame, CommitFrame, SendFrame
 
@@ -44,3 +45,13 @@ class Transaction:
 
 def _make_transaction_id() -> str:
     return str(uuid4())
+
+
+async def commit_pending_transactions(
+    *, active_transactions: ActiveTransactionsSet, connection: AbstractConnection
+) -> None:
+    for transaction in active_transactions:
+        for frame in transaction.sent_frames:
+            await connection.write_frame(frame)
+        await connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
+    active_transactions.clear()
