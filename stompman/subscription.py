@@ -1,0 +1,63 @@
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass, field
+from uuid import uuid4
+
+from stompman.connection_manager import ConnectionManager
+from stompman.frames import (
+    AckFrame,
+    AckMode,
+    MessageFrame,
+    NackFrame,
+    SubscribeFrame,
+    UnsubscribeFrame,
+)
+
+
+@dataclass(kw_only=True, slots=True)
+class Subscription:
+    id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
+    destination: str
+    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+    ack: AckMode
+    on_suppressed_exception: Callable[[Exception, MessageFrame], None]
+    supressed_exception_classes: tuple[type[Exception], ...]
+    _connection_manager: ConnectionManager
+    _active_subscriptions: dict[str, "Subscription"]
+
+    _should_handle_ack_nack: bool = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
+
+    async def _subscribe(self) -> None:
+        await self._connection_manager.write_frame_reconnecting(
+            SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
+        )
+        self._active_subscriptions[self.id] = self
+
+    async def unsubscribe(self) -> None:
+        del self._active_subscriptions[self.id]
+        await self._connection_manager.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
+
+    async def _run_handler(self, *, frame: MessageFrame) -> None:
+        try:
+            await self.handler(frame)
+        except self.supressed_exception_classes as exception:
+            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
+                await self._connection_manager.maybe_write_frame(
+                    NackFrame(
+                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
+                    )
+                )
+            self.on_suppressed_exception(exception, frame)
+        else:
+            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
+                await self._connection_manager.maybe_write_frame(
+                    AckFrame(
+                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
+                    )
+                )
+
+
+def _make_subscription_id() -> str:
+    return str(uuid4())

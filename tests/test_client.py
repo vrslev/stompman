@@ -8,6 +8,7 @@ import faker
 import pytest
 
 import stompman.client
+import stompman.subscription
 import stompman.transaction
 from stompman import (
     AckFrame,
@@ -46,7 +47,6 @@ from tests.conftest import (
 
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
-
 
 
 async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -422,7 +422,7 @@ async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch) ->
     "func",
     [
         stompman.client._make_receipt_id,
-        stompman.client._make_subscription_id,
+        stompman.subscription._make_subscription_id,
         stompman.transaction._make_transaction_id,
     ],
 )
