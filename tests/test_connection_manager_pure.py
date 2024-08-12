@@ -89,6 +89,17 @@ async def test_connect_to_first_server_fails() -> None:
     assert active_connection_state is None
 
 
+async def test_make_healthy_connection_ok() -> None:
+    active_connection_state = ActiveConnectionState(
+        connection=mock.AsyncMock(), lifespan=mock.AsyncMock(enter=mock.AsyncMock(side_effect=[None]))
+    )
+    result = await make_healthy_connection(
+        active_connection_state=active_connection_state, servers=[], connect_timeout=0
+    )
+
+    assert result is active_connection_state
+
+
 async def test_make_healthy_connection_no_active_state() -> None:
     servers = [build_dataclass(ConnectionParameters) for _ in range(FAKER.pyint(max_value=10))]
     connect_timeout = FAKER.pyint()
