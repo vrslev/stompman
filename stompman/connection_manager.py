@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import TYPE_CHECKING, Self
@@ -24,6 +24,24 @@ if TYPE_CHECKING:
 class ActiveConnectionState:
     connection: AbstractConnection
     lifespan: "AbstractConnectionLifespan"
+
+
+async def attempt_to_connect(
+    connect: Callable[[], Awaitable[ActiveConnectionState | AnyConnectionIssue]],
+    connect_retry_interval: int,
+    connect_retry_attempts: int,
+) -> ActiveConnectionState:
+    connection_issues = []
+
+    for attempt in range(connect_retry_attempts):
+        connection_result = await connect()
+        if isinstance(connection_result, ActiveConnectionState):
+            return connection_result
+
+        connection_issues.append(connection_result)
+        await asyncio.sleep(connect_retry_interval * (attempt + 1))
+
+    raise FailedAllConnectAttemptsError(retry_attempts=connect_retry_attempts, issues=connection_issues)
 
 
 @dataclass(kw_only=True, slots=True)
@@ -94,23 +112,15 @@ class ConnectionManager:
         if self._active_connection_state:
             return self._active_connection_state
 
-        connection_issues: list[AnyConnectionIssue] = []
-
         async with self._reconnect_lock:
             if self._active_connection_state:
                 return self._active_connection_state
-
-            for attempt in range(self.connect_retry_attempts):
-                connection_result = await self._connect_to_any_server()
-
-                if isinstance(connection_result, ActiveConnectionState):
-                    self._active_connection_state = connection_result
-                    return connection_result
-
-                connection_issues.append(connection_result)
-                await asyncio.sleep(self.connect_retry_interval * (attempt + 1))
-
-        raise FailedAllConnectAttemptsError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
+            self._active_connection_state = await attempt_to_connect(
+                connect=self._connect_to_any_server,
+                connect_retry_interval=self.connect_retry_interval,
+                connect_retry_attempts=self.connect_retry_attempts,
+            )
+            return self._active_connection_state
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None
