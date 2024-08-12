@@ -22,7 +22,7 @@ def anyio_backend(request: pytest.FixtureRequest) -> object:
     return request.param
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
     original_sleep = asyncio.sleep
     monkeypatch.setattr("asyncio.sleep", lambda _: original_sleep(0))
