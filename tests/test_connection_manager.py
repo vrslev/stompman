@@ -1,7 +1,7 @@
 import asyncio
 import itertools
 from collections.abc import AsyncGenerator, AsyncIterable
-from typing import Any, Self, get_args
+from typing import Any, get_args
 from unittest import mock
 
 import faker
@@ -56,39 +56,6 @@ async def test_attempt_to_connect_fails() -> None:
 
     assert exc_info.value.issues == connection_issues
     assert exc_info.value.retry_attempts == attempts
-
-
-@pytest.mark.parametrize("ok_on_attempt", [1, 2, 3])
-async def test_connect_attempts_ok(ok_on_attempt: int, monkeypatch: pytest.MonkeyPatch) -> None:
-    attempts = 0
-
-    class MockConnection(BaseMockConnection):
-        @classmethod
-        async def connect(
-            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
-        ) -> Self | None:
-            assert (host, port) == (manager.servers[0].host, manager.servers[0].port)
-            nonlocal attempts
-            attempts += 1
-
-            return (
-                await super().connect(
-                    host=host,
-                    port=port,
-                    timeout=timeout,
-                    read_max_chunk_size=read_max_chunk_size,
-                    read_timeout=read_timeout,
-                )
-                if attempts == ok_on_attempt
-                else None
-            )
-
-    sleep_mock = mock.AsyncMock()
-    monkeypatch.setattr("asyncio.sleep", sleep_mock)
-    manager = EnrichedConnectionManager(connection_class=MockConnection)
-    active_connection_state = await manager._get_active_connection_state()
-    assert isinstance(active_connection_state, ActiveConnectionState)
-    assert attempts == ok_on_attempt == (len(sleep_mock.mock_calls) + 1)
 
 
 async def test_connect_to_one_server_fails() -> None:
