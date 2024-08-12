@@ -21,44 +21,6 @@ pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
 FAKER = faker.Faker()
 
 
-# async def test_get_active_connection_state_lifespan_flaky_ok() -> None:
-#     enter = mock.AsyncMock(side_effect=[ConnectionLostError, None])
-#     lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
-#     manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
-
-#     await manager._get_active_connection_state()
-
-#     assert enter.mock_calls == [mock.call(), mock.call()]
-#     assert lifespan_factory.mock_calls == [
-#         mock.call(connection=BaseMockConnection(), connection_parameters=manager.servers[0]),
-#         mock.call(connection=BaseMockConnection(), connection_parameters=manager.servers[0]),
-#     ]
-
-
-# async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
-#     enter = mock.AsyncMock(side_effect=ConnectionLostError)
-#     lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
-#     manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
-
-#     with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
-#         await manager._get_active_connection_state()
-
-#     assert (
-#         exc_info.value.retry_attempts
-#         == len(lifespan_factory.mock_calls)
-#         == len(enter.mock_calls)
-#         == manager.connect_retry_attempts
-#     )
-
-
-# async def test_get_active_connection_state_fails_to_connect() -> None:
-#     class MockConnection(BaseMockConnection):
-#         connect = mock.AsyncMock(return_value=None)
-
-#     with pytest.raises(FailedAllConnectAttemptsError):
-#         await EnrichedConnectionManager(connection_class=MockConnection)._get_active_connection_state()
-
-
 async def test_get_active_connection_state_ok_concurrent() -> None:
     enter = mock.AsyncMock(side_effect=[None])
     lifespan = mock.Mock(enter=enter)
