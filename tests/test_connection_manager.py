@@ -51,7 +51,7 @@ async def test_connect_to_one_server_ok(ok_on_attempt: int, monkeypatch: pytest.
     sleep_mock = mock.AsyncMock()
     monkeypatch.setattr("asyncio.sleep", sleep_mock)
     manager = EnrichedConnectionManager(connection_class=MockConnection)
-    assert await manager._connect_to_one_server(manager.servers[0])
+    assert await manager._create_connection_to_one_server(manager.servers[0])
     assert attempts == ok_on_attempt == (len(sleep_mock.mock_calls) + 1)
 
 
@@ -60,7 +60,7 @@ async def test_connect_to_one_server_fails() -> None:
         connect = mock.AsyncMock(return_value=None)
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
-    assert await manager._connect_to_one_server(manager.servers[0]) is None
+    assert await manager._create_connection_to_one_server(manager.servers[0]) is None
 
 
 async def test_connect_to_any_server_ok() -> None:
@@ -91,7 +91,7 @@ async def test_connect_to_any_server_ok() -> None:
         ],
         connection_class=MockConnection,
     )
-    connection, connection_parameters = await manager._connect_to_any_server()
+    connection, connection_parameters = await manager._create_connection_to_any_server()
     assert connection
     assert connection_parameters == successful_server
 
@@ -111,7 +111,7 @@ async def test_connect_to_any_server_fails() -> None:
     )
 
     with pytest.raises(FailedAllConnectAttemptsError):
-        await manager._connect_to_any_server()
+        await manager._create_connection_to_any_server()
 
 
 async def test_get_active_connection_state_lifespan_flaky_ok() -> None:

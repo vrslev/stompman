@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Protocol, Self, TypeVar
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
@@ -35,6 +35,9 @@ class ActiveConnectionState:
     lifespan: AbstractConnectionLifespan
 
 
+T = TypeVar("T")
+
+
 @dataclass(kw_only=True, slots=True)
 class ConnectionManager:
     servers: list[ConnectionParameters]
@@ -65,9 +68,7 @@ class ConnectionManager:
             return
         await self._active_connection_state.connection.close()
 
-    async def _connect_to_one_server(
-        self, server: ConnectionParameters
-    ) -> tuple[AbstractConnection, ConnectionParameters] | None:
+    async def _create_connection_to_one_server(self, server: ConnectionParameters) -> ActiveConnectionState | None:
         if connection := await self.connection_class.connect(
             host=server.host,
             port=server.port,
@@ -75,35 +76,31 @@ class ConnectionManager:
             read_max_chunk_size=self.read_max_chunk_size,
             read_timeout=self.read_timeout,
         ):
-            return connection, server
+            return ActiveConnectionState(
+                connection=connection,
+                lifespan=self.lifespan_factory(connection=connection, connection_parameters=server),
+            )
         return None
 
-    async def _connect_to_any_server(self) -> tuple[AbstractConnection, ConnectionParameters] | None:
+    async def _create_connection_to_any_server(self) -> ActiveConnectionState | None:
         for maybe_connection_future in asyncio.as_completed(
-            [self._connect_to_one_server(server) for server in self.servers]
+            [self._create_connection_to_one_server(server) for server in self.servers]
         ):
-            if maybe_result := await maybe_connection_future:
-                return maybe_result
+            if connection_state := await maybe_connection_future:
+                return connection_state
         return None
 
-    async def _connect_to_any_server_and_lifespan(self) -> ActiveConnectionState | AnyConnectionIssue:
-        if not (connection_and_connection_parameters := await self._connect_to_any_server()):
+    async def _connect_to_any_server(self) -> ActiveConnectionState | AnyConnectionIssue:
+        if not (active_connection_state := await self._create_connection_to_any_server()):
             return AllServersUnavailable(servers=self.servers, timeout=self.connect_timeout)
-        connection, connection_parameters = connection_and_connection_parameters
-
-        active_connection_state = ActiveConnectionState(
-            connection=connection,
-            lifespan=self.lifespan_factory(connection=connection, connection_parameters=connection_parameters),
-        )
 
         try:
-            connection_issue = await active_connection_state.lifespan.enter()
+            if connection_issue := await active_connection_state.lifespan.enter():
+                return connection_issue
         except ConnectionLostError:
             return ConnectionLost()
 
-        if connection_issue is None:
-            return active_connection_state
-        return connection_issue
+        return active_connection_state
 
     async def _get_active_connection_state(self) -> ActiveConnectionState:
         if self._active_connection_state:
@@ -113,7 +110,7 @@ class ConnectionManager:
 
         async with self._reconnect_lock:
             for attempt in range(self.connect_retry_attempts):
-                connection_result = await self._connect_to_any_server_and_lifespan()
+                connection_result = await self._connect_to_any_server()
 
                 if isinstance(connection_result, ActiveConnectionState):
                     self._active_connection_state = connection_result
