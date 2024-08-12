@@ -163,19 +163,18 @@ async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionL
     assert frames == [frame async for frame in take_all_frames()]
 
 
-async def test_maybe_write_frame_connection_already_lost() -> None:
-    manager = EnrichedConnectionManager(connection_class=mock.AsyncMock())
-    assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
+class TestMaybeWriteFrame:
+    async def test_ok(self) -> None:
+        async with EnrichedConnectionManager(connection_class=mock.AsyncMock()) as manager:
+            assert await manager.maybe_write_frame(build_dataclass(ConnectFrame))
 
+    async def test_connection_now_lost(self) -> None:
+        class MockConnection(BaseMockConnection):
+            write_frame = mock.AsyncMock(side_effect=[ConnectionLostError])
 
-async def test_maybe_write_frame_connection_now_lost() -> None:
-    class MockConnection(BaseMockConnection):
-        write_frame = mock.AsyncMock(side_effect=[ConnectionLostError])
+        async with EnrichedConnectionManager(connection_class=MockConnection) as manager:
+            assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
 
-    async with EnrichedConnectionManager(connection_class=MockConnection) as manager:
+    async def test_connection_already_lost(self) -> None:
+        manager = EnrichedConnectionManager(connection_class=mock.AsyncMock())
         assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
-
-
-async def test_maybe_write_frame_ok() -> None:
-    async with EnrichedConnectionManager(connection_class=mock.AsyncMock()) as manager:
-        assert await manager.maybe_write_frame(build_dataclass(ConnectFrame))
