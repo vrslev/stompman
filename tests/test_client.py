@@ -7,6 +7,7 @@ import faker
 import pytest
 
 import stompman.client
+import stompman.connection_lifespan
 import stompman.subscription
 import stompman.transaction
 from stompman import (
@@ -41,7 +42,7 @@ async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) ->
     )
 
     disconnect_frame = DisconnectFrame(headers={"receipt": (receipt_id := FAKER.pystr())})
-    monkeypatch.setattr(stompman.client, "_make_receipt_id", mock.Mock(return_value=receipt_id))
+    monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", mock.Mock(return_value=receipt_id))
 
     async with EnrichedClient(
         [ConnectionParameters("localhost", 10, "login", "%3Dpasscode")], connection_class=connection_class
@@ -156,7 +157,7 @@ async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize(
     "func",
     [
-        stompman.client._make_receipt_id,
+        stompman.connection_lifespan._make_receipt_id,
         stompman.subscription._make_subscription_id,
         stompman.transaction._make_transaction_id,
     ],

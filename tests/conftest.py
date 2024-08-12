@@ -8,6 +8,7 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
 import stompman.client
+import stompman.connection_lifespan
 import stompman.transaction
 from stompman import (
     AbstractConnection,
@@ -137,7 +138,7 @@ CONNECTED_FRAME = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "h
 
 @pytest.fixture(autouse=True)
 def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(stompman.client, "_make_receipt_id", lambda: "receipt-id-1")
+    monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", lambda: "receipt-id-1")
 
 
 def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[list[AnyServerFrame]]:
