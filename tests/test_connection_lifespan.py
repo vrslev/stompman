@@ -159,7 +159,7 @@ class TestWaitForReceiptFrame:
         )
 
 
-async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch, faker: Faker) -> None:
+async def test_client_connection_enter_ok(faker: Faker) -> None:
     protocol_version = faker.pystr()
     connected_frame = build_dataclass(ConnectedFrame, headers={"version": protocol_version, "heart-beat": "1,1"})
     client_heartbeat = Heartbeat.from_header("1,1")
@@ -224,6 +224,22 @@ async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch, fa
         ),
         *(CommitFrame(headers={"transaction": transaction.id}) for transaction in active_transactions),
     ]
+
+
+async def test_client_connection_enter_confirmation_timeout(faker: Faker) -> None:
+    connection_lifespan = ConnectionLifespan(
+        connection=mock.AsyncMock(read_frames=mock.Mock(side_effect=[make_async_iter([])])),
+        connection_parameters=mock.Mock(),
+        protocol_version=faker.pystr(),
+        client_heartbeat=mock.Mock(),
+        connection_confirmation_timeout=0,
+        disconnect_confirmation_timeout=faker.pyint(),
+        active_subscriptions={},
+        active_transactions=set(),
+        set_heartbeat_interval=mock.Mock(),
+    )
+
+    assert await connection_lifespan.enter() == ConnectionConfirmationTimeout(timeout=0, frames=[])
 
 
 @pytest.mark.usefixtures("mock_sleep")
