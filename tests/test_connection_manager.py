@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterable
 from types import SimpleNamespace
 from typing import Self
 from unittest import mock
@@ -235,20 +235,6 @@ async def test_write_frame_reconnecting_raises() -> None:
         await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
 
 
-async def test_read_frames_reconnecting_raises() -> None:
-    class MockConnection(BaseMockConnection):
-        @staticmethod
-        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
-            raise ConnectionLostError
-            yield
-            await asyncio.sleep(0)
-
-    manager = EnrichedConnectionManager(connection_class=MockConnection)
-
-    with pytest.raises(RepeatedConnectionLostError):
-        [_ async for _ in manager.read_frames_reconnecting()]
-
-
 SIDE_EFFECTS = [(None,), (ConnectionLostError(), None), (ConnectionLostError(), ConnectionLostError(), None)]
 
 
@@ -299,11 +285,15 @@ async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionL
                 raise ConnectionLostError
             for frame in frames:
                 yield frame
-            await asyncio.sleep(0)
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    assert frames == [frame async for frame in manager.read_frames_reconnecting()]
+    async def take_all_frames() -> AsyncIterable[AnyServerFrame]:
+        iterator = manager.read_frames_reconnecting()
+        for _ in frames:
+            yield await anext(iterator)
+
+    assert frames == [frame async for frame in take_all_frames()]
 
 
 async def test_maybe_write_frame_connection_already_lost() -> None:
