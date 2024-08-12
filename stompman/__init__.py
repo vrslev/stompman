@@ -8,7 +8,6 @@ from stompman.connection_manager import (
     ConnectionManager,
 )
 from stompman.errors import (
-    ConnectionAttemptsFailedError,
     ConnectionConfirmationTimeout,
     ConnectionLostDuringOperationError,
     ConnectionLostError,
