@@ -1,214 +1,26 @@
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Coroutine
-from contextlib import AsyncExitStack, asynccontextmanager, suppress
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from functools import partial
 from types import TracebackType
 from typing import ClassVar, Self
-from uuid import uuid4
 
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
-from stompman.connection_manager import AbstractConnectionLifespan, ConnectionManager
-from stompman.errors import ConnectionConfirmationTimeout, StompProtocolConnectionIssue, UnsupportedProtocolVersion
+from stompman.connection_lifespan import ConnectionLifespan
+from stompman.connection_manager import ConnectionManager
 from stompman.frames import (
-    AbortFrame,
-    AckFrame,
     AckMode,
-    BeginFrame,
-    CommitFrame,
     ConnectedFrame,
-    ConnectFrame,
-    DisconnectFrame,
     ErrorFrame,
     HeartbeatFrame,
     MessageFrame,
-    NackFrame,
     ReceiptFrame,
     SendFrame,
-    SubscribeFrame,
-    UnsubscribeFrame,
 )
-
-
-@dataclass(kw_only=True, slots=True)
-class ConnectionLifespan(AbstractConnectionLifespan):
-    connection: AbstractConnection
-    connection_parameters: ConnectionParameters
-    protocol_version: str
-    client_heartbeat: Heartbeat
-    connection_confirmation_timeout: int
-    disconnect_confirmation_timeout: int
-    active_subscriptions: dict[str, "Subscription"]
-    active_transactions: set["Transaction"]
-    set_heartbeat_interval: Callable[[float], None]
-
-    async def _establish_connection(self) -> StompProtocolConnectionIssue | None:
-        await self.connection.write_frame(
-            ConnectFrame(
-                headers={
-                    "accept-version": self.protocol_version,
-                    "heart-beat": self.client_heartbeat.to_header(),
-                    "host": self.connection_parameters.host,
-                    "login": self.connection_parameters.login,
-                    "passcode": self.connection_parameters.unescaped_passcode,
-                },
-            )
-        )
-        collected_frames = []
-
-        async def take_connected_frame_and_collect_other_frames() -> ConnectedFrame:
-            async for frame in self.connection.read_frames():
-                if isinstance(frame, ConnectedFrame):
-                    return frame
-                collected_frames.append(frame)
-            msg = "unreachable"  # pragma: no cover
-            raise AssertionError(msg)  # pragma: no cover
-
-        try:
-            connected_frame = await asyncio.wait_for(
-                take_connected_frame_and_collect_other_frames(), timeout=self.connection_confirmation_timeout
-            )
-        except TimeoutError:
-            return ConnectionConfirmationTimeout(timeout=self.connection_confirmation_timeout, frames=collected_frames)
-
-        if connected_frame.headers["version"] != self.protocol_version:
-            return UnsupportedProtocolVersion(
-                given_version=connected_frame.headers["version"], supported_version=self.protocol_version
-            )
-
-        server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
-        self.set_heartbeat_interval(
-            max(self.client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
-        )
-        return None
-
-    async def _resubscribe(self) -> None:
-        for subscription in self.active_subscriptions.values():
-            await self.connection.write_frame(
-                SubscribeFrame(
-                    headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
-                )
-            )
-
-    async def _commit_pending_transactions(self) -> None:
-        for transaction in self.active_transactions:
-            for frame in transaction.sent_frames:
-                await self.connection.write_frame(frame)
-            await self.connection.write_frame(CommitFrame(headers={"transaction": transaction.id}))
-        self.active_transactions.clear()
-
-    async def enter(self) -> StompProtocolConnectionIssue | None:
-        if connection_issue := await self._establish_connection():
-            return connection_issue
-        await self._resubscribe()
-        await self._commit_pending_transactions()
-        return None
-
-    async def exit(self) -> None:
-        for subscription in self.active_subscriptions.copy().values():
-            await subscription.unsubscribe()
-
-        await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-
-        async def take_receipt_frame() -> None:
-            async for frame in self.connection.read_frames():
-                if isinstance(frame, ReceiptFrame):
-                    break
-
-        with suppress(TimeoutError):
-            await asyncio.wait_for(take_receipt_frame(), timeout=self.disconnect_confirmation_timeout)
-
-
-def _make_receipt_id() -> str:
-    return str(uuid4())
-
-
-@dataclass(kw_only=True, slots=True)
-class Subscription:
-    id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
-    destination: str
-    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
-    ack: AckMode
-    on_suppressed_exception: Callable[[Exception, MessageFrame], None]
-    supressed_exception_classes: tuple[type[Exception], ...]
-    _connection_manager: ConnectionManager
-    _active_subscriptions: dict[str, "Subscription"]
-
-    _should_handle_ack_nack: bool = field(init=False)
-
-    def __post_init__(self) -> None:
-        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
-
-    async def _subscribe(self) -> None:
-        await self._connection_manager.write_frame_reconnecting(
-            SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
-        )
-        self._active_subscriptions[self.id] = self
-
-    async def unsubscribe(self) -> None:
-        del self._active_subscriptions[self.id]
-        await self._connection_manager.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
-
-    async def _run_handler(self, *, frame: MessageFrame) -> None:
-        try:
-            await self.handler(frame)
-        except self.supressed_exception_classes as exception:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection_manager.maybe_write_frame(
-                    NackFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
-                    )
-                )
-            self.on_suppressed_exception(exception, frame)
-        else:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection_manager.maybe_write_frame(
-                    AckFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
-                    )
-                )
-
-
-def _make_subscription_id() -> str:
-    return str(uuid4())
-
-
-@dataclass(kw_only=True, slots=True, unsafe_hash=True)
-class Transaction:
-    id: str = field(default_factory=lambda: _make_transaction_id(), init=False)  # noqa: PLW0108
-    _connection_manager: ConnectionManager = field(hash=False)
-    _active_transactions: set["Transaction"] = field(hash=False)
-    sent_frames: list[SendFrame] = field(default_factory=list, init=False, hash=False)
-
-    async def __aenter__(self) -> Self:
-        await self._connection_manager.write_frame_reconnecting(BeginFrame(headers={"transaction": self.id}))
-        self._active_transactions.add(self)
-        return self
-
-    async def __aexit__(
-        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
-    ) -> None:
-        if exc_value:
-            await self._connection_manager.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
-            self._active_transactions.remove(self)
-        else:
-            commited = await self._connection_manager.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
-            if commited:
-                self._active_transactions.remove(self)
-
-    async def send(
-        self, body: bytes, destination: str, *, content_type: str | None = None, headers: dict[str, str] | None = None
-    ) -> None:
-        frame = SendFrame.build(
-            body=body, destination=destination, transaction=self.id, content_type=content_type, headers=headers
-        )
-        self.sent_frames.append(frame)
-        await self._connection_manager.write_frame_reconnecting(frame)
-
-
-def _make_transaction_id() -> str:
-    return str(uuid4())
+from stompman.subscription import Subscription
+from stompman.transaction import Transaction
 
 
 @dataclass(kw_only=True, slots=True)

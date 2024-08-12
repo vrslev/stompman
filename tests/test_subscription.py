@@ -1,29 +1,16 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Coroutine
-from contextlib import suppress
 from functools import partial
-from typing import TYPE_CHECKING, Any, get_args
+from typing import get_args
 from unittest import mock
 
 import faker
 import pytest
 
-import stompman.client
+import stompman.subscription
 from stompman import (
-    AbortFrame,
-    AbstractConnection,
     AckFrame,
     AckMode,
-    AnyClientFrame,
-    AnyServerFrame,
-    BeginFrame,
-    Client,
-    CommitFrame,
     ConnectedFrame,
-    ConnectFrame,
-    ConnectionConfirmationTimeout,
-    ConnectionParameters,
-    DisconnectFrame,
     ErrorFrame,
     FailedAllConnectAttemptsError,
     HeartbeatFrame,
@@ -33,196 +20,22 @@ from stompman import (
     SendFrame,
     SubscribeFrame,
     UnsubscribeFrame,
-    UnsupportedProtocolVersion,
 )
 from tests.conftest import (
-    BaseMockConnection,
+    CONNECT_FRAME,
+    CONNECTED_FRAME,
     EnrichedClient,
     SomeError,
     build_dataclass,
+    create_spying_connection,
+    enrich_expected_frames,
+    get_read_frames_with_lifespan,
     noop_error_handler,
     noop_message_handler,
 )
 
-if TYPE_CHECKING:
-    from stompman.frames import SendHeaders
-
 pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
-
-
-def create_spying_connection(
-    *read_frames_yields: list[AnyServerFrame],
-) -> tuple[type[AbstractConnection], list[AnyClientFrame | AnyServerFrame]]:
-    class BaseCollectingConnection(BaseMockConnection):
-        @staticmethod
-        async def write_frame(frame: AnyClientFrame) -> None:
-            collected_frames.append(frame)
-
-        @staticmethod
-        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
-            for frame in next(read_frames_iterator):
-                collected_frames.append(frame)
-                yield frame
-            await asyncio.Future()
-
-    read_frames_iterator = iter(read_frames_yields)
-    collected_frames: list[AnyClientFrame | AnyServerFrame] = []
-    return BaseCollectingConnection, collected_frames
-
-
-CONNECT_FRAME = ConnectFrame(
-    headers={
-        "accept-version": Client.PROTOCOL_VERSION,
-        "heart-beat": "1000,1000",
-        "host": "localhost",
-        "login": "login",
-        "passcode": "passcode",
-    },
-)
-CONNECTED_FRAME = ConnectedFrame(headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
-
-
-def get_read_frames_with_lifespan(*read_frames: list[AnyServerFrame]) -> list[list[AnyServerFrame]]:
-    return [
-        [CONNECTED_FRAME],
-        *read_frames,
-        [ReceiptFrame(headers={"receipt-id": "receipt-id-1"})],
-    ]
-
-
-def enrich_expected_frames(*expected_frames: AnyClientFrame | AnyServerFrame) -> list[AnyClientFrame | AnyServerFrame]:
-    return [
-        CONNECT_FRAME,
-        CONNECTED_FRAME,
-        *expected_frames,
-        DisconnectFrame(headers={"receipt": "receipt-id-1"}),
-        ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
-    ]
-
-
-@pytest.fixture(autouse=True)
-def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(stompman.client, "_make_receipt_id", lambda: "receipt-id-1")
-
-
-async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    connected_frame = build_dataclass(ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
-    connection_class, collected_frames = create_spying_connection(
-        [connected_frame], [], [(receipt_frame := build_dataclass(ReceiptFrame))]
-    )
-
-    disconnect_frame = DisconnectFrame(headers={"receipt": (receipt_id := FAKER.pystr())})
-    monkeypatch.setattr(stompman.client, "_make_receipt_id", mock.Mock(return_value=receipt_id))
-
-    async with EnrichedClient(
-        [ConnectionParameters("localhost", 10, "login", "%3Dpasscode")], connection_class=connection_class
-    ) as client:
-        await asyncio.sleep(0)
-
-    connect_frame = ConnectFrame(
-        headers={
-            "host": "localhost",
-            "accept-version": Client.PROTOCOL_VERSION,
-            "heart-beat": client.heartbeat.to_header(),
-            "login": "login",
-            "passcode": "=passcode",
-        }
-    )
-    assert collected_frames == [connect_frame, connected_frame, disconnect_frame, receipt_frame]
-
-
-@pytest.mark.usefixtures("mock_sleep")
-async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
-        assert timeout == connection_confirmation_timeout
-        task = asyncio.create_task(future)
-        await asyncio.sleep(0)
-        return await original_wait_for(task, 0)
-
-    original_wait_for = asyncio.wait_for
-    monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
-    error_frame = build_dataclass(ErrorFrame)
-    connection_confirmation_timeout = FAKER.pyint()
-
-    class MockConnection(BaseMockConnection):
-        @staticmethod
-        async def read_frames() -> AsyncGenerator[AnyServerFrame, None]:
-            yield error_frame
-            await asyncio.sleep(0)
-
-    with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
-        await EnrichedClient(
-            connection_class=MockConnection, connection_confirmation_timeout=connection_confirmation_timeout
-        ).__aenter__()
-
-    assert exc_info.value == FailedAllConnectAttemptsError(
-        retry_attempts=3,
-        issues=[ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=[error_frame])] * 3,
-    )
-
-
-@pytest.mark.usefixtures("mock_sleep")
-async def test_client_connection_lifespan_unsupported_protocol_version() -> None:
-    given_version = FAKER.pystr()
-
-    with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
-        await EnrichedClient(
-            connection_class=create_spying_connection(
-                [build_dataclass(ConnectedFrame, headers={"version": given_version})]
-            )[0],
-            connect_retry_attempts=1,
-        ).__aenter__()
-
-    assert exc_info.value == FailedAllConnectAttemptsError(
-        retry_attempts=1,
-        issues=[UnsupportedProtocolVersion(given_version=given_version, supported_version=Client.PROTOCOL_VERSION)],
-    )
-
-
-async def test_client_connection_lifespan_disconnect_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
-    wait_for_calls = []
-
-    async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
-        wait_for_calls.append(timeout)
-        task = asyncio.create_task(future)
-        await asyncio.sleep(0)
-        return await original_wait_for(task, 0)
-
-    original_wait_for = asyncio.wait_for
-    monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
-    disconnect_confirmation_timeout = FAKER.pyint()
-    read_frames_yields = get_read_frames_with_lifespan([])
-    read_frames_yields[-1].clear()
-    connection_class, _ = create_spying_connection(*read_frames_yields)
-
-    async with EnrichedClient(
-        connection_class=connection_class, disconnect_confirmation_timeout=disconnect_confirmation_timeout
-    ):
-        pass
-
-    assert wait_for_calls[-1] == disconnect_confirmation_timeout
-
-
-async def test_client_heartbeats_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def mock_sleep(delay: float) -> None:
-        await real_sleep(0)
-        sleep_calls.append(delay)
-
-    sleep_calls: list[float] = []
-    real_sleep = asyncio.sleep
-    monkeypatch.setattr("asyncio.sleep", mock_sleep)
-
-    connection_class, _ = create_spying_connection(*get_read_frames_with_lifespan([]))
-    connection_class.write_heartbeat = (write_heartbeat_mock := mock.Mock())  # type: ignore[method-assign]
-
-    async with EnrichedClient(connection_class=connection_class):
-        await real_sleep(0)
-        await real_sleep(0)
-        await real_sleep(0)
-
-    assert sleep_calls == [0, 1, 1]
-    assert write_heartbeat_mock.mock_calls == [mock.call(), mock.call(), mock.call()]
 
 
 @pytest.mark.parametrize("ack", get_args(AckMode))
@@ -258,7 +71,7 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
 
 async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        stompman.client,
+        stompman.subscription,
         "_make_subscription_id",
         mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
     )
@@ -291,7 +104,7 @@ async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
     direct_error: bool,
 ) -> None:
     subscription_id, destination = FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     if direct_error:
@@ -319,7 +132,7 @@ async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
 
 async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        stompman.client,
+        stompman.subscription,
         "_make_subscription_id",
         mock.Mock(side_effect=[(first_sub_id := FAKER.pystr()), (second_sub_id := FAKER.pystr())]),
     )
@@ -371,7 +184,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
     monkeypatch: pytest.MonkeyPatch, ack: AckMode, side_effect: object
 ) -> None:
     subscription_id, destination = FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(MessageFrame, headers={"subscription": subscription_id})
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([message_frame]))
@@ -397,7 +210,7 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
 async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack: AckMode, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(
         MessageFrame, headers={"destination": destination, "message-id": message_id, "subscription": subscription_id}
@@ -427,7 +240,7 @@ async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack:
 @pytest.mark.parametrize("ok", [True, False])
 async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, *, ok: bool) -> None:
     subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(
         MessageFrame, headers={"destination": destination, "message-id": message_id, "subscription": subscription_id}
@@ -475,90 +288,5 @@ async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch) ->
     assert isinstance(inner_group.exceptions[0], FailedAllConnectAttemptsError)
 
 
-async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    body, destination, expires, content_type = FAKER.binary(), FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
-
-    transaction_id = FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_transaction_id", mock.Mock(return_value=transaction_id))
-
-    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
-
-    async with EnrichedClient(connection_class=connection_class) as client, client.begin() as transaction:
-        await transaction.send(
-            body=body, destination=destination, content_type=content_type, headers={"expires": expires}
-        )
-        await client.send(body=body, destination=destination, content_type=content_type, headers={"expires": expires})
-        await asyncio.sleep(0)
-
-    send_headers: SendHeaders = {  # type: ignore[typeddict-unknown-key]
-        "content-length": str(len(body)),
-        "content-type": content_type,
-        "destination": destination,
-        "expires": expires,
-    }
-    assert collected_frames == enrich_expected_frames(
-        BeginFrame(headers={"transaction": transaction_id}),
-        SendFrame(headers=send_headers | {"transaction": transaction_id}, body=body),
-        SendFrame(headers=send_headers, body=body),
-        CommitFrame(headers={"transaction": transaction_id}),
-    )
-
-
-async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
-    transaction_id = FAKER.pystr()
-    monkeypatch.setattr(stompman.client, "_make_transaction_id", mock.Mock(return_value=transaction_id))
-    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
-
-    async with EnrichedClient(connection_class=connection_class) as client:
-        with suppress(SomeError):
-            async with client.begin():
-                raise SomeError
-        await asyncio.sleep(0)
-
-    assert collected_frames == enrich_expected_frames(
-        BeginFrame(headers={"transaction": transaction_id}), AbortFrame(headers={"transaction": transaction_id})
-    )
-
-
-async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
-    body, destination = FAKER.binary(length=10), FAKER.pystr()
-    monkeypatch.setattr(
-        stompman.client,
-        "_make_transaction_id",
-        mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
-    )
-    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
-    async with EnrichedClient(connection_class=connection_class) as client:
-        async with client.begin() as first_transaction:
-            await first_transaction.send(body, destination=destination)
-            client._connection_manager._clear_active_connection_state()
-        async with client.begin() as second_transaction:
-            await second_transaction.send(body, destination=destination)
-        await asyncio.sleep(0)
-        await asyncio.sleep(0)
-
-    assert collected_frames == enrich_expected_frames(
-        BeginFrame(headers={"transaction": first_id}),
-        SendFrame(
-            headers={"destination": destination, "transaction": first_id, "content-length": str(len(body))}, body=body
-        ),
-        CONNECT_FRAME,
-        CONNECTED_FRAME,
-        SendFrame(
-            headers={"destination": destination, "transaction": first_id, "content-length": str(len(body))}, body=body
-        ),
-        CommitFrame(headers={"transaction": first_id}),
-        BeginFrame(headers={"transaction": second_id}),
-        SendFrame(
-            headers={"destination": destination, "transaction": second_id, "content-length": str(len(body))}, body=body
-        ),
-        CommitFrame(headers={"transaction": second_id}),
-    )
-
-
-@pytest.mark.parametrize(
-    "func",
-    [stompman.client._make_receipt_id, stompman.client._make_subscription_id, stompman.client._make_transaction_id],
-)
-def test_generate_ids(func: Callable[[], str]) -> None:
-    func()
+def test_make_subscription_id() -> None:
+    stompman.subscription._make_subscription_id()

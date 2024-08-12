@@ -1,10 +1,7 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
+from stompman.config import ConnectionParameters  # noqa: TCH001
 from stompman.frames import ErrorFrame, HeartbeatFrame, MessageFrame, ReceiptFrame
-
-if TYPE_CHECKING:
-    from stompman.config import ConnectionParameters
 
 
 @dataclass(kw_only=True)
