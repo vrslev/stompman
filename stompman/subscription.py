@@ -2,6 +2,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from uuid import uuid4
 
+from stompman.connection import AbstractConnection
 from stompman.connection_manager import ConnectionManager
 from stompman.frames import (
     AckFrame,
@@ -11,6 +12,8 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
+
+ActiveSubscriptions = dict[str, "Subscription"]
 
 
 @dataclass(kw_only=True, slots=True)
@@ -22,7 +25,7 @@ class Subscription:
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
     supressed_exception_classes: tuple[type[Exception], ...]
     _connection_manager: ConnectionManager
-    _active_subscriptions: dict[str, "Subscription"]
+    _active_subscriptions: ActiveSubscriptions
 
     _should_handle_ack_nack: bool = field(init=False)
 
@@ -61,3 +64,14 @@ class Subscription:
 
 def _make_subscription_id() -> str:
     return str(uuid4())
+
+
+async def resubscribe_to_active_subscriptions(
+    *, connection: AbstractConnection, active_subscriptions: ActiveSubscriptions
+) -> None:
+    for subscription in active_subscriptions.values():
+        await connection.write_frame(
+            SubscribeFrame(
+                headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
+            )
+        )
