@@ -22,7 +22,12 @@ from stompman import (
     ReceiptFrame,
     UnsupportedProtocolVersion,
 )
-from stompman.connection_lifespan import check_stomp_protocol_version, take_connected_frame
+from stompman.config import Heartbeat
+from stompman.connection_lifespan import (
+    calculate_heartbeat_interval,
+    check_stomp_protocol_version,
+    take_connected_frame,
+)
 from stompman.frames import HeartbeatFrame, MessageFrame
 from tests.conftest import (
     BaseMockConnection,
@@ -105,6 +110,20 @@ class TestCheckStompProtocolVersion:
 
         result = check_stomp_protocol_version(connected_frame=connected_frame, supported_version=supported_version)
         assert result == UnsupportedProtocolVersion(given_version=given_version, supported_version=supported_version)
+
+
+@pytest.mark.parametrize(
+    ("client_declares", "server_asks", "expected_result"), [(900, 1000, 1), (900, 800, 0.9), (900, 900, 0.9)]
+)
+def test_calculate_heartbeat_interval(
+    faker: Faker, client_declares: int, server_asks: int, expected_result: float
+) -> None:
+    server_heartbeat = Heartbeat(will_send_interval_ms=faker.pyint(), want_to_receive_interval_ms=server_asks)
+    connected_frame = build_dataclass(ConnectedFrame, headers={"heart-beat": server_heartbeat.to_header()})
+    client_heartbeat = Heartbeat(will_send_interval_ms=client_declares, want_to_receive_interval_ms=faker.pyint())
+
+    result = calculate_heartbeat_interval(connected_frame=connected_frame, client_heartbeat=client_heartbeat)
+    assert result == expected_result
 
 
 async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
