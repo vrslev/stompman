@@ -3,12 +3,12 @@ from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
 from stompman.connection_manager import AbstractConnectionLifespan, ActiveConnectionState, ConnectionManager
 from stompman.errors import (
+    ConnectionAttemptsFailedError,
     ConnectionConfirmationTimeout,
+    ConnectionLostDuringOperationError,
     ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
-    RepeatedConnectionFailedError,
-    RepeatedConnectionLostError,
     UnsupportedProtocolVersion,
 )
 from stompman.frames import (
@@ -49,8 +49,10 @@ __all__ = [
     "ConnectFrame",
     "ConnectedFrame",
     "Connection",
+    "ConnectionAttemptsFailedError",
     "ConnectionConfirmationTimeout",
     "ConnectionLifespan",
+    "ConnectionLostDuringOperationError",
     "ConnectionLostError",
     "ConnectionManager",
     "ConnectionParameters",
@@ -63,8 +65,6 @@ __all__ = [
     "MessageFrame",
     "NackFrame",
     "ReceiptFrame",
-    "RepeatedConnectionFailedError",
-    "RepeatedConnectionLostError",
     "SendFrame",
     "SubscribeFrame",
     "Subscription",

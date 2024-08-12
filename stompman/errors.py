@@ -46,11 +46,11 @@ StompProtocolConnectionIssue = ConnectionConfirmationTimeout | UnsupportedProtoc
 
 
 @dataclass(kw_only=True)
-class RepeatedConnectionFailedError(Error):
+class ConnectionAttemptsFailedError(Error):
     retry_attempts: int
     issues: list[StompProtocolConnectionIssue | ConnectionLost]
 
 
 @dataclass(kw_only=True)
-class RepeatedConnectionLostError(Error):
+class ConnectionLostDuringOperationError(Error):
     retry_attempts: int

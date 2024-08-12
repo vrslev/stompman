@@ -7,11 +7,11 @@ from typing import Protocol, Self
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
 from stompman.errors import (
+    ConnectionAttemptsFailedError,
     ConnectionLost,
+    ConnectionLostDuringOperationError,
     ConnectionLostError,
     FailedAllConnectAttemptsError,
-    RepeatedConnectionFailedError,
-    RepeatedConnectionLostError,
     StompProtocolConnectionIssue,
 )
 from stompman.frames import AnyClientFrame, AnyServerFrame
@@ -121,7 +121,7 @@ class ConnectionManager:
                 self._clear_active_connection_state()
                 connection_issues.append(lifespan_connection_issue)
 
-        raise RepeatedConnectionFailedError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
+        raise ConnectionAttemptsFailedError(retry_attempts=self.connect_retry_attempts, issues=connection_issues)
 
     def _clear_active_connection_state(self) -> None:
         self._active_connection_state = None
@@ -134,7 +134,7 @@ class ConnectionManager:
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
-        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
+        raise ConnectionLostDuringOperationError(retry_attempts=self.connect_retry_attempts)
 
     async def write_frame_reconnecting(self, frame: AnyClientFrame) -> None:
         for _ in range(self.connect_retry_attempts):
@@ -144,7 +144,7 @@ class ConnectionManager:
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
-        raise RepeatedConnectionLostError(retry_attempts=self.connect_retry_attempts)
+        raise ConnectionLostDuringOperationError(retry_attempts=self.connect_retry_attempts)
 
     async def read_frames_reconnecting(self) -> AsyncGenerator[AnyServerFrame, None]:
         while True:

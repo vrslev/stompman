@@ -9,15 +9,15 @@ from stompman import (
     AnyServerFrame,
     ConnectedFrame,
     ConnectFrame,
+    ConnectionLostDuringOperationError,
     ConnectionLostError,
     ConnectionParameters,
     ErrorFrame,
     FailedAllConnectAttemptsError,
     MessageFrame,
-    RepeatedConnectionLostError,
 )
 from stompman.connection_manager import ActiveConnectionState
-from stompman.errors import RepeatedConnectionFailedError
+from stompman.errors import ConnectionAttemptsFailedError
 from tests.conftest import BaseMockConnection, EnrichedConnectionManager, build_dataclass
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("mock_sleep")]
@@ -133,7 +133,7 @@ async def test_get_active_connection_state_lifespan_flaky_fails() -> None:
     lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter))
     manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=BaseMockConnection)
 
-    with pytest.raises(RepeatedConnectionFailedError) as exc_info:
+    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
         await manager._get_active_connection_state()
 
     assert (
@@ -219,7 +219,7 @@ async def test_write_heartbeat_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(RepeatedConnectionLostError):
+    with pytest.raises(ConnectionLostDuringOperationError):
         await manager.write_heartbeat_reconnecting()
 
 
@@ -231,7 +231,7 @@ async def test_write_frame_reconnecting_raises() -> None:
 
     manager = EnrichedConnectionManager(connection_class=MockConnection)
 
-    with pytest.raises(RepeatedConnectionLostError):
+    with pytest.raises(ConnectionLostDuringOperationError):
         await manager.write_frame_reconnecting(build_dataclass(ConnectFrame))
 
 

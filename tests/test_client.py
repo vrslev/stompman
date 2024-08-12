@@ -33,7 +33,7 @@ from stompman import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.errors import ConnectionConfirmationTimeout, RepeatedConnectionFailedError, UnsupportedProtocolVersion
+from stompman.errors import ConnectionAttemptsFailedError, ConnectionConfirmationTimeout, UnsupportedProtocolVersion
 from tests.conftest import (
     BaseMockConnection,
     EnrichedClient,
@@ -149,12 +149,12 @@ async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: 
             yield error_frame
             await asyncio.sleep(0)
 
-    with pytest.raises(RepeatedConnectionFailedError) as exc_info:
+    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
         await EnrichedClient(
             connection_class=MockConnection, connection_confirmation_timeout=connection_confirmation_timeout
         ).__aenter__()
 
-    assert exc_info.value == RepeatedConnectionFailedError(
+    assert exc_info.value == ConnectionAttemptsFailedError(
         retry_attempts=3,
         issues=[ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=[error_frame])] * 3,
     )
@@ -163,7 +163,7 @@ async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: 
 async def test_client_connection_lifespan_unsupported_protocol_version() -> None:
     given_version = FAKER.pystr()
 
-    with pytest.raises(RepeatedConnectionFailedError) as exc_info:
+    with pytest.raises(ConnectionAttemptsFailedError) as exc_info:
         await EnrichedClient(
             connection_class=create_spying_connection(
                 [build_dataclass(ConnectedFrame, headers={"version": given_version})]
@@ -171,7 +171,7 @@ async def test_client_connection_lifespan_unsupported_protocol_version() -> None
             connect_retry_attempts=1,
         ).__aenter__()
 
-    assert exc_info.value == RepeatedConnectionFailedError(
+    assert exc_info.value == ConnectionAttemptsFailedError(
         retry_attempts=1,
         issues=[UnsupportedProtocolVersion(given_version=given_version, supported_version=Client.PROTOCOL_VERSION)],
     )
