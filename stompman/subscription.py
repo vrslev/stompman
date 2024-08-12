@@ -75,3 +75,8 @@ async def resubscribe_to_active_subscriptions(
                 headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
             )
         )
+
+
+async def unsubscribe_from_all_active_subscriptions(*, active_subscriptions: ActiveSubscriptions) -> None:
+    for subscription in active_subscriptions.copy().values():
+        await subscription.unsubscribe()

@@ -13,9 +13,12 @@ from stompman.frames import (
     ConnectFrame,
     DisconnectFrame,
     ReceiptFrame,
-    SubscribeFrame,
 )
-from stompman.subscription import ActiveSubscriptions, resubscribe_to_active_subscriptions
+from stompman.subscription import (
+    ActiveSubscriptions,
+    resubscribe_to_active_subscriptions,
+    unsubscribe_from_all_active_subscriptions,
+)
 from stompman.transaction import ActiveTransactions, commit_pending_transactions
 
 
@@ -71,14 +74,6 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         )
         return None
 
-    async def _resubscribe(self) -> None:
-        for subscription in self.active_subscriptions.values():
-            await self.connection.write_frame(
-                SubscribeFrame(
-                    headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
-                )
-            )
-
     async def enter(self) -> StompProtocolConnectionIssue | None:
         if connection_issue := await self._establish_connection():
             return connection_issue
@@ -88,19 +83,17 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         await commit_pending_transactions(connection=self.connection, active_transactions=self.active_transactions)
         return None
 
-    async def exit(self) -> None:
-        for subscription in self.active_subscriptions.copy().values():
-            await subscription.unsubscribe()
+    async def _take_receipt_frame(self) -> None:
+        async for frame in self.connection.read_frames():
+            if isinstance(frame, ReceiptFrame):
+                break
 
+    async def exit(self) -> None:
+        await unsubscribe_from_all_active_subscriptions(active_subscriptions=self.active_subscriptions)
         await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
 
-        async def take_receipt_frame() -> None:
-            async for frame in self.connection.read_frames():
-                if isinstance(frame, ReceiptFrame):
-                    break
-
         with suppress(TimeoutError):
-            await asyncio.wait_for(take_receipt_frame(), timeout=self.disconnect_confirmation_timeout)
+            await asyncio.wait_for(self._take_receipt_frame(), timeout=self.disconnect_confirmation_timeout)
 
 
 def _make_receipt_id() -> str:
