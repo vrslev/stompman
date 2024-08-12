@@ -135,7 +135,7 @@ class ConnectionManager:
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
-        raise FailedAllWriteAttemptsError(retry_attempts=self.connect_retry_attempts)
+        raise FailedAllWriteAttemptsError(retry_attempts=self.write_retry_attempts)
 
     async def write_frame_reconnecting(self, frame: AnyClientFrame) -> None:
         for _ in range(self.write_retry_attempts):
@@ -145,7 +145,7 @@ class ConnectionManager:
             except ConnectionLostError:
                 self._clear_active_connection_state()
 
-        raise FailedAllWriteAttemptsError(retry_attempts=self.connect_retry_attempts)
+        raise FailedAllWriteAttemptsError(retry_attempts=self.write_retry_attempts)
 
     async def read_frames_reconnecting(self) -> AsyncGenerator[AnyServerFrame, None]:
         while True:
