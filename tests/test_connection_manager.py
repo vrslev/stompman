@@ -34,21 +34,21 @@ pytestmark = pytest.mark.anyio
 
 
 class TestAttemptToConnect:
-    async def test_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("asyncio.sleep", (sleep_mock := mock.AsyncMock()))
+    async def test_ok(self) -> None:
         active_connection_state = ActiveConnectionState(connection=mock.Mock(), lifespan=mock.Mock())
         connection_issues = [build_dataclass(issue_type) for issue_type in get_args(AnyConnectionIssue)]
+        sleep = mock.AsyncMock()
 
         result = await attempt_to_connect(
             connect=mock.AsyncMock(side_effect=[*connection_issues, active_connection_state, connection_issues[0]]),
             connect_retry_interval=5,
             connect_retry_attempts=len(connection_issues) + 1,
+            sleep=sleep,
         )
 
         assert result is active_connection_state
-        assert sleep_mock.mock_calls == [mock.call(5), mock.call(10), mock.call(15), mock.call(20)]
+        assert sleep.mock_calls == [mock.call(5), mock.call(10), mock.call(15), mock.call(20)]
 
-    @pytest.mark.usefixtures("mock_sleep")
     async def test_fails(self, faker: Faker) -> None:
         connection_issues_generator = (
             build_dataclass(issue_type) for issue_type in itertools.cycle(get_args(AnyConnectionIssue))
@@ -61,6 +61,7 @@ class TestAttemptToConnect:
                 connect=mock.AsyncMock(side_effect=connection_issues),
                 connect_retry_interval=faker.pyint(),
                 connect_retry_attempts=attempts,
+                sleep=mock.AsyncMock(),
             )
 
         assert exc_info.value.issues == connection_issues

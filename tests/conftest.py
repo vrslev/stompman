@@ -17,12 +17,6 @@ def anyio_backend() -> object:
     return "asyncio"
 
 
-@pytest.fixture
-def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
-    original_sleep = asyncio.sleep
-    monkeypatch.setattr("asyncio.sleep", lambda _: original_sleep(0))
-
-
 async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
 
 

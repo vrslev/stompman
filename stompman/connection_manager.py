@@ -26,11 +26,15 @@ class ActiveConnectionState:
     lifespan: "AbstractConnectionLifespan"
 
 
+Sleep = Callable[[float], Awaitable[None]]
+
+
 async def attempt_to_connect(
     *,
     connect: Callable[[], Awaitable[ActiveConnectionState | AnyConnectionIssue]],
     connect_retry_interval: int,
     connect_retry_attempts: int,
+    sleep: Sleep,
 ) -> ActiveConnectionState:
     connection_issues = []
 
@@ -40,7 +44,7 @@ async def attempt_to_connect(
             return connection_result
 
         connection_issues.append(connection_result)
-        await asyncio.sleep(connect_retry_interval * (attempt + 1))
+        await sleep(connect_retry_interval * (attempt + 1))
 
     raise FailedAllConnectAttemptsError(retry_attempts=connect_retry_attempts, issues=connection_issues)
 
@@ -131,6 +135,7 @@ class ConnectionManager:
                 connect=self._connect_to_any_server,
                 connect_retry_interval=self.connect_retry_interval,
                 connect_retry_attempts=self.connect_retry_attempts,
+                sleep=asyncio.sleep,
             )
             return self._active_connection_state
 
