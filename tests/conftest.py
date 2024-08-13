@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterable, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
 
@@ -109,3 +109,12 @@ def enrich_expected_frames(
         stompman.DisconnectFrame(headers={"receipt": "receipt-id-1"}),
         stompman.ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
     ]
+
+
+IterableItemT = TypeVar("IterableItemT")
+
+
+async def make_async_iter(iterable: Iterable[IterableItemT]) -> AsyncIterable[IterableItemT]:
+    for item in iterable:
+        yield item
+    await asyncio.sleep(0)

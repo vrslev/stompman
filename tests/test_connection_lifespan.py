@@ -35,17 +35,9 @@ from stompman.frames import (
 )
 from stompman.subscription import ActiveSubscriptions, Subscription
 from stompman.transaction import Transaction
-from tests.conftest import build_dataclass, noop_error_handler, noop_message_handler
+from tests.conftest import build_dataclass, make_async_iter, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
-
-IterableItemT = TypeVar("IterableItemT")
-
-
-async def make_async_iter(iterable: Iterable[IterableItemT]) -> AsyncIterable[IterableItemT]:
-    for item in iterable:
-        yield item
-    await asyncio.sleep(0)
 
 
 class TestWaitForOrNone:
