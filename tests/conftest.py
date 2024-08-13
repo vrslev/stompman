@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterable, Iterable
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Self, TypeVar
 
@@ -8,11 +8,19 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
 from stompman.connection import AbstractConnection
+from stompman.connection_lifespan import AbstractConnectionLifespan
+from stompman.connection_manager import ConnectionManager
 
 
 @pytest.fixture
 def anyio_backend() -> object:
     return "asyncio"
+
+
+@pytest.fixture
+def mock_sleep(monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: PT004
+    original_sleep = asyncio.sleep
+    monkeypatch.setattr("asyncio.sleep", lambda _: original_sleep(0))
 
 
 async def noop_message_handler(frame: stompman.MessageFrame) -> None: ...
@@ -42,6 +50,29 @@ class EnrichedClient(stompman.Client):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
     )
+
+
+@dataclass(frozen=True, kw_only=True, slots=True)
+class NoopLifespan(AbstractConnectionLifespan):
+    connection: AbstractConnection
+    connection_parameters: stompman.ConnectionParameters
+
+    async def enter(self) -> stompman.StompProtocolConnectionIssue | None: ...
+    async def exit(self) -> None: ...
+
+
+@dataclass(kw_only=True, slots=True)
+class EnrichedConnectionManager(ConnectionManager):
+    servers: list[stompman.ConnectionParameters] = field(
+        default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
+    )
+    lifespan_factory: stompman.connection_lifespan.ConnectionLifespanFactory = field(default=NoopLifespan)
+    connect_retry_attempts: int = 3
+    connect_retry_interval: int = 1
+    connect_timeout: int = 3
+    read_timeout: int = 4
+    read_max_chunk_size: int = 5
+    write_retry_attempts: int = 3
 
 
 DataclassType = TypeVar("DataclassType")
@@ -109,12 +140,3 @@ def enrich_expected_frames(
         stompman.DisconnectFrame(headers={"receipt": "receipt-id-1"}),
         stompman.ReceiptFrame(headers={"receipt-id": "receipt-id-1"}),
     ]
-
-
-IterableItemT = TypeVar("IterableItemT")
-
-
-async def make_async_iter(iterable: Iterable[IterableItemT]) -> AsyncIterable[IterableItemT]:
-    for item in iterable:
-        yield item
-    await asyncio.sleep(0)

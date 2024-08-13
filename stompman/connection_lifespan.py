@@ -1,7 +1,8 @@
 import asyncio
-from collections.abc import AsyncIterable, Awaitable, Callable
-from dataclasses import dataclass, field
-from typing import Any, Protocol, TypeVar
+from collections.abc import AsyncIterable, Callable
+from contextlib import suppress
+from dataclasses import dataclass
+from typing import Protocol
 from uuid import uuid4
 
 from stompman.config import ConnectionParameters, Heartbeat
@@ -21,40 +22,26 @@ from stompman.subscription import (
 )
 from stompman.transaction import ActiveTransactions, commit_pending_transactions
 
-FrameType = TypeVar("FrameType", bound=AnyServerFrame)
-WaitForFutureReturnType = TypeVar("WaitForFutureReturnType")
 
-
-async def wait_for_or_none(
-    awaitable: Awaitable[WaitForFutureReturnType], timeout: float
-) -> WaitForFutureReturnType | None:
-    try:
-        return await asyncio.wait_for(awaitable, timeout=timeout)
-    except TimeoutError:
-        return None
-
-
-WaitForOrNone = Callable[[Awaitable[WaitForFutureReturnType], float], Awaitable[WaitForFutureReturnType | None]]
-
-
-async def take_frame_of_type(
-    *,
-    frame_type: type[FrameType],
-    frames_iter: AsyncIterable[AnyServerFrame],
-    timeout: int,
-    wait_for_or_none: WaitForOrNone[FrameType],
-) -> FrameType | list[Any]:
+async def take_connected_frame(
+    *, frames_iter: AsyncIterable[AnyServerFrame], connection_confirmation_timeout: int
+) -> ConnectedFrame | ConnectionConfirmationTimeout:
     collected_frames = []
 
-    async def inner() -> FrameType:
+    async def take_connected_frame_and_collect_other_frames() -> ConnectedFrame:
         async for frame in frames_iter:
-            if isinstance(frame, frame_type):
+            if isinstance(frame, ConnectedFrame):
                 return frame
             collected_frames.append(frame)
         msg = "unreachable"
         raise AssertionError(msg)
 
-    return await wait_for_or_none(inner(), timeout) or collected_frames
+    try:
+        return await asyncio.wait_for(
+            take_connected_frame_and_collect_other_frames(), timeout=connection_confirmation_timeout
+        )
+    except TimeoutError:
+        return ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=collected_frames)
 
 
 def check_stomp_protocol_version(
@@ -70,6 +57,18 @@ def check_stomp_protocol_version(
 def calculate_heartbeat_interval(*, connected_frame: ConnectedFrame, client_heartbeat: Heartbeat) -> float:
     server_heartbeat = Heartbeat.from_header(connected_frame.headers["heart-beat"])
     return max(client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
+
+
+async def wait_for_receipt_frame(
+    *, frames_iter: AsyncIterable[AnyServerFrame], disconnect_confirmation_timeout: int
+) -> None:
+    async def inner() -> None:
+        async for frame in frames_iter:
+            if isinstance(frame, ReceiptFrame):
+                break
+
+    with suppress(TimeoutError):
+        await asyncio.wait_for(inner(), timeout=disconnect_confirmation_timeout)
 
 
 class AbstractConnectionLifespan(Protocol):
@@ -88,7 +87,6 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     active_subscriptions: ActiveSubscriptions
     active_transactions: ActiveTransactions
     set_heartbeat_interval: Callable[[float], None]
-    _generate_receipt_id: Callable[[], str] = field(default=lambda: _make_receipt_id())  # noqa: PLW0108
 
     async def _establish_connection(self) -> StompProtocolConnectionIssue | None:
         await self.connection.write_frame(
@@ -102,17 +100,13 @@ class ConnectionLifespan(AbstractConnectionLifespan):
                 },
             )
         )
-        connected_frame_or_collected_frames = await take_frame_of_type(
-            frame_type=ConnectedFrame,
+        connected_frame_or_error = await take_connected_frame(
             frames_iter=self.connection.read_frames(),
-            timeout=self.connection_confirmation_timeout,
-            wait_for_or_none=wait_for_or_none,
+            connection_confirmation_timeout=self.connection_confirmation_timeout,
         )
-        if not isinstance(connected_frame_or_collected_frames, ConnectedFrame):
-            return ConnectionConfirmationTimeout(
-                timeout=self.connection_confirmation_timeout, frames=connected_frame_or_collected_frames
-            )
-        connected_frame = connected_frame_or_collected_frames
+        if isinstance(connected_frame_or_error, ConnectionConfirmationTimeout):
+            return connected_frame_or_error
+        connected_frame = connected_frame_or_error
 
         if unsupported_protocol_version_error := check_stomp_protocol_version(
             connected_frame=connected_frame, supported_version=self.protocol_version
@@ -136,12 +130,10 @@ class ConnectionLifespan(AbstractConnectionLifespan):
 
     async def exit(self) -> None:
         await unsubscribe_from_all_active_subscriptions(active_subscriptions=self.active_subscriptions)
-        await self.connection.write_frame(DisconnectFrame(headers={"receipt": self._generate_receipt_id()}))
-        await take_frame_of_type(
-            frame_type=ReceiptFrame,
+        await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
+        await wait_for_receipt_frame(
             frames_iter=self.connection.read_frames(),
-            timeout=self.disconnect_confirmation_timeout,
-            wait_for_or_none=wait_for_or_none,
+            disconnect_confirmation_timeout=self.disconnect_confirmation_timeout,
         )
 
 

@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import AsyncIterable, Awaitable, Iterable
+from collections.abc import AsyncIterable, Coroutine, Iterable
+from functools import partial
 from typing import Any, TypeVar, get_args
 from unittest import mock
 
@@ -16,11 +17,10 @@ from stompman import (
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection_lifespan import (
     ConnectionLifespan,
-    WaitForFutureReturnType,
     calculate_heartbeat_interval,
     check_stomp_protocol_version,
-    take_frame_of_type,
-    wait_for_or_none,
+    take_connected_frame,
+    wait_for_receipt_frame,
 )
 from stompman.frames import (
     AckMode,
@@ -35,71 +35,58 @@ from stompman.frames import (
 )
 from stompman.subscription import ActiveSubscriptions, Subscription
 from stompman.transaction import Transaction
-from tests.conftest import build_dataclass, make_async_iter, noop_error_handler, noop_message_handler
+from tests.conftest import build_dataclass, noop_error_handler, noop_message_handler
 
 pytestmark = pytest.mark.anyio
 
-
-class TestWaitForOrNone:
-    async def test_ok(self) -> None:
-        async def return_foo_after_tick() -> str:
-            await asyncio.sleep(0)
-            return "foo"
-
-        assert await wait_for_or_none(return_foo_after_tick(), timeout=1) == "foo"
-
-    async def test_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("asyncio.wait_for", mock.AsyncMock(side_effect=TimeoutError))
-        assert await wait_for_or_none(mock.AsyncMock(), timeout=1000) is None
+IterableItemT = TypeVar("IterableItemT")
 
 
-class TestTakeFrameOfType:
+async def make_async_iter(iterable: Iterable[IterableItemT]) -> AsyncIterable[IterableItemT]:
+    for item in iterable:
+        yield item
+    await asyncio.sleep(0)
+
+
+class TestTakeConnectedFrame:
     @pytest.mark.parametrize(
         "frame_types",
         [[ConnectedFrame], [MessageFrame, HeartbeatFrame, ConnectedFrame], [HeartbeatFrame, ConnectedFrame]],
     )
-    async def test_ok(self, frame_types: list[type[Any]]) -> None:
-        expected_timeout = 10
+    async def test_ok(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
+        wait_for_mock = mock.AsyncMock(side_effect=partial(asyncio.wait_for, timeout=0))
+        monkeypatch.setattr("asyncio.wait_for", wait_for_mock)
+        timeout = faker.pyint()
 
-        async def wait_for_or_none(
-            awaitable: Awaitable[WaitForFutureReturnType], timeout: float
-        ) -> WaitForFutureReturnType:
-            assert timeout == expected_timeout
-            return await awaitable
-
-        result = await take_frame_of_type(
-            frame_type=ConnectedFrame,
+        result = await take_connected_frame(
             frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
-            timeout=expected_timeout,
-            wait_for_or_none=wait_for_or_none,
+            connection_confirmation_timeout=timeout,
         )
+
         assert isinstance(result, ConnectedFrame)
+        wait_for_mock.assert_called_once()
+        assert wait_for_mock.mock_calls[0].kwargs["timeout"] == timeout
 
     async def test_unreachable(self) -> None:
         with pytest.raises(AssertionError, match="unreachable"):
-            await take_frame_of_type(
-                frame_type=HeartbeatFrame,
-                frames_iter=make_async_iter([]),
-                timeout=1,
-                wait_for_or_none=wait_for_or_none,
-            )
+            await take_connected_frame(frames_iter=make_async_iter([]), connection_confirmation_timeout=1)
 
-    async def test_timeout(self) -> None:
-        async def wait_for_or_none(awaitable: Awaitable[WaitForFutureReturnType], timeout: float) -> None:
-            async def coro() -> None:
-                await awaitable
+    async def test_timeout(self, monkeypatch: pytest.MonkeyPatch, faker: Faker) -> None:
+        original_wait_for = asyncio.wait_for
 
-            task = asyncio.create_task(coro())
+        async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
+            task = asyncio.create_task(future)
             await asyncio.sleep(0)
-            task.cancel()
+            return await original_wait_for(task, 0)
 
-        result = await take_frame_of_type(
-            frame_type=ConnectedFrame,
-            frames_iter=make_async_iter([HeartbeatFrame()]),
-            timeout=1,
-            wait_for_or_none=wait_for_or_none,
+        monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
+        timeout = faker.pyint()
+
+        result = await take_connected_frame(
+            frames_iter=make_async_iter([HeartbeatFrame()]), connection_confirmation_timeout=timeout
         )
-        assert result == [HeartbeatFrame()]
+
+        assert result == ConnectionConfirmationTimeout(timeout=timeout, frames=[HeartbeatFrame()])
 
 
 class TestCheckStompProtocolVersion:
@@ -131,6 +118,41 @@ def test_calculate_heartbeat_interval(
 
     result = calculate_heartbeat_interval(connected_frame=connected_frame, client_heartbeat=client_heartbeat)
     assert result == expected_result
+
+
+class TestWaitForReceiptFrame:
+    @pytest.mark.parametrize(
+        "frame_types",
+        [[ReceiptFrame], [MessageFrame, HeartbeatFrame, ReceiptFrame], [HeartbeatFrame, ReceiptFrame]],
+    )
+    async def test_ok(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
+        wait_for_mock = mock.AsyncMock(side_effect=partial(asyncio.wait_for, timeout=0))
+        monkeypatch.setattr("asyncio.wait_for", wait_for_mock)
+        timeout = faker.pyint()
+
+        await wait_for_receipt_frame(
+            frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
+            disconnect_confirmation_timeout=timeout,
+        )
+
+        wait_for_mock.assert_called_once()
+        assert wait_for_mock.mock_calls[0].kwargs["timeout"] == timeout
+
+    @pytest.mark.parametrize("frame_types", [[HeartbeatFrame, HeartbeatFrame, HeartbeatFrame], []])
+    async def test_timeout(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
+        original_wait_for = asyncio.wait_for
+
+        async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
+            task = asyncio.create_task(future)
+            await asyncio.sleep(0)
+            return await original_wait_for(task, 0)
+
+        monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
+
+        await wait_for_receipt_frame(
+            frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
+            disconnect_confirmation_timeout=faker.pyint(),
+        )
 
 
 class TestConnectionLifespanEnter:
@@ -237,7 +259,10 @@ class TestConnectionLifespanEnter:
         )
 
 
-async def test_connection_lifespan_exit(faker: Faker) -> None:
+async def test_connection_lifespan_exit(faker: Faker, monkeypatch: pytest.MonkeyPatch) -> None:
+    receipt_id = faker.pystr()
+    monkeypatch.setattr("stompman.connection_lifespan._make_receipt_id", lambda: receipt_id)
+
     written_and_read_frames: list[AnyServerFrame | AnyClientFrame] = []
     connection_manager = mock.Mock(maybe_write_frame=mock.AsyncMock(side_effect=written_and_read_frames.append))
     active_subscriptions: ActiveSubscriptions = {}
@@ -262,7 +287,6 @@ async def test_connection_lifespan_exit(faker: Faker) -> None:
         Transaction(_connection_manager=connection_manager, _active_transactions=active_transactions_mock)
         for _ in range(4)
     ]
-    receipt_id = faker.pystr()
     receipt_frame = build_dataclass(ReceiptFrame)
 
     async def mock_read_frames(iterable: Iterable[AnyServerFrame]) -> AsyncIterable[AnyServerFrame]:
@@ -283,7 +307,6 @@ async def test_connection_lifespan_exit(faker: Faker) -> None:
         active_subscriptions=active_subscriptions,
         active_transactions=active_transactions,  # type: ignore[arg-type]
         set_heartbeat_interval=mock.Mock(),
-        _generate_receipt_id=lambda: receipt_id,
     )
     await connection_lifespan.exit()
 
