@@ -8,8 +8,6 @@ from polyfactory.factories.dataclass_factory import DataclassFactory
 
 import stompman
 from stompman.connection import AbstractConnection
-from stompman.connection_lifespan import AbstractConnectionLifespan
-from stompman.connection_manager import ConnectionManager
 
 
 @pytest.fixture
@@ -44,29 +42,6 @@ class EnrichedClient(stompman.Client):
     servers: list[stompman.ConnectionParameters] = field(
         default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")], kw_only=False
     )
-
-
-@dataclass(frozen=True, kw_only=True, slots=True)
-class NoopLifespan(AbstractConnectionLifespan):
-    connection: AbstractConnection
-    connection_parameters: stompman.ConnectionParameters
-
-    async def enter(self) -> stompman.StompProtocolConnectionIssue | None: ...
-    async def exit(self) -> None: ...
-
-
-@dataclass(kw_only=True, slots=True)
-class EnrichedConnectionManager(ConnectionManager):
-    servers: list[stompman.ConnectionParameters] = field(
-        default_factory=lambda: [stompman.ConnectionParameters("localhost", 12345, "login", "passcode")]
-    )
-    lifespan_factory: stompman.connection_lifespan.ConnectionLifespanFactory = field(default=NoopLifespan)
-    connect_retry_attempts: int = 3
-    connect_retry_interval: int = 1
-    connect_timeout: int = 3
-    read_timeout: int = 4
-    read_max_chunk_size: int = 5
-    write_retry_attempts: int = 3
 
 
 DataclassType = TypeVar("DataclassType")
