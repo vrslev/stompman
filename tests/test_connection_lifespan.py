@@ -39,6 +39,14 @@ from tests.conftest import build_dataclass, noop_error_handler, noop_message_han
 
 pytestmark = pytest.mark.anyio
 
+IterableItemT = TypeVar("IterableItemT")
+
+
+async def make_async_iter(iterable: Iterable[IterableItemT]) -> AsyncIterable[IterableItemT]:
+    for item in iterable:
+        yield item
+    await asyncio.sleep(0)
+
 
 class TestWaitForOrNone:
     async def test_ok(self) -> None:
@@ -100,15 +108,6 @@ class TestTakeFrameOfType:
             wait_for_or_none=wait_for_or_none,
         )
         assert result == [HeartbeatFrame()]
-
-
-IterableItemT = TypeVar("IterableItemT")
-
-
-async def make_async_iter(iterable: Iterable[IterableItemT]) -> AsyncIterable[IterableItemT]:
-    for item in iterable:
-        yield item
-    await asyncio.sleep(0)
 
 
 class TestCheckStompProtocolVersion:
@@ -246,7 +245,7 @@ class TestConnectionLifespanEnter:
         )
 
 
-async def test_connection_lifespan_exit(faker: Faker, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_connection_lifespan_exit(faker: Faker) -> None:
     written_and_read_frames: list[AnyServerFrame | AnyClientFrame] = []
     connection_manager = mock.Mock(maybe_write_frame=mock.AsyncMock(side_effect=written_and_read_frames.append))
     active_subscriptions: ActiveSubscriptions = {}
