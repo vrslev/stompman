@@ -76,7 +76,7 @@ class Client:
     async def __aenter__(self) -> Self:
         self._task_group = await self._exit_stack.enter_async_context(asyncio.TaskGroup())
         self._heartbeat_task = self._task_group.create_task(asyncio.sleep(0))
-        await self._exit_stack.enter_async_context(self._connection_manager)
+        await self._connection_manager.enter()
         self._listen_task = self._task_group.create_task(self._listen_to_frames())
         return self
 
@@ -90,6 +90,7 @@ class Client:
             self._listen_task.cancel()
             self._heartbeat_task.cancel()
             await asyncio.wait([self._listen_task, self._heartbeat_task])
+            await self._connection_manager.exit()
             await self._exit_stack.aclose()
 
     def _restart_heartbeat_task(self, interval: float) -> None:

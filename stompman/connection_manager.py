@@ -1,8 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
-from types import TracebackType
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
@@ -87,13 +86,10 @@ class ConnectionManager:
     _active_connection_state: ActiveConnectionState | None = field(default=None, init=False)
     _reconnect_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    async def __aenter__(self) -> Self:
+    async def enter(self) -> None:
         self._active_connection_state = await self._get_active_connection_state()
-        return self
 
-    async def __aexit__(
-        self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
-    ) -> None:
+    async def exit(self) -> None:
         if not self._active_connection_state:
             return
         try:

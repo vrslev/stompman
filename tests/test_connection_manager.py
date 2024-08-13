@@ -202,16 +202,19 @@ async def test_get_active_connection_state_concurrency() -> None:
 
 class TestConnectionManagerContext:
     async def test_connection_lost(self) -> None:
-        async with EnrichedConnectionManager(connection_class=mock.AsyncMock()) as manager:
-            manager._clear_active_connection_state()
+        manager = EnrichedConnectionManager(connection_class=mock.AsyncMock())
+        await manager.enter()
+        manager._clear_active_connection_state()
+        await manager.exit()
 
     async def test_lifespan_exit_raises_connection_lost(self) -> None:
         enter_mock = mock.AsyncMock(side_effect=[None])
         exit_mock = mock.AsyncMock(side_effect=[ConnectionLostError])
         lifespan_factory = mock.Mock(return_value=mock.Mock(enter=enter_mock, exit=exit_mock))
 
-        async with EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=mock.AsyncMock()):
-            pass
+        manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=mock.AsyncMock())
+        await manager.enter()
+        await manager.exit()
 
         enter_mock.assert_called_once_with()
         exit_mock.assert_called_once_with()
@@ -224,8 +227,9 @@ class TestConnectionManagerContext:
         connection_close = mock.AsyncMock()
         connection_class = mock.Mock(connect=mock.AsyncMock(return_value=mock.Mock(close=connection_close)))
 
-        async with EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=connection_class):
-            pass
+        manager = EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=connection_class)
+        await manager.enter()
+        await manager.exit()
 
         lifespan_exit.assert_called_once()
         connection_close.assert_called_once_with()
@@ -309,15 +313,17 @@ async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionL
 
 class TestMaybeWriteFrame:
     async def test_ok(self) -> None:
-        async with EnrichedConnectionManager(connection_class=mock.AsyncMock()) as manager:
-            assert await manager.maybe_write_frame(build_dataclass(ConnectFrame))
+        manager = EnrichedConnectionManager(connection_class=mock.AsyncMock())
+        await manager.enter()
+        assert await manager.maybe_write_frame(build_dataclass(ConnectFrame))
 
     async def test_connection_now_lost(self) -> None:
         write_frame = mock.AsyncMock(side_effect=[ConnectionLostError])
         connection_class = mock.Mock(connect=mock.AsyncMock(return_value=mock.Mock(write_frame=write_frame)))
 
-        async with EnrichedConnectionManager(connection_class=connection_class) as manager:
-            assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
+        manager = EnrichedConnectionManager(connection_class=connection_class)
+        await manager.enter()
+        assert not await manager.maybe_write_frame(build_dataclass(ConnectFrame))
 
     async def test_connection_already_lost(self) -> None:
         manager = EnrichedConnectionManager(connection_class=mock.AsyncMock())
