@@ -71,28 +71,31 @@ class TestAttemptToConnect:
 ReturnType = TypeVar("ReturnType")
 
 
-async def return_argument_async(arg: ReturnType) -> ReturnType:  # noqa: RUF029
-    return arg
+def return_arg_async(arg: ReturnType) -> Awaitable[ReturnType]:
+    async def inner() -> ReturnType:  # noqa: RUF029
+        return arg
+
+    return inner()
 
 
 class TestConnectToFirstServer:
     async def test_ok(self) -> None:
-        expected_active_connection_state = mock.Mock()
+        active_connection_state = mock.Mock()
         awaitables: list[Awaitable[ActiveConnectionState | None]] = [
-            return_argument_async(None),
-            return_argument_async(None),
-            return_argument_async(expected_active_connection_state),
-            return_argument_async(None),
+            return_arg_async(None),
+            return_arg_async(None),
+            return_arg_async(active_connection_state),
+            return_arg_async(None),
         ]
 
-        assert await connect_to_first_server(awaitables) is expected_active_connection_state
+        assert await connect_to_first_server(awaitables) is active_connection_state
 
     async def test_fails(self) -> None:
         awaitables: list[Awaitable[ActiveConnectionState | None]] = [
-            return_argument_async(None),
-            return_argument_async(None),
-            return_argument_async(None),
-            return_argument_async(None),
+            return_arg_async(None),
+            return_arg_async(None),
+            return_arg_async(None),
+            return_arg_async(None),
         ]
 
         assert await connect_to_first_server(awaitables) is None
