@@ -1,12 +1,13 @@
-from collections.abc import Callable, Coroutine
+import asyncio
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass, field
+from functools import cached_property
 from uuid import uuid4
 
-from stompman.connection import AbstractConnection
-from stompman.connection_manager import ConnectionManager
 from stompman.frames import (
     AckFrame,
     AckMode,
+    AnyClientFrame,
     MessageFrame,
     NackFrame,
     SubscribeFrame,
@@ -17,66 +18,86 @@ ActiveSubscriptions = dict[str, "Subscription"]
 
 
 @dataclass(kw_only=True, slots=True)
-class Subscription:
-    id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
+class SubscriptionConfig:
     destination: str
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
     ack: AckMode
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
     supressed_exception_classes: tuple[type[Exception], ...]
-    _connection_manager: ConnectionManager
-    _active_subscriptions: ActiveSubscriptions
 
-    _should_handle_ack_nack: bool = field(init=False)
+    @cached_property
+    def should_handle_ack_nack(self) -> bool:
+        return self.ack in {"client", "client-individual"}
 
-    def __post_init__(self) -> None:
-        self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
 
-    async def _subscribe(self) -> None:
-        await self._connection_manager.write_frame_reconnecting(
-            SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
-        )
-        self._active_subscriptions[self.id] = self
-
-    async def unsubscribe(self) -> None:
-        del self._active_subscriptions[self.id]
-        await self._connection_manager.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
-
-    async def _run_handler(self, *, frame: MessageFrame) -> None:
-        try:
-            await self.handler(frame)
-        except self.supressed_exception_classes as exception:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection_manager.maybe_write_frame(
-                    NackFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
-                    )
-                )
-            self.on_suppressed_exception(exception, frame)
-        else:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
-                await self._connection_manager.maybe_write_frame(
-                    AckFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
-                    )
-                )
+@dataclass(kw_only=True, slots=True)
+class Subscription:
+    id: str
+    config: SubscriptionConfig
+    _unsubscribe: Callable[[str], Awaitable[None]]
 
 
 def _make_subscription_id() -> str:
     return str(uuid4())
 
 
-async def resubscribe_to_active_subscriptions(
-    *, connection: AbstractConnection, active_subscriptions: ActiveSubscriptions
-) -> None:
-    for subscription in active_subscriptions.values():
-        await connection.write_frame(
+@dataclass(kw_only=True, slots=True)
+class ActiveSubscriptionsManager:
+    _active_subscriptions: dict[str, SubscriptionConfig] = field(default_factory=dict, init=False)
+    write_frame_reconnecting: Callable[[AnyClientFrame], Awaitable[None]]
+    maybe_write_frame: Callable[[AnyClientFrame], Awaitable[bool]]
+    _generate_subscription_id: Callable[[], str] = field(default=lambda: _make_subscription_id())  # noqa: PLW0108
+
+    async def subscribe(self, subscription_config: SubscriptionConfig) -> Subscription:
+        subscription_id = self._generate_subscription_id()
+        await self.write_frame_reconnecting(
             SubscribeFrame(
-                headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
+                headers={
+                    "id": subscription_id,
+                    "destination": subscription_config.destination,
+                    "ack": subscription_config.ack,
+                }
             )
         )
+        self._active_subscriptions[subscription_id] = subscription_config
+        return Subscription(id=subscription_id, config=subscription_config, _unsubscribe=self.unsubscribe)
 
+    async def unsubscribe(self, subscription_id: str) -> None:
+        del self._active_subscriptions[subscription_id]
+        await self.maybe_write_frame(UnsubscribeFrame(headers={"id": subscription_id}))
 
-async def unsubscribe_from_all_active_subscriptions(*, active_subscriptions: ActiveSubscriptions) -> None:
-    for subscription in active_subscriptions.copy().values():
-        await subscription.unsubscribe()
+    async def resubscribe_to_active_subscriptions(self) -> None:
+        for subscription_id, subscription_config in self._active_subscriptions.items():
+            await self.maybe_write_frame(
+                SubscribeFrame(
+                    headers={
+                        "id": subscription_id,
+                        "destination": subscription_config.destination,
+                        "ack": subscription_config.ack,
+                    }
+                )
+            )
+
+    async def unsubscribe_from_all_active_subscriptions(self) -> None:
+        for subscription_id in self._active_subscriptions.copy():
+            await self.unsubscribe(subscription_id)
+
+    async def run_handler_for_frame(self, frame: MessageFrame) -> None:
+        subscription_id = frame.headers["subscription"]
+        if not (subscription_config := self._active_subscriptions.get(subscription_id)):
+            return
+        message_id = frame.headers["message-id"]
+
+        try:
+            await subscription_config.handler(frame)
+        except subscription_config.supressed_exception_classes as exception:
+            if subscription_config.should_handle_ack_nack:
+                await self.maybe_write_frame(NackFrame(headers={"id": message_id, "subscription": subscription_id}))
+            subscription_config.on_suppressed_exception(exception, frame)
+        else:
+            if subscription_config.should_handle_ack_nack:
+                await self.maybe_write_frame(AckFrame(headers={"id": message_id, "subscription": subscription_id}))
+
+    async def wait_forever_if_has_active_subscriptions(self) -> None:
+        if self._active_subscriptions:
+            await asyncio.Future()
