@@ -1,6 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterable, Awaitable, Coroutine, Iterable
-from functools import partial
+from collections.abc import AsyncIterable, Awaitable, Iterable
 from typing import Any, TypeVar, get_args
 from unittest import mock
 
@@ -22,7 +21,6 @@ from stompman.connection_lifespan import (
     check_stomp_protocol_version,
     take_frame_of_type,
     wait_for_or_none,
-    wait_for_receipt_frame,
 )
 from stompman.frames import (
     AckMode,
@@ -142,41 +140,6 @@ def test_calculate_heartbeat_interval(
 
     result = calculate_heartbeat_interval(connected_frame=connected_frame, client_heartbeat=client_heartbeat)
     assert result == expected_result
-
-
-class TestWaitForReceiptFrame:
-    @pytest.mark.parametrize(
-        "frame_types",
-        [[ReceiptFrame], [MessageFrame, HeartbeatFrame, ReceiptFrame], [HeartbeatFrame, ReceiptFrame]],
-    )
-    async def test_ok(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
-        wait_for_mock = mock.AsyncMock(side_effect=partial(asyncio.wait_for, timeout=0))
-        monkeypatch.setattr("asyncio.wait_for", wait_for_mock)
-        timeout = faker.pyint()
-
-        await wait_for_receipt_frame(
-            frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
-            disconnect_confirmation_timeout=timeout,
-        )
-
-        wait_for_mock.assert_called_once()
-        assert wait_for_mock.mock_calls[0].kwargs["timeout"] == timeout
-
-    @pytest.mark.parametrize("frame_types", [[HeartbeatFrame, HeartbeatFrame, HeartbeatFrame], []])
-    async def test_timeout(self, monkeypatch: pytest.MonkeyPatch, faker: Faker, frame_types: list[type[Any]]) -> None:
-        original_wait_for = asyncio.wait_for
-
-        async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
-            task = asyncio.create_task(future)
-            await asyncio.sleep(0)
-            return await original_wait_for(task, 0)
-
-        monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
-
-        await wait_for_receipt_frame(
-            frames_iter=make_async_iter(build_dataclass(frame_type) for frame_type in frame_types),
-            disconnect_confirmation_timeout=faker.pyint(),
-        )
 
 
 class TestConnectionLifespanEnter:

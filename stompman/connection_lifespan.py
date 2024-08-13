@@ -1,6 +1,5 @@
 import asyncio
 from collections.abc import AsyncIterable, Awaitable, Callable
-from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Protocol, TypeVar
 from uuid import uuid4
@@ -73,18 +72,6 @@ def calculate_heartbeat_interval(*, connected_frame: ConnectedFrame, client_hear
     return max(client_heartbeat.will_send_interval_ms, server_heartbeat.want_to_receive_interval_ms) / 1000
 
 
-async def wait_for_receipt_frame(
-    *, frames_iter: AsyncIterable[AnyServerFrame], disconnect_confirmation_timeout: int
-) -> None:
-    async def inner() -> None:
-        async for frame in frames_iter:
-            if isinstance(frame, ReceiptFrame):
-                break
-
-    with suppress(TimeoutError):
-        await asyncio.wait_for(inner(), timeout=disconnect_confirmation_timeout)
-
-
 class AbstractConnectionLifespan(Protocol):
     async def enter(self) -> StompProtocolConnectionIssue | None: ...
     async def exit(self) -> None: ...
@@ -149,9 +136,11 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     async def exit(self) -> None:
         await unsubscribe_from_all_active_subscriptions(active_subscriptions=self.active_subscriptions)
         await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
-        await wait_for_receipt_frame(
+        await take_frame_of_type(
+            frame_type=ReceiptFrame,
             frames_iter=self.connection.read_frames(),
-            disconnect_confirmation_timeout=self.disconnect_confirmation_timeout,
+            timeout=self.disconnect_confirmation_timeout,
+            wait_for_or_none=wait_for_or_none,
         )
 
 
