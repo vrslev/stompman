@@ -1,7 +1,10 @@
 from stompman.client import Client
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.errors import (
+    AllServersUnavailable,
+    AnyConnectionIssue,
     ConnectionConfirmationTimeout,
+    ConnectionLost,
     ConnectionLostError,
     Error,
     FailedAllConnectAttemptsError,
@@ -38,7 +41,9 @@ __all__ = [
     "AbortFrame",
     "AckFrame",
     "AckMode",
+    "AllServersUnavailable",
     "AnyClientFrame",
+    "AnyConnectionIssue",
     "AnyRealServerFrame",
     "AnyServerFrame",
     "BeginFrame",
@@ -47,6 +52,7 @@ __all__ = [
     "ConnectFrame",
     "ConnectedFrame",
     "ConnectionConfirmationTimeout",
+    "ConnectionLost",
     "ConnectionLostError",
     "ConnectionParameters",
     "DisconnectFrame",

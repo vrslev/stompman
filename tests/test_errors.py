@@ -8,8 +8,12 @@ from tests.conftest import build_dataclass
 
 @pytest.mark.parametrize(
     "class_",
-    [stompman.ConnectionLostError, stompman.FailedAllConnectAttemptsError, stompman.FailedAllWriteAttemptsError],
+    [
+        stompman.ConnectionLostError,
+        stompman.FailedAllConnectAttemptsError,
+        stompman.FailedAllWriteAttemptsError,
+    ],
 )
-def test_error_str(class_: Any) -> None:  # noqa: ANN401
+def test_error_str(class_: type[Any]) -> None:
     error = build_dataclass(class_)
     assert str(error) == repr(error)

@@ -12,14 +12,9 @@ from stompman.connection_lifespan import AbstractConnectionLifespan
 from stompman.connection_manager import ConnectionManager
 
 
-@pytest.fixture(
-    params=[
-        pytest.param(("asyncio", {"use_uvloop": True}), id="asyncio+uvloop"),
-        pytest.param(("asyncio", {"use_uvloop": False}), id="asyncio"),
-    ],
-)
-def anyio_backend(request: pytest.FixtureRequest) -> object:
-    return request.param
+@pytest.fixture
+def anyio_backend() -> object:
+    return "asyncio"
 
 
 @pytest.fixture
@@ -125,11 +120,6 @@ CONNECT_FRAME = stompman.ConnectFrame(
     },
 )
 CONNECTED_FRAME = stompman.ConnectedFrame(headers={"version": stompman.Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
-
-
-@pytest.fixture(autouse=True)
-def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", lambda: "receipt-id-1")
 
 
 def get_read_frames_with_lifespan(*read_frames: list[stompman.AnyServerFrame]) -> list[list[stompman.AnyServerFrame]]:

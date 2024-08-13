@@ -21,6 +21,16 @@ from stompman.serde import NEWLINE
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(
+    params=[
+        pytest.param(("asyncio", {"use_uvloop": True}), id="asyncio+uvloop"),
+        pytest.param(("asyncio", {"use_uvloop": False}), id="asyncio"),
+    ],
+)
+def anyio_backend(request: pytest.FixtureRequest) -> object:
+    return request.param
+
+
 async def make_connection() -> Connection | None:
     return await Connection.connect(
         host="localhost", port=12345, timeout=2, read_max_chunk_size=1024 * 1024, read_timeout=2
