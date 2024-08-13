@@ -21,22 +21,12 @@ from stompman.serde import (
     parse_header,
 )
 
+pytestmark = pytest.mark.anyio
+
 CONNECTION_PARAMETERS: Final = stompman.ConnectionParameters(
     host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode=":=123"
 )
 DESTINATION: Final = "DLQ"
-
-pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture(
-    params=[
-        pytest.param(("asyncio", {"use_uvloop": True}), id="asyncio+uvloop"),
-        pytest.param(("asyncio", {"use_uvloop": False}), id="asyncio"),
-    ],
-)
-def anyio_backend(request: pytest.FixtureRequest) -> object:
-    return request.param
 
 
 @asynccontextmanager
