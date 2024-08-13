@@ -90,8 +90,8 @@ class Client:
             self._listen_task.cancel()
             self._heartbeat_task.cancel()
             await asyncio.wait([self._listen_task, self._heartbeat_task])
-            await self._connection_manager.exit()
             await self._exit_stack.aclose()
+            await self._connection_manager.exit()
 
     def _restart_heartbeat_task(self, interval: float) -> None:
         self._heartbeat_task.cancel()
