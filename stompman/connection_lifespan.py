@@ -1,8 +1,8 @@
 import asyncio
-from collections.abc import AsyncIterable, Callable
+from collections.abc import AsyncIterable, Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol, TypeVar
 from uuid import uuid4
 
 from stompman.config import ConnectionParameters, Heartbeat
@@ -22,26 +22,40 @@ from stompman.subscription import (
 )
 from stompman.transaction import ActiveTransactions, commit_pending_transactions
 
+FrameType = TypeVar("FrameType", bound=AnyServerFrame)
+WaitForFutureReturnType = TypeVar("WaitForFutureReturnType")
 
-async def take_connected_frame(
-    *, frames_iter: AsyncIterable[AnyServerFrame], connection_confirmation_timeout: int
-) -> ConnectedFrame | ConnectionConfirmationTimeout:
+
+async def wait_for_or_none(
+    awaitable: Awaitable[WaitForFutureReturnType], timeout: float
+) -> WaitForFutureReturnType | None:
+    try:
+        return await asyncio.wait_for(awaitable, timeout=timeout)
+    except TimeoutError:
+        return None
+
+
+WaitForOrNone = Callable[[Awaitable[WaitForFutureReturnType], float], Awaitable[WaitForFutureReturnType | None]]
+
+
+async def take_frame_of_type(
+    *,
+    frame_type: type[FrameType],
+    frames_iter: AsyncIterable[AnyServerFrame],
+    timeout: int,
+    wait_for_or_none: WaitForOrNone[FrameType],
+) -> FrameType | list[Any]:
     collected_frames = []
 
-    async def take_connected_frame_and_collect_other_frames() -> ConnectedFrame:
+    async def inner() -> FrameType:
         async for frame in frames_iter:
-            if isinstance(frame, ConnectedFrame):
+            if isinstance(frame, frame_type):
                 return frame
             collected_frames.append(frame)
         msg = "unreachable"
         raise AssertionError(msg)
 
-    try:
-        return await asyncio.wait_for(
-            take_connected_frame_and_collect_other_frames(), timeout=connection_confirmation_timeout
-        )
-    except TimeoutError:
-        return ConnectionConfirmationTimeout(timeout=connection_confirmation_timeout, frames=collected_frames)
+    return await wait_for_or_none(inner(), timeout) or collected_frames
 
 
 def check_stomp_protocol_version(
@@ -100,13 +114,17 @@ class ConnectionLifespan(AbstractConnectionLifespan):
                 },
             )
         )
-        connected_frame_or_error = await take_connected_frame(
+        connected_frame_or_collected_frames = await take_frame_of_type(
+            frame_type=ConnectedFrame,
             frames_iter=self.connection.read_frames(),
-            connection_confirmation_timeout=self.connection_confirmation_timeout,
+            timeout=self.connection_confirmation_timeout,
+            wait_for_or_none=wait_for_or_none,
         )
-        if isinstance(connected_frame_or_error, ConnectionConfirmationTimeout):
-            return connected_frame_or_error
-        connected_frame = connected_frame_or_error
+        if not isinstance(connected_frame_or_collected_frames, ConnectedFrame):
+            return ConnectionConfirmationTimeout(
+                timeout=self.connection_confirmation_timeout, frames=connected_frame_or_collected_frames
+            )
+        connected_frame = connected_frame_or_collected_frames
 
         if unsupported_protocol_version_error := check_stomp_protocol_version(
             connected_frame=connected_frame, supported_version=self.protocol_version
