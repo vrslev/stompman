@@ -168,7 +168,6 @@ async def test_get_active_connection_state_concurrency() -> None:
 
     assert first_state == ActiveConnectionState(connection=connection, lifespan=lifespan)
     assert first_state is second_state is third_state is fourth_state
-
     enter.assert_called_once_with()
     lifespan_factory.assert_called_once_with(connection=connection, connection_parameters=manager.servers[0])
     connect.assert_called_once()
@@ -195,13 +194,10 @@ class TestConnectionManagerContext:
         lifespan_factory = mock.Mock(
             return_value=mock.Mock(enter=mock.AsyncMock(side_effect=[None]), exit=lifespan_exit)
         )
-
         connection_close = mock.AsyncMock()
+        connection_class = mock.AsyncMock(connect=mock.AsyncMock(return_value=mock.AsyncMock(close=connection_close)))
 
-        class MockConnection(BaseMockConnection):
-            close = connection_close
-
-        async with EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=MockConnection):
+        async with EnrichedConnectionManager(lifespan_factory=lifespan_factory, connection_class=connection_class):
             pass
 
         lifespan_exit.assert_called_once()
