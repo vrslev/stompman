@@ -38,11 +38,6 @@ pytestmark = pytest.mark.anyio
 FAKER = faker.Faker()
 
 
-@pytest.fixture(autouse=True)
-def _mock_receipt_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", lambda: "receipt-id-1")
-
-
 @pytest.mark.parametrize("ack", get_args(AckMode))
 async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
