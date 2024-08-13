@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterable, Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, TypeVar
 from uuid import uuid4
 
@@ -88,6 +88,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     active_subscriptions: ActiveSubscriptions
     active_transactions: ActiveTransactions
     set_heartbeat_interval: Callable[[float], None]
+    _generate_receipt_id: Callable[[], str] = field(default=lambda: _make_receipt_id())  # noqa: PLW0108
 
     async def _establish_connection(self) -> StompProtocolConnectionIssue | None:
         await self.connection.write_frame(
@@ -135,7 +136,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
 
     async def exit(self) -> None:
         await unsubscribe_from_all_active_subscriptions(active_subscriptions=self.active_subscriptions)
-        await self.connection.write_frame(DisconnectFrame(headers={"receipt": _make_receipt_id()}))
+        await self.connection.write_frame(DisconnectFrame(headers={"receipt": self._generate_receipt_id()}))
         await take_frame_of_type(
             frame_type=ReceiptFrame,
             frames_iter=self.connection.read_frames(),
