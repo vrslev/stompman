@@ -15,7 +15,9 @@ from stompman.frames import (
     ReceiptFrame,
 )
 from stompman.subscription import (
-    ActiveSubscriptionsManager,
+    ActiveSubscriptions,
+    resubscribe_to_active_subscriptions,
+    unsubscribe_from_all_active_subscriptions,
 )
 from stompman.transaction import ActiveTransactions, commit_pending_transactions
 
@@ -83,7 +85,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     client_heartbeat: Heartbeat
     connection_confirmation_timeout: int
     disconnect_confirmation_timeout: int
-    active_subscriptions_manager: ActiveSubscriptionsManager
+    active_subscriptions: ActiveSubscriptions
     active_transactions: ActiveTransactions
     set_heartbeat_interval: Callable[[float], None]
     _generate_receipt_id: Callable[[], str] = field(default=lambda: _make_receipt_id())  # noqa: PLW0108
@@ -126,12 +128,14 @@ class ConnectionLifespan(AbstractConnectionLifespan):
         if protocol_connection_issue := await self._establish_connection():
             return protocol_connection_issue
 
-        await self.active_subscriptions_manager.resubscribe_to_active_subscriptions()
+        await resubscribe_to_active_subscriptions(
+            connection=self.connection, active_subscriptions=self.active_subscriptions
+        )
         await commit_pending_transactions(connection=self.connection, active_transactions=self.active_transactions)
         return None
 
     async def exit(self) -> None:
-        await self.active_subscriptions_manager.unsubscribe_from_all_active_subscriptions()
+        await unsubscribe_from_all_active_subscriptions(active_subscriptions=self.active_subscriptions)
         await self.connection.write_frame(DisconnectFrame(headers={"receipt": self._generate_receipt_id()}))
         await take_frame_of_type(
             frame_type=ReceiptFrame,

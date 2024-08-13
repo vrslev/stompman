@@ -19,7 +19,7 @@ from stompman.frames import (
     ReceiptFrame,
     SendFrame,
 )
-from stompman.subscription import ActiveSubscriptionsManager, Subscription, SubscriptionConfig
+from stompman.subscription import Subscription
 from stompman.transaction import Transaction
 
 
@@ -44,7 +44,7 @@ class Client:
     connection_class: type[AbstractConnection] = Connection
 
     _connection_manager: ConnectionManager = field(init=False)
-    _active_subscriptions_manager: ActiveSubscriptionsManager = field(init=False)
+    _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
     _active_transactions: set[Transaction] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
     _heartbeat_task: asyncio.Task[None] = field(init=False)
@@ -52,10 +52,6 @@ class Client:
     _task_group: asyncio.TaskGroup = field(init=False)
 
     def __post_init__(self) -> None:
-        self._active_subscriptions_manager = ActiveSubscriptionsManager(
-            write_frame_reconnecting=self._connection_manager.write_frame_reconnecting,
-            maybe_write_frame=self._connection_manager.maybe_write_frame,
-        )
         self._connection_manager = ConnectionManager(
             servers=self.servers,
             lifespan_factory=partial(
@@ -64,7 +60,7 @@ class Client:
                 client_heartbeat=self.heartbeat,
                 connection_confirmation_timeout=self.connection_confirmation_timeout,
                 disconnect_confirmation_timeout=self.disconnect_confirmation_timeout,
-                active_subscriptions_manager=self._active_subscriptions_manager,
+                active_subscriptions=self._active_subscriptions,
                 active_transactions=self._active_transactions,
                 set_heartbeat_interval=self._restart_heartbeat_task,
             ),
@@ -88,8 +84,8 @@ class Client:
         self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None
     ) -> None:
         try:
-            if not exc_value:
-                await self._active_subscriptions_manager.wait_forever_if_has_active_subscriptions()
+            if self._active_subscriptions and not exc_value:
+                await asyncio.Future()
         finally:
             self._listen_task.cancel()
             self._heartbeat_task.cancel()
@@ -111,7 +107,8 @@ class Client:
             async for frame in self._connection_manager.read_frames_reconnecting():
                 match frame:
                     case MessageFrame():
-                        task_group.create_task(self._active_subscriptions_manager.run_handler_for_frame(frame))
+                        if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
+                            task_group.create_task(subscription._run_handler(frame=frame))  # noqa: SLF001
                     case ErrorFrame():
                         if self.on_error_frame:
                             self.on_error_frame(frame)
@@ -146,12 +143,14 @@ class Client:
         on_suppressed_exception: Callable[[Exception, MessageFrame], None],
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> "Subscription":
-        return await self._active_subscriptions_manager.subscribe(
-            SubscriptionConfig(
-                destination=destination,
-                handler=handler,
-                ack=ack,
-                on_suppressed_exception=on_suppressed_exception,
-                supressed_exception_classes=supressed_exception_classes,
-            )
+        subscription = Subscription(
+            destination=destination,
+            handler=handler,
+            ack=ack,
+            on_suppressed_exception=on_suppressed_exception,
+            supressed_exception_classes=supressed_exception_classes,
+            _connection_manager=self._connection_manager,
+            _active_subscriptions=self._active_subscriptions,
         )
+        await subscription._subscribe()  # noqa: SLF001
+        return subscription
