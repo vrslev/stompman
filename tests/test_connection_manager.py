@@ -99,29 +99,32 @@ class TestConnectToFirstServer:
 
 
 class TestMakeHealthyConnection:
-    async def test_make_healthy_connection_ok(self) -> None:
+    async def test_ok(self) -> None:
         active_connection_state = ActiveConnectionState(
             connection=mock.AsyncMock(), lifespan=mock.AsyncMock(enter=mock.AsyncMock(side_effect=[None]))
         )
+
         result = await make_healthy_connection(
             active_connection_state=active_connection_state, servers=[], connect_timeout=0
         )
 
         assert result is active_connection_state
 
-    async def test_make_healthy_connection_no_active_state(self, faker: Faker) -> None:
+    async def test_no_active_state(self, faker: Faker) -> None:
         servers = [build_dataclass(ConnectionParameters) for _ in range(faker.pyint(max_value=10))]
         connect_timeout = faker.pyint()
+
         result = await make_healthy_connection(
             active_connection_state=None, servers=servers, connect_timeout=connect_timeout
         )
 
         assert result == AllServersUnavailable(servers=servers, timeout=connect_timeout)
 
-    async def test_make_healthy_connection_connection_lost(self) -> None:
+    async def test_connection_lost(self) -> None:
         active_connection_state = ActiveConnectionState(
             connection=mock.AsyncMock(), lifespan=mock.AsyncMock(enter=mock.AsyncMock(side_effect=ConnectionLostError))
         )
+
         result = await make_healthy_connection(
             active_connection_state=active_connection_state, servers=[], connect_timeout=0
         )
@@ -129,13 +132,12 @@ class TestMakeHealthyConnection:
         assert result == ConnectionLost()
 
     @pytest.mark.parametrize("issue_type", get_args(StompProtocolConnectionIssue))
-    async def test_make_healthy_connection_stomp_protocol_issue(
-        self, issue_type: type[StompProtocolConnectionIssue]
-    ) -> None:
+    async def test_stomp_protocol_issue(self, issue_type: type[StompProtocolConnectionIssue]) -> None:
         issue = build_dataclass(issue_type)
         active_connection_state = ActiveConnectionState(
             connection=mock.AsyncMock(), lifespan=mock.AsyncMock(enter=mock.AsyncMock(side_effect=[issue]))
         )
+
         result = await make_healthy_connection(
             active_connection_state=active_connection_state, servers=[], connect_timeout=0
         )
