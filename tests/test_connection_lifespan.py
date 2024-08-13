@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterable, Awaitable, Iterable
-from typing import Any, get_args
+from typing import Any, TypeVar, get_args
 from unittest import mock
 
 import pytest
@@ -33,7 +33,7 @@ from stompman.frames import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from stompman.subscription import ActiveSubscriptionsManager, SubscriptionConfig
+from stompman.subscription import ActiveSubscriptions, Subscription
 from stompman.transaction import Transaction
 from tests.conftest import build_dataclass, make_async_iter, noop_error_handler, noop_message_handler
 
@@ -138,18 +138,15 @@ class TestConnectionLifespanEnter:
         protocol_version = faker.pystr()
         connected_frame = build_dataclass(ConnectedFrame, headers={"version": protocol_version, "heart-beat": "1,1"})
         client_heartbeat = Heartbeat.from_header("1,1")
-        active_subscriptions_manager = ActiveSubscriptionsManager(
-            write_frame_reconnecting=mock.AsyncMock(), maybe_write_frame=mock.AsyncMock()
-        )
         subscriptions_list = [
-            await active_subscriptions_manager.subscribe(
-                SubscriptionConfig(
-                    destination=faker.pystr(),
-                    handler=noop_message_handler,
-                    ack=faker.random_element(get_args(AckMode)),
-                    on_suppressed_exception=noop_error_handler,
-                    supressed_exception_classes=(),
-                )
+            Subscription(
+                destination=faker.pystr(),
+                handler=noop_message_handler,
+                ack=faker.random_element(get_args(AckMode)),
+                on_suppressed_exception=noop_error_handler,
+                supressed_exception_classes=(),
+                _connection_manager=mock.Mock(),
+                _active_subscriptions=mock.Mock(),
             )
             for _ in range(4)
         ]
@@ -176,7 +173,7 @@ class TestConnectionLifespanEnter:
             client_heartbeat=client_heartbeat,
             connection_confirmation_timeout=faker.pyint(min_value=1),
             disconnect_confirmation_timeout=faker.pyint(),
-            active_subscriptions_manager=active_subscriptions_manager,
+            active_subscriptions=active_subscriptions,
             active_transactions=active_transactions.copy(),  # type: ignore[arg-type]
             set_heartbeat_interval=set_heartbeat_interval,
         )
@@ -196,11 +193,7 @@ class TestConnectionLifespanEnter:
             connected_frame,
             *(
                 SubscribeFrame(
-                    headers={
-                        "ack": subscription.config.ack,
-                        "destination": subscription.config.destination,
-                        "id": subscription.id,
-                    },
+                    headers={"ack": subscription.ack, "destination": subscription.destination, "id": subscription.id},
                 )
                 for subscription in active_subscriptions.values()
             ),
@@ -215,9 +208,7 @@ class TestConnectionLifespanEnter:
             client_heartbeat=mock.Mock(),
             connection_confirmation_timeout=0,
             disconnect_confirmation_timeout=faker.pyint(),
-            active_subscriptions_manager=ActiveSubscriptionsManager(
-                write_frame_reconnecting=mock.AsyncMock(), maybe_write_frame=mock.AsyncMock()
-            ),
+            active_subscriptions={},
             active_transactions=set(),
             set_heartbeat_interval=mock.Mock(),
         )
@@ -236,9 +227,7 @@ class TestConnectionLifespanEnter:
             client_heartbeat=mock.Mock(),
             connection_confirmation_timeout=faker.pyint(min_value=1),
             disconnect_confirmation_timeout=faker.pyint(),
-            active_subscriptions_manager=ActiveSubscriptionsManager(
-                write_frame_reconnecting=mock.AsyncMock(), maybe_write_frame=mock.AsyncMock()
-            ),
+            active_subscriptions={},
             active_transactions=set(),
             set_heartbeat_interval=mock.Mock(),
         )
@@ -251,22 +240,20 @@ class TestConnectionLifespanEnter:
 async def test_connection_lifespan_exit(faker: Faker) -> None:
     written_and_read_frames: list[AnyServerFrame | AnyClientFrame] = []
     connection_manager = mock.Mock(maybe_write_frame=mock.AsyncMock(side_effect=written_and_read_frames.append))
-    active_subscriptions_manager = ActiveSubscriptionsManager(
-        write_frame_reconnecting=mock.AsyncMock(), maybe_write_frame=mock.AsyncMock()
-    )
+    active_subscriptions: ActiveSubscriptions = {}
     subscriptions_list = [
-        await active_subscriptions_manager.subscribe(
-            SubscriptionConfig(
-                destination=faker.pystr(),
-                handler=noop_message_handler,
-                ack=faker.random_element(get_args(AckMode)),
-                on_suppressed_exception=noop_error_handler,
-                supressed_exception_classes=(),
-            )
+        Subscription(
+            destination=faker.pystr(),
+            handler=noop_message_handler,
+            ack=faker.random_element(get_args(AckMode)),
+            on_suppressed_exception=noop_error_handler,
+            supressed_exception_classes=(),
+            _connection_manager=connection_manager,
+            _active_subscriptions=active_subscriptions,
         )
         for _ in range(4)
     ]
-    active_subscriptions = {subscription.id: subscription for subscription in subscriptions_list}
+    active_subscriptions |= {subscription.id: subscription for subscription in subscriptions_list}
     unsubscribe_frames = [
         UnsubscribeFrame(headers={"id": subscription.id}) for subscription in active_subscriptions.values()
     ]
@@ -293,7 +280,7 @@ async def test_connection_lifespan_exit(faker: Faker) -> None:
         client_heartbeat=mock.Mock(),
         connection_confirmation_timeout=faker.pyint(min_value=1),
         disconnect_confirmation_timeout=faker.pyint(),
-        active_subscriptions_manager=active_subscriptions_manager,
+        active_subscriptions=active_subscriptions,
         active_transactions=active_transactions,  # type: ignore[arg-type]
         set_heartbeat_interval=mock.Mock(),
         _generate_receipt_id=lambda: receipt_id,
