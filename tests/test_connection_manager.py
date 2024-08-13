@@ -1,7 +1,7 @@
 import asyncio
 import itertools
-from collections.abc import AsyncGenerator, AsyncIterable
-from typing import Any, get_args
+from collections.abc import AsyncGenerator, AsyncIterable, Awaitable
+from typing import TypeVar, get_args
 from unittest import mock
 
 import pytest
@@ -68,34 +68,34 @@ class TestAttemptToConnect:
         assert exc_info.value.retry_attempts == attempts
 
 
-async def return_argument_async(arg: Any) -> Any:  # noqa: ANN401, RUF029
+ReturnType = TypeVar("ReturnType")
+
+
+async def return_argument_async(arg: ReturnType) -> ReturnType:  # noqa: RUF029
     return arg
 
 
 class TestConnectToFirstServer:
     async def test_ok(self) -> None:
-        expected_active_connection_state = ActiveConnectionState(connection=mock.AsyncMock(), lifespan=mock.AsyncMock())
-        active_connection_state = await connect_to_first_server(
-            [
-                return_argument_async(None),
-                return_argument_async(None),
-                return_argument_async(expected_active_connection_state),
-                return_argument_async(None),
-            ]
-        )
-        assert active_connection_state is expected_active_connection_state
+        expected_active_connection_state = mock.Mock()
+        awaitables: list[Awaitable[ActiveConnectionState | None]] = [
+            return_argument_async(None),
+            return_argument_async(None),
+            return_argument_async(expected_active_connection_state),
+            return_argument_async(None),
+        ]
+
+        assert await connect_to_first_server(awaitables) is expected_active_connection_state
 
     async def test_fails(self) -> None:
-        active_connection_state = await connect_to_first_server(
-            [
-                return_argument_async(None),
-                return_argument_async(None),
-                return_argument_async(None),
-                return_argument_async(None),
-            ]
-        )
+        awaitables: list[Awaitable[ActiveConnectionState | None]] = [
+            return_argument_async(None),
+            return_argument_async(None),
+            return_argument_async(None),
+            return_argument_async(None),
+        ]
 
-        assert active_connection_state is None
+        assert await connect_to_first_server(awaitables) is None
 
 
 class TestMakeHealthyConnection:
