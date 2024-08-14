@@ -1,5 +1,6 @@
-ARG PYTHON_VERSION
-FROM python:${PYTHON_VERSION}-slim-bullseye
+ARG PYTHON_IMAGE
+# hadolint ignore=DL3006
+FROM ${PYTHON_IMAGE}
 
 # hadolint ignore=DL3013,DL3042
 RUN pip install uv

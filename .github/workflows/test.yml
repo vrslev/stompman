@@ -79,4 +79,4 @@ jobs:
       - uses: extractions/setup-just@v2
       - run: just test-integration
         env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
+          PYTHON_IMAGE: python:${{ matrix.python-version }}-slim-bullseye
