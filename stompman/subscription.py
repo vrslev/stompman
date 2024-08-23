@@ -35,7 +35,9 @@ class Subscription:
 
     async def _subscribe(self) -> None:
         await self._connection_manager.write_frame_reconnecting(
-            SubscribeFrame.build(subscription_id=self.id, destination=self.destination, ack=self.ack, headers=None)
+            SubscribeFrame.build(
+                subscription_id=self.id, destination=self.destination, ack=self.ack, headers=self.headers
+            )
         )
         self._active_subscriptions[self.id] = self
 
@@ -76,7 +78,7 @@ async def resubscribe_to_active_subscriptions(
                 subscription_id=subscription.id,
                 destination=subscription.destination,
                 ack=subscription.ack,
-                headers=None,
+                headers=subscription.headers,
             )
         )
 

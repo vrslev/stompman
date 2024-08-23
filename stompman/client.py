@@ -138,8 +138,8 @@ class Client:
         destination: str,
         handler: Callable[[MessageFrame], Coroutine[None, None, None]],
         *,
-        headers: dict[str, str] | None = None,
         ack: AckMode = "client-individual",
+        headers: dict[str, str] | None = None,
         on_suppressed_exception: Callable[[Exception, MessageFrame], None],
         supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> "Subscription":

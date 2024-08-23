@@ -43,12 +43,14 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     client = EnrichedClient(connection_class=connection_class)
     sub_destination, message_destination, message_body = FAKER.pystr(), FAKER.pystr(), FAKER.binary(length=10)
+    sub_extra_headers = FAKER.pydict(value_types=[str])
 
     async with client:
         subscription = await client.subscribe(
             destination=sub_destination,
             handler=noop_message_handler,
             ack=ack,
+            headers=sub_extra_headers,
             on_suppressed_exception=noop_error_handler,
         )
         client._connection_manager._clear_active_connection_state()
@@ -57,11 +59,19 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
         await asyncio.sleep(0)
         await asyncio.sleep(0)
 
+    subscribe_frame = SubscribeFrame(
+        headers={
+            "id": subscription.id,
+            "destination": sub_destination,
+            "ack": ack,
+            **sub_extra_headers,  # type: ignore[typeddict-item]
+        }
+    )
     assert collected_frames == enrich_expected_frames(
-        SubscribeFrame(headers={"id": subscription.id, "destination": sub_destination, "ack": ack}),
+        subscribe_frame,
         CONNECT_FRAME,
         CONNECTED_FRAME,
-        SubscribeFrame(headers={"id": subscription.id, "destination": sub_destination, "ack": ack}),
+        subscribe_frame,
         SendFrame(
             headers={"destination": message_destination, "content-length": str(len(message_body))}, body=message_body
         ),
