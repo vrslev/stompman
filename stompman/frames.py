@@ -151,19 +151,25 @@ class SendFrame:
         content_type: str | None,
         headers: dict[str, str] | None,
     ) -> Self:
-        full_headers: SendHeaders = headers or {}  # type: ignore[assignment]
-        full_headers["destination"] = destination
-        full_headers["content-length"] = str(len(body))
+        all_headers: SendHeaders = headers or {}  # type: ignore[assignment]
+        all_headers["destination"] = destination
+        all_headers["content-length"] = str(len(body))
         if content_type is not None:
-            full_headers["content-type"] = content_type
+            all_headers["content-type"] = content_type
         if transaction is not None:
-            full_headers["transaction"] = transaction
-        return cls(headers=full_headers, body=body)
+            all_headers["transaction"] = transaction
+        return cls(headers=all_headers, body=body)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class SubscribeFrame:
     headers: SubscribeHeaders
+
+    @classmethod
+    def build(cls, *, subscription_id: str, destination: str, ack: AckMode, headers: dict[str, str] | None) -> Self:
+        all_headers: SubscribeHeaders = headers.copy() if headers else {}  # type: ignore[assignment, typeddict-item]
+        all_headers.update({"id": subscription_id, "destination": destination, "ack": ack})
+        return cls(headers=all_headers)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
