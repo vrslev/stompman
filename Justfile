@@ -16,6 +16,8 @@ test-integration *args:
     docker compose run --build --rm app .venv/bin/pytest tests/integration.py --no-cov {{args}}
 
 run-artemis:
+    #!/bin/bash
+    trap 'echo; docker compose down --remove-orphans' EXIT
     docker compose run --service-ports artemis
 
 run-consumer:
