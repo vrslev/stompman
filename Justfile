@@ -23,10 +23,10 @@ run-artemis:
     docker compose run --service-ports artemis
 
 run-consumer:
-    ARTEMIS_HOST=0.0.0.0 uv run -q --frozen python testing/consumer.py
+    uv run -q --frozen python testing/consumer.py
 
 run-producer:
-    ARTEMIS_HOST=0.0.0.0 uv run -q --frozen python testing/producer.py
+    uv run -q --frozen python testing/producer.py
 
 publish:
     rm -rf dist/*
