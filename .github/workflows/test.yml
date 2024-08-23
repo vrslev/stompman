@@ -28,7 +28,7 @@ jobs:
           key: check-types-${{ hashFiles('pyproject.toml') }}
       - run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - uses: extractions/setup-just@v2
-      - run: just install check-types
+      - run: just check-types
 
   lint:
     runs-on: ubuntu-latest
@@ -43,7 +43,7 @@ jobs:
           key: lint-${{ hashFiles('pyproject.toml') }}
       - run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - uses: extractions/setup-just@v2
-      - run: just install lint
+      - run: just lint
 
   test:
     runs-on: ubuntu-latest
@@ -64,7 +64,7 @@ jobs:
           key: ${{ github.job }}-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
       - run: curl -LsSf https://astral.sh/uv/install.sh | sh
       - uses: extractions/setup-just@v2
-      - run: just install test -vv
+      - run: just test -vv
 
   test-integration:
     runs-on: ubuntu-latest

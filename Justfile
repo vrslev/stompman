@@ -1,18 +1,14 @@
-default: install lint check-types test test-integration
-
-install:
-    uv lock
-    uv sync
+default: lint check-types test test-integration
 
 lint:
-    uv run -q --frozen ruff check .
-    uv run -q --frozen ruff format .
+    uv run ruff check .
+    uv run ruff format .
 
 check-types:
-    uv run -q --frozen mypy .
+    uv run mypy .
 
 test *args:
-    uv run -q --frozen pytest {{args}}
+    uv run pytest {{args}}
 
 test-integration *args:
     #!/bin/bash
@@ -23,13 +19,13 @@ run-artemis:
     docker compose run --service-ports artemis
 
 run-consumer:
-    uv run -q --frozen python testing/consumer.py
+    uv run testing/consumer.py
 
 run-producer:
-    uv run -q --frozen python testing/producer.py
+    uv run testing/producer.py
 
 publish:
     rm -rf dist/*
-    uv tool run --from build python -m build --installer uv
-    uv tool run twine check dist/*
-    uv tool run twine upload dist/* --username __token__ --password $PYPI_TOKEN
+    uvx --from build python -m build --installer uv
+    uvx twine check dist/*
+    uvx twine upload dist/* --username __token__ --password $PYPI_TOKEN
