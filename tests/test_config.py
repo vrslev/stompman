@@ -5,15 +5,13 @@ import pytest
 
 import stompman
 
-FAKER = faker.Faker()
 
-
-def test_connection_parameters_from_pydantic_multihost_hosts() -> None:
+def test_connection_parameters_from_pydantic_multihost_hosts(faker: faker.Faker) -> None:
     full_host: dict[str, Any] = {
-        "username": FAKER.pystr(),
-        "password": FAKER.pystr(),
-        "host": FAKER.pystr(),
-        "port": FAKER.pyint(),
+        "username": faker.pystr(),
+        "password": faker.pystr(),
+        "host": faker.pystr(),
+        "port": faker.pyint(),
     }
     assert stompman.ConnectionParameters.from_pydantic_multihost_hosts(
         [{**full_host, "port": index} for index in range(5)]  # type: ignore[typeddict-item]
