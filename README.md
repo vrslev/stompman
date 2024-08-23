@@ -121,3 +121,7 @@ Also, I want to pointed out that:
 - Protocol parsing is inspired by [aiostomp](https://github.com/pedrokiefer/aiostomp/blob/3449dcb53f43e5956ccc7662bb5b7d76bc6ef36b/aiostomp/protocol.py) (meaning: consumed by me and refactored from).
 - stompman is tested and used with [Artemis ActiveMQ](https://activemq.apache.org/components/artemis/).
 - Specification says that headers in CONNECT and CONNECTED frames shouldn't be escaped for backwards compatibility. stompman escapes headers in CONNECT frame (outcoming), but does not unescape headers in CONNECTED (outcoming).
+
+### Examples
+
+See producer and consumer examples in [testing/](./testing/).
