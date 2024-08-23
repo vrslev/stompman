@@ -22,6 +22,9 @@ async def main() -> None:
                 print(f"Said hi in transaction ({index})")  # noqa: T201
                 await asyncio.sleep(0.3)
 
+        await client.send(b"Mu-ha-ha!", "DLQ")
+        print("Laughed evilly")  # noqa: T201
+
 
 if __name__ == "__main__":
     asyncio.run(main())
