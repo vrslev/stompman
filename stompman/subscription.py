@@ -20,7 +20,7 @@ ActiveSubscriptions = dict[str, "Subscription"]
 class Subscription:
     id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
     destination: str
-    headers: dict[str, str] | None = None
+    headers: dict[str, str] | None
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
     ack: AckMode
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
