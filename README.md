@@ -100,6 +100,12 @@ await client.subscribe("DLQ", handle_message_from_dlq, ack="client", on_suppress
 await client.subscribe("DLQ", handle_message_from_dlq, ack="auto", on_suppressed_exception=print)
 ```
 
+You can pass custom headers to `client.subscribe()`:
+
+```python
+await client.subscribe("DLQ", handle_message_from_dlq, ack="client", headers={"selector": "location = 'Europe'"}, on_suppressed_exception=print)
+```
+
 ### Cleaning Up
 
 stompman takes care of cleaning up resources automatically. When you leave the context of async context managers `stompman.Client()`, or `client.begin()`, the necessary frames will be sent to the server.
