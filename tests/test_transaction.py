@@ -27,13 +27,12 @@ if TYPE_CHECKING:
     from stompman.frames import SendHeaders
 
 pytestmark = pytest.mark.anyio
-FAKER = faker.Faker()
 
 
-async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    body, destination, expires, content_type = FAKER.binary(), FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
+async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
+    body, destination, expires, content_type = faker.binary(length=10), faker.pystr(), faker.pystr(), faker.pystr()
 
-    transaction_id = FAKER.pystr()
+    transaction_id = faker.pystr()
     monkeypatch.setattr(stompman.transaction, "_make_transaction_id", mock.Mock(return_value=transaction_id))
 
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
@@ -59,8 +58,8 @@ async def test_send_message_and_enter_transaction_ok(monkeypatch: pytest.MonkeyP
     )
 
 
-async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch) -> None:
-    transaction_id = FAKER.pystr()
+async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
+    transaction_id = faker.pystr()
     monkeypatch.setattr(stompman.transaction, "_make_transaction_id", mock.Mock(return_value=transaction_id))
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
@@ -75,12 +74,12 @@ async def test_send_message_and_enter_transaction_abort(monkeypatch: pytest.Monk
     )
 
 
-async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
-    body, destination = FAKER.binary(length=10), FAKER.pystr()
+async def test_commit_pending_transactions(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
+    body, destination = faker.binary(length=10), faker.pystr()
     monkeypatch.setattr(
         stompman.transaction,
         "_make_transaction_id",
-        mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
+        mock.Mock(side_effect=[(first_id := faker.pystr()), (second_id := faker.pystr())]),
     )
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     async with EnrichedClient(connection_class=connection_class) as client:

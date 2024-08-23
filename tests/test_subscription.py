@@ -35,15 +35,14 @@ from tests.conftest import (
 )
 
 pytestmark = pytest.mark.anyio
-FAKER = faker.Faker()
 
 
 @pytest.mark.parametrize("ack", get_args(AckMode))
-async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
+async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode, faker: faker.Faker) -> None:
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     client = EnrichedClient(connection_class=connection_class)
-    sub_destination, message_destination, message_body = FAKER.pystr(), FAKER.pystr(), FAKER.binary(length=10)
-    sub_extra_headers = FAKER.pydict(value_types=[str])
+    sub_destination, message_destination, message_body = faker.pystr(), faker.pystr(), faker.binary(length=10)
+    sub_extra_headers = faker.pydict(value_types=[str])
 
     async with client:
         subscription = await client.subscribe(
@@ -79,13 +78,15 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode) -> None:
     )
 
 
-async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(
+    monkeypatch: pytest.MonkeyPatch, faker: faker.Faker
+) -> None:
     monkeypatch.setattr(
         stompman.subscription,
         "_make_subscription_id",
-        mock.Mock(side_effect=[(first_id := FAKER.pystr()), (second_id := FAKER.pystr())]),
+        mock.Mock(side_effect=[(first_id := faker.pystr()), (second_id := faker.pystr())]),
     )
-    first_destination, second_destination = FAKER.pystr(), FAKER.pystr()
+    first_destination, second_destination = faker.pystr(), faker.pystr()
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
     async with EnrichedClient(connection_class=connection_class) as client:
@@ -110,10 +111,11 @@ async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(monkeypatch
 @pytest.mark.parametrize("direct_error", [True, False])
 async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
+    faker: faker.Faker,
     *,
     direct_error: bool,
 ) -> None:
-    subscription_id, destination = FAKER.pystr(), FAKER.pystr()
+    subscription_id, destination = faker.pystr(), faker.pystr()
     monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([]))
 
@@ -140,11 +142,11 @@ async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
     )
 
 
-async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
     monkeypatch.setattr(
         stompman.subscription,
         "_make_subscription_id",
-        mock.Mock(side_effect=[(first_sub_id := FAKER.pystr()), (second_sub_id := FAKER.pystr())]),
+        mock.Mock(side_effect=[(first_sub_id := faker.pystr()), (second_sub_id := faker.pystr())]),
     )
     connection_class, _ = create_spying_connection(
         *get_read_frames_with_lifespan(
@@ -168,10 +170,10 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
         on_heartbeat=(on_heartbeat := mock.Mock()),
     ) as client:
         first_subscription = await client.subscribe(
-            FAKER.pystr(), handler=first_message_handler, on_suppressed_exception=first_error_handler
+            faker.pystr(), handler=first_message_handler, on_suppressed_exception=first_error_handler
         )
         second_subscription = await client.subscribe(
-            FAKER.pystr(), handler=second_message_handler, on_suppressed_exception=second_error_handler
+            faker.pystr(), handler=second_message_handler, on_suppressed_exception=second_error_handler
         )
         await asyncio.sleep(0)
         await asyncio.sleep(0)
@@ -191,9 +193,9 @@ async def test_client_listen_routing_ok(monkeypatch: pytest.MonkeyPatch) -> None
 @pytest.mark.parametrize("side_effect", [None, SomeError])
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
 async def test_client_listen_unsubscribe_before_ack_or_nack(
-    monkeypatch: pytest.MonkeyPatch, ack: AckMode, side_effect: object
+    monkeypatch: pytest.MonkeyPatch, faker: faker.Faker, ack: AckMode, side_effect: object
 ) -> None:
-    subscription_id, destination = FAKER.pystr(), FAKER.pystr()
+    subscription_id, destination = faker.pystr(), faker.pystr()
     monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(MessageFrame, headers={"subscription": subscription_id})
@@ -218,8 +220,10 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 
 @pytest.mark.parametrize("ok", [True, False])
 @pytest.mark.parametrize("ack", ["client", "client-individual"])
-async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack: AckMode, *, ok: bool) -> None:
-    subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
+async def test_client_listen_ack_nack_sent(
+    monkeypatch: pytest.MonkeyPatch, faker: faker.Faker, ack: AckMode, *, ok: bool
+) -> None:
+    subscription_id, destination, message_id = faker.pystr(), faker.pystr(), faker.pystr()
     monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(
@@ -248,8 +252,8 @@ async def test_client_listen_ack_nack_sent(monkeypatch: pytest.MonkeyPatch, ack:
 
 
 @pytest.mark.parametrize("ok", [True, False])
-async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, *, ok: bool) -> None:
-    subscription_id, destination, message_id = FAKER.pystr(), FAKER.pystr(), FAKER.pystr()
+async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker, *, ok: bool) -> None:
+    subscription_id, destination, message_id = faker.pystr(), faker.pystr(), faker.pystr()
     monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(
@@ -274,7 +278,7 @@ async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, *, o
     )
 
 
-async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
     monkeypatch.setattr("asyncio.sleep", partial(asyncio.sleep, 0))
 
     connection_class, _ = create_spying_connection(*get_read_frames_with_lifespan([]))
@@ -286,7 +290,7 @@ async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch) ->
 
     with pytest.raises(ExceptionGroup) as exc_info:  # noqa: PT012
         async with asyncio.TaskGroup() as task_group, EnrichedClient(connection_class=connection_class) as client:
-            await client.subscribe(FAKER.pystr(), noop_message_handler, on_suppressed_exception=noop_error_handler)
+            await client.subscribe(faker.pystr(), noop_message_handler, on_suppressed_exception=noop_error_handler)
             task_group.create_task(close_connection_soon(client))
 
     assert len(exc_info.value.exceptions) == 1

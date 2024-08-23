@@ -29,16 +29,15 @@ from tests.conftest import (
 )
 
 pytestmark = pytest.mark.anyio
-FAKER = faker.Faker()
 
 
-async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
     connected_frame = build_dataclass(ConnectedFrame, headers={"version": Client.PROTOCOL_VERSION, "heart-beat": "1,1"})
     connection_class, collected_frames = create_spying_connection(
         [connected_frame], [], [(receipt_frame := build_dataclass(ReceiptFrame))]
     )
 
-    disconnect_frame = DisconnectFrame(headers={"receipt": (receipt_id := FAKER.pystr())})
+    disconnect_frame = DisconnectFrame(headers={"receipt": (receipt_id := faker.pystr())})
     monkeypatch.setattr(stompman.connection_lifespan, "_make_receipt_id", mock.Mock(return_value=receipt_id))
 
     async with EnrichedClient(
@@ -59,7 +58,9 @@ async def test_client_connection_lifespan_ok(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.mark.usefixtures("mock_sleep")
-async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_connection_lifespan_connection_not_confirmed(
+    monkeypatch: pytest.MonkeyPatch, faker: faker.Faker
+) -> None:
     async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
         assert timeout == connection_confirmation_timeout
         task = asyncio.create_task(future)
@@ -69,7 +70,7 @@ async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: 
     original_wait_for = asyncio.wait_for
     monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
     error_frame = build_dataclass(ErrorFrame)
-    connection_confirmation_timeout = FAKER.pyint()
+    connection_confirmation_timeout = faker.pyint()
 
     class MockConnection(BaseMockConnection):
         @staticmethod
@@ -89,8 +90,8 @@ async def test_client_connection_lifespan_connection_not_confirmed(monkeypatch: 
 
 
 @pytest.mark.usefixtures("mock_sleep")
-async def test_client_connection_lifespan_unsupported_protocol_version() -> None:
-    given_version = FAKER.pystr()
+async def test_client_connection_lifespan_unsupported_protocol_version(faker: faker.Faker) -> None:
+    given_version = faker.pystr()
 
     with pytest.raises(FailedAllConnectAttemptsError) as exc_info:
         await EnrichedClient(
@@ -106,7 +107,9 @@ async def test_client_connection_lifespan_unsupported_protocol_version() -> None
     )
 
 
-async def test_client_connection_lifespan_disconnect_not_confirmed(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_client_connection_lifespan_disconnect_not_confirmed(
+    monkeypatch: pytest.MonkeyPatch, faker: faker.Faker
+) -> None:
     wait_for_calls = []
 
     async def mock_wait_for(future: Coroutine[Any, Any, Any], timeout: float) -> object:
@@ -117,7 +120,7 @@ async def test_client_connection_lifespan_disconnect_not_confirmed(monkeypatch: 
 
     original_wait_for = asyncio.wait_for
     monkeypatch.setattr("asyncio.wait_for", mock_wait_for)
-    disconnect_confirmation_timeout = FAKER.pyint()
+    disconnect_confirmation_timeout = faker.pyint()
     read_frames_yields = get_read_frames_with_lifespan([])
     read_frames_yields[-1].clear()
     connection_class, _ = create_spying_connection(*read_frames_yields)
