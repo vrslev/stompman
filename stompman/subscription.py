@@ -20,6 +20,7 @@ ActiveSubscriptions = dict[str, "Subscription"]
 class Subscription:
     id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
     destination: str
+    headers: dict[str, str] | None
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
     ack: AckMode
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
@@ -34,7 +35,9 @@ class Subscription:
 
     async def _subscribe(self) -> None:
         await self._connection_manager.write_frame_reconnecting(
-            SubscribeFrame(headers={"id": self.id, "destination": self.destination, "ack": self.ack})
+            SubscribeFrame.build(
+                subscription_id=self.id, destination=self.destination, ack=self.ack, headers=self.headers
+            )
         )
         self._active_subscriptions[self.id] = self
 
@@ -71,8 +74,11 @@ async def resubscribe_to_active_subscriptions(
 ) -> None:
     for subscription in active_subscriptions.values():
         await connection.write_frame(
-            SubscribeFrame(
-                headers={"id": subscription.id, "destination": subscription.destination, "ack": subscription.ack}
+            SubscribeFrame.build(
+                subscription_id=subscription.id,
+                destination=subscription.destination,
+                ack=subscription.ack,
+                headers=subscription.headers,
             )
         )
 
