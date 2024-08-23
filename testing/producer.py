@@ -17,7 +17,7 @@ async def main() -> None:
         print("Said hi")  # noqa: T201
 
         async with client.begin() as transaction:
-            for index in range(10):
+            for index in range(5):
                 await transaction.send(b"Hi from transaction! " + str(index).encode(), "DLQ")
                 print(f"Said hi in transaction ({index})")  # noqa: T201
                 await asyncio.sleep(0.3)
