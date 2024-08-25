@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterable
-from typing import Self
+from ssl import SSLContext
+from typing import Literal, Self
 from unittest import mock
 
 import pytest
@@ -29,7 +30,14 @@ async def test_connect_attempts_ok(ok_on_attempt: int, monkeypatch: pytest.Monke
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(
-            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+            cls,
+            *,
+            host: str,
+            port: int,
+            timeout: int,
+            read_max_chunk_size: int,
+            read_timeout: int,
+            ssl: Literal[True] | SSLContext | None,
         ) -> Self | None:
             assert (host, port) == (manager.servers[0].host, manager.servers[0].port)
             nonlocal attempts
@@ -42,6 +50,7 @@ async def test_connect_attempts_ok(ok_on_attempt: int, monkeypatch: pytest.Monke
                     timeout=timeout,
                     read_max_chunk_size=read_max_chunk_size,
                     read_timeout=read_timeout,
+                    ssl=ssl,
                 )
                 if attempts == ok_on_attempt
                 else None
@@ -67,7 +76,14 @@ async def test_connect_to_any_server_ok() -> None:
     class MockConnection(BaseMockConnection):
         @classmethod
         async def connect(
-            cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+            cls,
+            *,
+            host: str,
+            port: int,
+            timeout: int,
+            read_max_chunk_size: int,
+            read_timeout: int,
+            ssl: Literal[True] | SSLContext | None,
         ) -> Self | None:
             return (
                 await super().connect(
@@ -76,6 +92,7 @@ async def test_connect_to_any_server_ok() -> None:
                     timeout=timeout,
                     read_max_chunk_size=read_max_chunk_size,
                     read_timeout=read_timeout,
+                    ssl=ssl,
                 )
                 if port == successful_server.port
                 else None

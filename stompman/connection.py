@@ -3,7 +3,8 @@ import socket
 from collections.abc import AsyncGenerator, Generator, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
-from typing import Protocol, Self, cast
+from ssl import SSLContext
+from typing import Literal, Protocol, Self, cast
 
 from stompman.errors import ConnectionLostError
 from stompman.frames import AnyClientFrame, AnyServerFrame
@@ -14,7 +15,14 @@ from stompman.serde import NEWLINE, FrameParser, dump_frame
 class AbstractConnection(Protocol):
     @classmethod
     async def connect(
-        cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        cls,
+        *,
+        host: str,
+        port: int,
+        timeout: int,
+        read_max_chunk_size: int,
+        read_timeout: int,
+        ssl: Literal[True] | SSLContext | None,
     ) -> Self | None: ...
     async def close(self) -> None: ...
     def write_heartbeat(self) -> None: ...
@@ -36,17 +44,31 @@ class Connection(AbstractConnection):
     writer: asyncio.StreamWriter
     read_max_chunk_size: int
     read_timeout: int
+    ssl: Literal[True] | SSLContext | None
 
     @classmethod
     async def connect(
-        cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        cls,
+        *,
+        host: str,
+        port: int,
+        timeout: int,
+        read_max_chunk_size: int,
+        read_timeout: int,
+        ssl: Literal[True] | SSLContext | None,
     ) -> Self | None:
         try:
             reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
         except (TimeoutError, ConnectionError, socket.gaierror):
             return None
         else:
-            return cls(reader=reader, writer=writer, read_max_chunk_size=read_max_chunk_size, read_timeout=read_timeout)
+            return cls(
+                reader=reader,
+                writer=writer,
+                read_max_chunk_size=read_max_chunk_size,
+                read_timeout=read_timeout,
+                ssl=ssl,
+            )
 
     async def close(self) -> None:
         self.writer.close()
