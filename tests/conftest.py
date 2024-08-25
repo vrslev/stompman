@@ -1,7 +1,8 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from typing import Any, Self, TypeVar
+from ssl import SSLContext
+from typing import Any, Literal, Self, TypeVar
 
 import pytest
 from polyfactory.factories.dataclass_factory import DataclassFactory
@@ -37,7 +38,14 @@ def noop_error_handler(exception: Exception, frame: stompman.MessageFrame) -> No
 class BaseMockConnection(AbstractConnection):
     @classmethod
     async def connect(
-        cls, *, host: str, port: int, timeout: int, read_max_chunk_size: int, read_timeout: int
+        cls,
+        *,
+        host: str,
+        port: int,
+        timeout: int,
+        read_max_chunk_size: int,
+        read_timeout: int,
+        ssl: Literal[True] | SSLContext | None,
     ) -> Self | None:
         return cls()
 
@@ -78,6 +86,7 @@ class EnrichedConnectionManager(ConnectionManager):
     read_timeout: int = 4
     read_max_chunk_size: int = 5
     write_retry_attempts: int = 3
+    ssl: Literal[True] | SSLContext | None = None
 
 
 DataclassType = TypeVar("DataclassType")

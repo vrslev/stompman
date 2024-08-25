@@ -3,8 +3,9 @@ from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from functools import partial
+from ssl import SSLContext
 from types import TracebackType
-from typing import ClassVar, Self
+from typing import ClassVar, Literal, Self
 
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
@@ -32,6 +33,7 @@ class Client:
     on_heartbeat: Callable[[], None] | None = None
 
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
+    ssl: Literal[True] | SSLContext | None = None
     connect_retry_attempts: int = 3
     connect_retry_interval: int = 1
     connect_timeout: int = 2
@@ -71,6 +73,7 @@ class Client:
             read_timeout=self.read_timeout,
             read_max_chunk_size=self.read_max_chunk_size,
             write_retry_attempts=self.write_retry_attempts,
+            ssl=self.ssl,
         )
 
     async def __aenter__(self) -> Self:

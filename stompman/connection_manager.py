@@ -1,8 +1,9 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
+from ssl import SSLContext
 from types import TracebackType
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Literal, Self
 
 from stompman.config import ConnectionParameters
 from stompman.connection import AbstractConnection
@@ -34,6 +35,7 @@ class ConnectionManager:
     connect_retry_attempts: int
     connect_retry_interval: int
     connect_timeout: int
+    ssl: Literal[True] | SSLContext | None
     read_timeout: int
     read_max_chunk_size: int
     write_retry_attempts: int
@@ -63,6 +65,7 @@ class ConnectionManager:
             timeout=self.connect_timeout,
             read_max_chunk_size=self.read_max_chunk_size,
             read_timeout=self.read_timeout,
+            ssl=self.ssl,
         ):
             return ActiveConnectionState(
                 connection=connection,
