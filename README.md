@@ -29,6 +29,9 @@ async with stompman.Client(
     on_error_frame=lambda error_frame: print(error_frame.body),
     on_heartbeat=lambda: print("Server sent a heartbeat"),
 
+    # SSL — can be either `None` (default), `True`, or `ssl.SSLContext'
+    ssl=None,
+
     # Optional parameters with sensible defaults:
     heartbeat=stompman.Heartbeat(will_send_interval_ms=1000, want_to_receive_interval_ms=1000),
     connect_retry_attempts=3,
