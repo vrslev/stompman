@@ -58,7 +58,7 @@ class Connection(AbstractConnection):
         ssl: Literal[True] | SSLContext | None,
     ) -> Self | None:
         try:
-            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout)
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port, ssl=ssl), timeout=timeout)
         except (TimeoutError, ConnectionError, socket.gaierror):
             return None
         else:
