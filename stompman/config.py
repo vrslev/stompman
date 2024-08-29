@@ -51,7 +51,7 @@ class ConnectionParameters:
             ]
 
             async with stompman.Client(
-                servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+                servers=stompman.ConnectionParameters.from_pydantic_multihosturl_hosts(
                     ArtemisDsn("tcp://lev:pass@host1:61616,host2:61617,host3:61618").hosts()
                 ),
             ):
