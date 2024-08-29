@@ -36,7 +36,7 @@ class ConnectionParameters:
         return unquote(self.passcode)
 
     @classmethod
-    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
+    def from_pydantic_multihosturl_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
         """Create connection parameters from `pydantic_code.MultiHostUrl.hosts()`.
 
         .. code-block:: python
