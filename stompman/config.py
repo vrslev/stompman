@@ -57,8 +57,8 @@ class ConnectionParameters:
             ):
                 ...
         """
-        host_port_pairs: list[tuple[str, int]] = []
-        auth_params_pairs: list[tuple[str, str]] = []
+        all_hosts: list[tuple[str, int]] = []
+        all_credentials: list[tuple[str, str]] = []
 
         for host in hosts:
             if host["host"] is None:
@@ -67,7 +67,7 @@ class ConnectionParameters:
             if host["port"] is None:
                 msg = "port must be set"
                 raise ValueError(msg)
-            host_port_pairs.append((host["host"], host["port"]))
+            all_hosts.append((host["host"], host["port"]))
 
             username, password = host["username"], host["password"]
             if username is None:
@@ -79,14 +79,14 @@ class ConnectionParameters:
                     msg = "username is set, password must be set"
                     raise ValueError(msg)
             else:
-                auth_params_pairs.append((username, password))
+                all_credentials.append((username, password))
 
-        if not auth_params_pairs:
+        if not all_credentials:
             msg = "username and password must be set"
             raise ValueError(msg)
-        if len(auth_params_pairs) != 1:
+        if len(all_credentials) != 1:
             msg = "only one username-password pair must be set"
             raise ValueError(msg)
 
-        login, passcode = auth_params_pairs[0]
-        return [cls(host=host, port=port, login=login, passcode=passcode) for (host, port) in host_port_pairs]
+        login, passcode = all_credentials[0]
+        return [cls(host=host, port=port, login=login, passcode=passcode) for (host, port) in all_hosts]
