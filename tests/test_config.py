@@ -1,39 +1,43 @@
-from typing import Any
+from typing import TypedDict, cast
 
-import faker
 import pytest
+from polyfactory.factories.typed_dict_factory import TypedDictFactory
 
 import stompman
+from stompman.config import MultiHostHostLike
 
 
-def test_connection_parameters_from_pydantic_multihost_hosts_ok(faker: faker.Faker) -> None:
-    full_host: dict[str, Any] = {
-        "host": faker.pystr(),
-        "port": faker.pyint(),
-        "username": faker.pystr(),
-        "password": faker.pystr(),
-    }
+class StrictMultiHostHostLike(TypedDict):
+    username: str
+    password: str
+    host: str
+    port: int
 
+
+class StrictMultiHostHostLikeFactory(TypedDictFactory[StrictMultiHostHostLike]): ...
+
+
+def test_connection_parameters_from_pydantic_multihost_hosts_ok() -> None:
+    server = StrictMultiHostHostLikeFactory.build()
     result = stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-        [{**full_host, "port": index} for index in range(5)]  # type: ignore[typeddict-item]
+        [{**server, "port": index} for index in range(5)]
     )
-
     assert result == [
-        stompman.ConnectionParameters(full_host["host"], port, full_host["username"], full_host["password"])
-        for port in range(5)
+        stompman.ConnectionParameters(server["host"], port, server["username"], server["password"]) for port in range(5)
     ]
 
 
-def test_connection_parameters_from_pydantic_multihost_hosts_fails(faker: faker.Faker) -> None:
-    full_host: dict[str, Any] = {
-        "host": faker.pystr(),
-        "port": faker.pyint(),
-        "username": faker.pystr(),
-        "password": faker.pystr(),
-    }
+def test_connection_parameters_from_pydantic_multihost_hosts_fails() -> None:
+    server = StrictMultiHostHostLikeFactory.build()
 
     for key in ("host", "port", "username", "password"):
         with pytest.raises(ValueError, match=f"{key} must be set"):
             assert stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-                [{**full_host, key: None}, full_host],  # type: ignore[typeddict-item, list-item]
+                [
+                    {
+                        **server,
+                        key: None,  # type: ignore[misc]
+                    },
+                    cast(MultiHostHostLike, server),
+                ],
             )
