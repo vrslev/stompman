@@ -6,20 +6,34 @@ import pytest
 import stompman
 
 
-def test_connection_parameters_from_pydantic_multihost_hosts(faker: faker.Faker) -> None:
+def test_connection_parameters_from_pydantic_multihost_hosts_ok(faker: faker.Faker) -> None:
     full_host: dict[str, Any] = {
-        "username": faker.pystr(),
-        "password": faker.pystr(),
         "host": faker.pystr(),
         "port": faker.pyint(),
+        "username": faker.pystr(),
+        "password": faker.pystr(),
     }
-    assert stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+
+    result = stompman.ConnectionParameters.from_pydantic_multihost_hosts(
         [{**full_host, "port": index} for index in range(5)]  # type: ignore[typeddict-item]
-    ) == [
-        stompman.ConnectionParameters(full_host["host"], index, full_host["username"], full_host["password"])
-        for index in range(5)
+    )
+
+    assert result == [
+        stompman.ConnectionParameters(full_host["host"], port, full_host["username"], full_host["password"])
+        for port in range(5)
     ]
 
-    for key in ("username", "password", "host", "port"):
+
+def test_connection_parameters_from_pydantic_multihost_hosts_fails(faker: faker.Faker) -> None:
+    full_host: dict[str, Any] = {
+        "host": faker.pystr(),
+        "port": faker.pyint(),
+        "username": faker.pystr(),
+        "password": faker.pystr(),
+    }
+
+    for key in ("host", "port", "username", "password"):
         with pytest.raises(ValueError, match=f"{key} must be set"):
-            assert stompman.ConnectionParameters.from_pydantic_multihost_hosts([{**full_host, key: None}, full_host])  # type: ignore[typeddict-item, list-item]
+            assert stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+                [{**full_host, key: None}, full_host],  # type: ignore[typeddict-item, list-item]
+            )
