@@ -36,7 +36,7 @@ class ConnectionParameters:
         return unquote(self.passcode)
 
     @classmethod
-    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
+    def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:  # noqa: C901
         """Create connection parameters from `pydantic_code.MultiHostUrl.hosts()`.
 
         .. code-block:: python
@@ -82,17 +82,18 @@ class ConnectionParameters:
             else:
                 all_credentials.append((username, password))
 
-        if not all_credentials:
-            msg = "username and password must be set"
-            raise ValueError(msg)
-        if len(all_credentials) == len(all_hosts):
-            return [
-                cls(host=host, port=port, login=username, passcode=password)
-                for ((host, port), (username, password)) in zip(all_hosts, all_credentials, strict=True)
-            ]
-        if len(all_credentials) == 1:
-            login, passcode = all_credentials[0]
-            return [cls(host=host, port=port, login=login, passcode=passcode) for (host, port) in all_hosts]
-
-        msg = "all username-password pairs or only one pair must be set"
-        raise ValueError(msg)
+        match len(all_credentials):
+            case value if value == len(all_hosts):
+                return [
+                    cls(host=host, port=port, login=username, passcode=password)
+                    for ((host, port), (username, password)) in zip(all_hosts, all_credentials, strict=True)
+                ]
+            case 1:
+                username, password = all_credentials[0]
+                return [cls(host=host, port=port, login=username, passcode=password) for (host, port) in all_hosts]
+            case 0:
+                msg = "username and password must be set"
+                raise ValueError(msg)
+            case _:
+                msg = "all username-password pairs or only one pair must be set"
+                raise ValueError(msg)
