@@ -22,7 +22,7 @@ class MultiHostHostLikeFactory(TypedDictFactory[MultiHostHostLike]): ...
 
 
 class TestConnectionParametersFromPydanticMultiHostHosts:
-    def test_ok(self, faker: faker.Faker) -> None:
+    def test_ok_with_one_credentials(self, faker: faker.Faker) -> None:
         hosts: list[MultiHostHostLike] = [
             {"host": "host1", "port": 1, "username": None, "password": None},
             {"host": "host2", "port": 2, "username": None, "password": None},
@@ -40,6 +40,23 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
             stompman.ConnectionParameters("host2", 2, "lev", "pass"),
             stompman.ConnectionParameters("host3", 3, "lev", "pass"),
             stompman.ConnectionParameters("host4", 4, "lev", "pass"),
+        ]
+
+    def test_ok_with_all_credentials(self, faker: faker.Faker) -> None:
+        hosts: list[MultiHostHostLike] = [
+            {"host": "host1", "port": 1, "username": "user1", "password": "pass1"},
+            {"host": "host2", "port": 2, "username": "user2", "password": "pass2"},
+            {"host": "host3", "port": 3, "username": "user3", "password": "pass3"},
+            {"host": "host4", "port": 4, "username": "user4", "password": "pass4"},
+        ]
+
+        result = stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
+
+        assert result == [
+            stompman.ConnectionParameters("host1", 1, "user1", "pass1"),
+            stompman.ConnectionParameters("host2", 2, "user2", "pass2"),
+            stompman.ConnectionParameters("host3", 3, "user3", "pass3"),
+            stompman.ConnectionParameters("host4", 4, "user4", "pass4"),
         ]
 
     def test_no_host_or_port_or_both(self, faker: faker.Faker) -> None:
@@ -88,5 +105,5 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
             {"host": faker.pystr(), "port": faker.pyint(), "username": faker.pystr(), "password": faker.pystr()},
         ]
 
-        with pytest.raises(ValueError, match="only one username-password pair must be set"):
+        with pytest.raises(ValueError, match="all username-password pairs or only one pair must be set"):
             stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
