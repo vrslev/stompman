@@ -33,7 +33,7 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
         hosts[host_with_credentials]["username"] = "lev"
         hosts[host_with_credentials]["password"] = "pass"  # noqa: S105
 
-        result = stompman.ConnectionParameters.from_pydantic_multihosturl_hosts(hosts)
+        result = stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
 
         assert result == [
             stompman.ConnectionParameters("host1", 1, "lev", "pass"),
@@ -51,7 +51,7 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
 
         for host in cases:
             with pytest.raises(ValueError, match="must be set"):
-                stompman.ConnectionParameters.from_pydantic_multihosturl_hosts([host])
+                stompman.ConnectionParameters.from_pydantic_multihost_hosts([host])
 
     def test_no_username(self, faker: faker.Faker) -> None:
         hosts: list[MultiHostHostLike] = [
@@ -60,7 +60,7 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
         ]
 
         with pytest.raises(ValueError, match="username must be set"):
-            stompman.ConnectionParameters.from_pydantic_multihosturl_hosts(hosts)
+            stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
 
     def test_no_password(self, faker: faker.Faker) -> None:
         hosts: list[MultiHostHostLike] = [
@@ -69,7 +69,7 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
         ]
 
         with pytest.raises(ValueError, match="password must be set"):
-            stompman.ConnectionParameters.from_pydantic_multihosturl_hosts(hosts)
+            stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
 
     def test_no_credentials(self, faker: faker.Faker) -> None:
         cases: list[MultiHostHostLike] = [
@@ -79,7 +79,7 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
 
         for host in cases:
             with pytest.raises(ValueError, match="username and password must be set"):
-                stompman.ConnectionParameters.from_pydantic_multihosturl_hosts([host])
+                stompman.ConnectionParameters.from_pydantic_multihost_hosts([host])
 
     def test_multiple_credentials(self, faker: faker.Faker) -> None:
         hosts: list[MultiHostHostLike] = [
@@ -89,4 +89,4 @@ class TestConnectionParametersFromPydanticMultiHostHosts:
         ]
 
         with pytest.raises(ValueError, match="only one username-password pair must be set"):
-            stompman.ConnectionParameters.from_pydantic_multihosturl_hosts(hosts)
+            stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
