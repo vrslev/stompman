@@ -37,27 +37,29 @@ class ConnectionParameters:
 
     @classmethod
     def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
-        """Create connection parameters from a list of `MultiHostUrl` objects.
+        """Create connection parameters from `pydantic_code.MultiHostUrl.hosts()`.
 
         .. code-block:: python
-        import stompman.
+            import stompman
 
-        ArtemisDsn = typing.Annotated[
-            pydantic_core.MultiHostUrl,
-            pydantic.UrlConstraints(
-                host_required=True,
-                allowed_schemes=["tcp"],
-            ),
-        ]
+            ArtemisDsn = typing.Annotated[
+                pydantic_core.MultiHostUrl,
+                pydantic.UrlConstraints(
+                    host_required=True,
+                    allowed_schemes=["tcp"],
+                ),
+            ]
 
-        async with stompman.Client(
-            servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-                ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
-            ),
-        ):
-            ...
+            async with stompman.Client(
+                servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+                    ArtemisDsn("tcp://lev:pass@host1:61616,host2:61617,host3:61618").hosts()
+                ),
+            ):
+                ...
         """
-        servers: list[Self] = []
+        all_hosts: list[tuple[str, int]] = []
+        all_credentials: list[tuple[str, str]] = []
+
         for host in hosts:
             if host["host"] is None:
                 msg = "host must be set"
@@ -65,12 +67,26 @@ class ConnectionParameters:
             if host["port"] is None:
                 msg = "port must be set"
                 raise ValueError(msg)
-            if host["username"] is None:
-                msg = "username must be set"
-                raise ValueError(msg)
-            if host["password"] is None:
-                msg = "password must be set"
-                raise ValueError(msg)
+            all_hosts.append((host["host"], host["port"]))
 
-            servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
-        return servers
+            username, password = host["username"], host["password"]
+            if username is None:
+                if password is not None:
+                    msg = "password is set, username must be set"
+                    raise ValueError(msg)
+            elif password is None:
+                if username is not None:
+                    msg = "username is set, password must be set"
+                    raise ValueError(msg)
+            else:
+                all_credentials.append((username, password))
+
+        if not all_credentials:
+            msg = "username and password must be set"
+            raise ValueError(msg)
+        if len(all_credentials) != 1:
+            msg = "only one username-password pair must be set"
+            raise ValueError(msg)
+
+        login, passcode = all_credentials[0]
+        return [cls(host=host, port=port, login=login, passcode=passcode) for (host, port) in all_hosts]

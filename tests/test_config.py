@@ -1,25 +1,92 @@
-from typing import Any
+from typing import TypedDict
 
 import faker
 import pytest
+from polyfactory.factories.typed_dict_factory import TypedDictFactory
 
 import stompman
+from stompman.config import MultiHostHostLike
 
 
-def test_connection_parameters_from_pydantic_multihost_hosts(faker: faker.Faker) -> None:
-    full_host: dict[str, Any] = {
-        "username": faker.pystr(),
-        "password": faker.pystr(),
-        "host": faker.pystr(),
-        "port": faker.pyint(),
-    }
-    assert stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-        [{**full_host, "port": index} for index in range(5)]  # type: ignore[typeddict-item]
-    ) == [
-        stompman.ConnectionParameters(full_host["host"], index, full_host["username"], full_host["password"])
-        for index in range(5)
-    ]
+class StrictMultiHostHostLike(TypedDict):
+    username: str
+    password: str
+    host: str
+    port: int
 
-    for key in ("username", "password", "host", "port"):
-        with pytest.raises(ValueError, match=f"{key} must be set"):
-            assert stompman.ConnectionParameters.from_pydantic_multihost_hosts([{**full_host, key: None}, full_host])  # type: ignore[typeddict-item, list-item]
+
+class StrictMultiHostHostLikeFactory(TypedDictFactory[StrictMultiHostHostLike]): ...
+
+
+class MultiHostHostLikeFactory(TypedDictFactory[MultiHostHostLike]): ...
+
+
+class TestConnectionParametersFromPydanticMultiHostHosts:
+    def test_ok(self, faker: faker.Faker) -> None:
+        hosts: list[MultiHostHostLike] = [
+            {"host": "host1", "port": 1, "username": None, "password": None},
+            {"host": "host2", "port": 2, "username": None, "password": None},
+            {"host": "host3", "port": 3, "username": None, "password": None},
+            {"host": "host4", "port": 4, "username": None, "password": None},
+        ]
+        host_with_credentials = faker.pyint(min_value=0, max_value=3)
+        hosts[host_with_credentials]["username"] = "lev"
+        hosts[host_with_credentials]["password"] = "pass"  # noqa: S105
+
+        result = stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
+
+        assert result == [
+            stompman.ConnectionParameters("host1", 1, "lev", "pass"),
+            stompman.ConnectionParameters("host2", 2, "lev", "pass"),
+            stompman.ConnectionParameters("host3", 3, "lev", "pass"),
+            stompman.ConnectionParameters("host4", 4, "lev", "pass"),
+        ]
+
+    def test_no_host_or_port_or_both(self, faker: faker.Faker) -> None:
+        cases: list[MultiHostHostLike] = [
+            {"host": None, "port": faker.pyint(), "username": faker.pystr(), "password": faker.pystr()},
+            {"host": faker.pystr(), "port": None, "username": faker.pystr(), "password": faker.pystr()},
+            {"host": None, "port": None, "username": faker.pystr(), "password": faker.pystr()},
+        ]
+
+        for host in cases:
+            with pytest.raises(ValueError, match="must be set"):
+                stompman.ConnectionParameters.from_pydantic_multihost_hosts([host])
+
+    def test_no_username(self, faker: faker.Faker) -> None:
+        hosts: list[MultiHostHostLike] = [
+            {"host": faker.pystr(), "port": faker.pyint(), "username": None, "password": faker.pystr()},
+            {"host": faker.pystr(), "port": faker.pyint(), "username": faker.pystr(), "password": faker.pystr()},
+        ]
+
+        with pytest.raises(ValueError, match="username must be set"):
+            stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
+
+    def test_no_password(self, faker: faker.Faker) -> None:
+        hosts: list[MultiHostHostLike] = [
+            {"host": faker.pystr(), "port": faker.pyint(), "username": faker.pystr(), "password": None},
+            {"host": faker.pystr(), "port": faker.pyint(), "username": faker.pystr(), "password": faker.pystr()},
+        ]
+
+        with pytest.raises(ValueError, match="password must be set"):
+            stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
+
+    def test_no_credentials(self, faker: faker.Faker) -> None:
+        cases: list[MultiHostHostLike] = [
+            {"host": faker.pystr(), "port": faker.pyint(), "username": None, "password": None},
+            {"host": faker.pystr(), "port": faker.pyint(), "username": None, "password": None},
+        ]
+
+        for host in cases:
+            with pytest.raises(ValueError, match="username and password must be set"):
+                stompman.ConnectionParameters.from_pydantic_multihost_hosts([host])
+
+    def test_multiple_credentials(self, faker: faker.Faker) -> None:
+        hosts: list[MultiHostHostLike] = [
+            {"host": faker.pystr(), "port": faker.pyint(), "username": None, "password": None},
+            {"host": faker.pystr(), "port": faker.pyint(), "username": faker.pystr(), "password": faker.pystr()},
+            {"host": faker.pystr(), "port": faker.pyint(), "username": faker.pystr(), "password": faker.pystr()},
+        ]
+
+        with pytest.raises(ValueError, match="only one username-password pair must be set"):
+            stompman.ConnectionParameters.from_pydantic_multihost_hosts(hosts)
