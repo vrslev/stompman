@@ -52,12 +52,14 @@ class ConnectionParameters:
 
             async with stompman.Client(
                 servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-                    ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
+                    ArtemisDsn("tcp://lev:pass@host1:61616,host2:61617,host3:61618").hosts()
                 ),
             ):
                 ...
         """
-        servers: list[Self] = []
+        host_port_pairs: list[tuple[str, int]] = []
+        auth_params_pairs: list[tuple[str, str]] = []
+
         for host in hosts:
             if host["host"] is None:
                 msg = "host must be set"
@@ -65,12 +67,26 @@ class ConnectionParameters:
             if host["port"] is None:
                 msg = "port must be set"
                 raise ValueError(msg)
-            if host["username"] is None:
-                msg = "username must be set"
-                raise ValueError(msg)
-            if host["password"] is None:
-                msg = "password must be set"
-                raise ValueError(msg)
+            host_port_pairs.append((host["host"], host["port"]))
 
-            servers.append(cls(host=host["host"], port=host["port"], login=host["username"], passcode=host["password"]))
-        return servers
+            username, password = host["username"], host["password"]
+            if username is None:
+                if password is not None:
+                    msg = "password is set, username must be set"
+                    raise ValueError(msg)
+            elif password is None:
+                if username is not None:
+                    msg = "username is set, password must be set"
+                    raise ValueError(msg)
+            else:
+                auth_params_pairs.append((username, password))
+
+        if not auth_params_pairs:
+            msg = "username and password must be set"
+            raise ValueError(msg)
+        if len(auth_params_pairs) != 1:
+            msg = "only one username-password pair must be set"
+            raise ValueError(msg)
+
+        login, passcode = auth_params_pairs[0]
+        return [cls(host=host, port=port, login=login, passcode=passcode) for (host, port) in host_port_pairs]
