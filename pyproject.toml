@@ -25,7 +25,7 @@ dev-dependencies = [
     "mypy~=1.11.1",
     "pytest-cov~=5.0.0",
     "pytest~=8.3.2",
-    "ruff~=0.5.7",
+    "ruff~=0.6.2",
     "uvloop~=0.19.0",
     "hypothesis~=6.111.0",
     "polyfactory~=2.16.2",
@@ -67,7 +67,7 @@ ignore = [
     "PLC2801",
     "PLR0913",
 ]
-extend-per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG"] }
+extend-per-file-ignores = { "tests/*" = ["S101", "SLF001", "ARG", "PLR6301"] }
 
 [tool.pytest.ini_options]
 addopts = "--cov -s -vv"
