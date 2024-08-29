@@ -37,25 +37,25 @@ class ConnectionParameters:
 
     @classmethod
     def from_pydantic_multihost_hosts(cls, hosts: list[MultiHostHostLike]) -> list[Self]:
-        """Create connection parameters from a list of `MultiHostUrl` objects.
+        """Create connection parameters from `pydantic_code.MultiHostUrl.hosts()`.
 
         .. code-block:: python
-        import stompman.
+            import stompman
 
-        ArtemisDsn = typing.Annotated[
-            pydantic_core.MultiHostUrl,
-            pydantic.UrlConstraints(
-                host_required=True,
-                allowed_schemes=["tcp"],
-            ),
-        ]
+            ArtemisDsn = typing.Annotated[
+                pydantic_core.MultiHostUrl,
+                pydantic.UrlConstraints(
+                    host_required=True,
+                    allowed_schemes=["tcp"],
+                ),
+            ]
 
-        async with stompman.Client(
-            servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
-                ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
-            ),
-        ):
-            ...
+            async with stompman.Client(
+                servers=stompman.ConnectionParameters.from_pydantic_multihost_hosts(
+                    ArtemisDsn("tcp://lev:pass@host1:61616,lev:pass@host1:61617,lev:pass@host2:61616").hosts()
+                ),
+            ):
+                ...
         """
         servers: list[Self] = []
         for host in hosts:
