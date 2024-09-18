@@ -28,6 +28,6 @@ run-producer:
 
 publish:
     rm -rf dist/*
-    uvx --from build python -m build --installer uv
+    uv build
     uvx twine check dist/*
     uvx twine upload dist/* --username __token__ --password $PYPI_TOKEN
