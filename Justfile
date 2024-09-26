@@ -27,7 +27,6 @@ run-producer:
     uv run testing/producer.py
 
 publish:
-    rm -rf dist/*
+    rm -rf dist
     uv build
-    uvx twine check dist/*
-    uvx twine upload dist/* --username __token__ --password $PYPI_TOKEN
+    uv publish --token $PYPI_TOKEN
