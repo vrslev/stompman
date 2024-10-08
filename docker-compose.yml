@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim-bullseye}
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.13-slim-bullseye}
     depends_on:
       artemis:
         condition: service_started
