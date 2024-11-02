@@ -11,9 +11,8 @@ A Python client for STOMP asynchronous messaging protocol that is:
 Before you start using stompman, make sure you have it installed:
 
 ```sh
-pip install stompman
-poetry add stompman
 uv add stompman
+poetry add stompman
 ```
 
 Initialize a client:
