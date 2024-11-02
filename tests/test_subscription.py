@@ -38,7 +38,7 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.mark.parametrize("ack", get_args(AckMode))
-async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode, faker: faker.Faker) -> None:
+async def test_client_subscriptions_lifespan_resubscribe(ack: AckMode, faker: faker.Faker) -> None:
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([CONNECTED_FRAME], []))
     client = EnrichedClient(connection_class=connection_class)
     sub_destination, message_destination, message_body = faker.pystr(), faker.pystr(), faker.binary(length=10)
@@ -78,7 +78,7 @@ async def test_client_subscribtions_lifespan_resubscribe(ack: AckMode, faker: fa
     )
 
 
-async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(
+async def test_client_subscriptions_lifespan_no_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch, faker: faker.Faker
 ) -> None:
     monkeypatch.setattr(
@@ -109,7 +109,7 @@ async def test_client_subscribtions_lifespan_no_active_subs_in_aexit(
 
 
 @pytest.mark.parametrize("direct_error", [True, False])
-async def test_client_subscribtions_lifespan_with_active_subs_in_aexit(
+async def test_client_subscriptions_lifespan_with_active_subs_in_aexit(
     monkeypatch: pytest.MonkeyPatch,
     faker: faker.Faker,
     *,

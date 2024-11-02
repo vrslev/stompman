@@ -29,8 +29,8 @@ class Transaction:
             await self._connection_manager.maybe_write_frame(AbortFrame(headers={"transaction": self.id}))
             self._active_transactions.remove(self)
         else:
-            commited = await self._connection_manager.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
-            if commited:
+            committed = await self._connection_manager.maybe_write_frame(CommitFrame(headers={"transaction": self.id}))
+            if committed:
                 self._active_transactions.remove(self)
 
     async def send(
