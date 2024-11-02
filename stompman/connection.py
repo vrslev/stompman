@@ -88,7 +88,7 @@ class Connection(AbstractConnection):
     async def _read_non_empty_bytes(self, max_chunk_size: int) -> bytes:
         while (  # noqa: ASYNC110
             chunk := await self.reader.read(max_chunk_size)
-        ) == b"":  # pragma: no cover (it defenitely happens)
+        ) == b"":  # pragma: no cover (it definitely happens)
             await asyncio.sleep(0)
         return chunk
 
