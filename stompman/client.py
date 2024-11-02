@@ -1,8 +1,9 @@
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Coroutine
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from functools import partial
+import inspect
 from ssl import SSLContext
 from types import TracebackType
 from typing import ClassVar, Literal, Self
@@ -30,7 +31,7 @@ class Client:
 
     servers: list[ConnectionParameters] = field(kw_only=False)
     on_error_frame: Callable[[ErrorFrame], None] | None = None
-    on_heartbeat: Callable[[], None] | None = None
+    on_heartbeat: Callable[[], None] |Callable[[], Awaitable[None]] | None = None
 
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
     ssl: Literal[True] | SSLContext | None = None
@@ -144,7 +145,7 @@ class Client:
         ack: AckMode = "client-individual",
         headers: dict[str, str] | None = None,
         on_suppressed_exception: Callable[[Exception, MessageFrame], None],
-        supressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
+        suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> "Subscription":
         subscription = Subscription(
             destination=destination,
@@ -152,7 +153,7 @@ class Client:
             headers=headers,
             ack=ack,
             on_suppressed_exception=on_suppressed_exception,
-            supressed_exception_classes=supressed_exception_classes,
+            suppressed_exception_classes=suppressed_exception_classes,
             _connection_manager=self._connection_manager,
             _active_subscriptions=self._active_subscriptions,
         )

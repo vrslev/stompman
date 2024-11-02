@@ -24,7 +24,7 @@ class Subscription:
     handler: Callable[[MessageFrame], Coroutine[None, None, None]]
     ack: AckMode
     on_suppressed_exception: Callable[[Exception, MessageFrame], None]
-    supressed_exception_classes: tuple[type[Exception], ...]
+    suppressed_exception_classes: tuple[type[Exception], ...]
     _connection_manager: ConnectionManager
     _active_subscriptions: ActiveSubscriptions
 
@@ -48,7 +48,7 @@ class Subscription:
     async def _run_handler(self, *, frame: MessageFrame) -> None:
         try:
             await self.handler(frame)
-        except self.supressed_exception_classes as exception:
+        except self.suppressed_exception_classes as exception:
             if self._should_handle_ack_nack and self.id in self._active_subscriptions:
                 await self._connection_manager.maybe_write_frame(
                     NackFrame(
