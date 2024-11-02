@@ -1,9 +1,9 @@
 import asyncio
+import inspect
 from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from functools import partial
-import inspect
 from ssl import SSLContext
 from types import TracebackType
 from typing import ClassVar, Literal, Self
@@ -31,7 +31,7 @@ class Client:
 
     servers: list[ConnectionParameters] = field(kw_only=False)
     on_error_frame: Callable[[ErrorFrame], None] | None = None
-    on_heartbeat: Callable[[], None] | None = None
+    on_heartbeat: Callable[[], None] | Callable[[], Awaitable[None]] | None = None
 
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
     ssl: Literal[True] | SSLContext | None = None
@@ -53,6 +53,7 @@ class Client:
     _heartbeat_task: asyncio.Task[None] = field(init=False)
     _listen_task: asyncio.Task[None] = field(init=False)
     _task_group: asyncio.TaskGroup = field(init=False)
+    _on_heartbeat_is_async: bool = field(init=False)
 
     def __post_init__(self) -> None:
         self._connection_manager = ConnectionManager(
@@ -76,6 +77,7 @@ class Client:
             write_retry_attempts=self.write_retry_attempts,
             ssl=self.ssl,
         )
+        self._on_heartbeat_is_async = inspect.iscoroutinefunction(self.on_heartbeat) if self.on_heartbeat else False
 
     async def __aenter__(self) -> Self:
         self._task_group = await self._exit_stack.enter_async_context(asyncio.TaskGroup())
@@ -116,7 +118,11 @@ class Client:
                         if self.on_error_frame:
                             self.on_error_frame(frame)
                     case HeartbeatFrame():
-                        if self.on_heartbeat:
+                        if self.on_heartbeat is None:
+                            pass
+                        elif self._on_heartbeat_is_async:
+                            task_group.create_task(self.on_heartbeat())  # type: ignore[arg-type]
+                        else:
                             self.on_heartbeat()
                     case ConnectedFrame() | ReceiptFrame():
                         pass
