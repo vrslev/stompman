@@ -21,10 +21,10 @@ run-artemis:
     docker compose run --service-ports artemis
 
 run-consumer:
-    uv run testing/consumer.py
+    uv run examples/consumer.py
 
 run-producer:
-    uv run testing/producer.py
+    uv run examples/producer.py
 
 publish:
     rm -rf dist

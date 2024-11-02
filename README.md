@@ -133,4 +133,4 @@ Also, I want to pointed out that:
 
 ### Examples
 
-See producer and consumer examples in [testing/](./testing/).
+See producer and consumer examples in [examples/](examples).
