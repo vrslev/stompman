@@ -31,7 +31,7 @@ class Client:
 
     servers: list[ConnectionParameters] = field(kw_only=False)
     on_error_frame: Callable[[ErrorFrame], None] | None = None
-    on_heartbeat: Callable[[], None] |Callable[[], Awaitable[None]] | None = None
+    on_heartbeat: Callable[[], None] | None = None
 
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
     ssl: Literal[True] | SSLContext | None = None
