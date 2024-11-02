@@ -27,7 +27,7 @@ async with stompman.Client(
 
     # Handlers:
     on_error_frame=lambda error_frame: print(error_frame.body),
-    on_heartbeat=lambda: print("Server sent a heartbeat"),
+    on_heartbeat=lambda: print("Server sent a heartbeat"),  # also can be async
 
     # SSL — can be either `None` (default), `True`, or `ssl.SSLContext'
     ssl=None,
