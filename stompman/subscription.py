@@ -49,18 +49,24 @@ class Subscription:
         try:
             await self.handler(frame)
         except self.suppressed_exception_classes as exception:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
+            if (
+                self._should_handle_ack_nack
+                and self.id in self._active_subscriptions
+                and (ack_id := frame.headers["ack"])
+            ):
                 await self._connection_manager.maybe_write_frame(
-                    NackFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]}
-                    )
+                    NackFrame(headers={"id": ack_id, "subscription": frame.headers["subscription"]})
                 )
             self.on_suppressed_exception(exception, frame)
         else:
-            if self._should_handle_ack_nack and self.id in self._active_subscriptions:
+            if (
+                self._should_handle_ack_nack
+                and self.id in self._active_subscriptions
+                and (ack_id := frame.headers["ack"])
+            ):
                 await self._connection_manager.maybe_write_frame(
                     AckFrame(
-                        headers={"id": frame.headers["message-id"], "subscription": frame.headers["subscription"]},
+                        headers={"id": ack_id, "subscription": frame.headers["subscription"]},
                     )
                 )
 
