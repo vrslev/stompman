@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import uuid4
 
 from stompman.config import ConnectionParameters, Heartbeat
@@ -37,7 +37,7 @@ class ConnectionLifespan(AbstractConnectionLifespan):
     disconnect_confirmation_timeout: int
     active_subscriptions: ActiveSubscriptions
     active_transactions: ActiveTransactions
-    set_heartbeat_interval: Callable[[float], None]
+    set_heartbeat_interval: Callable[[float], Any]
 
     async def _establish_connection(self) -> StompProtocolConnectionIssue | None:
         await self.connection.write_frame(
