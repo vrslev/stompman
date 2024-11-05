@@ -1,14 +1,8 @@
 import asyncio
-import os
 
 import stompman
 
-server = stompman.ConnectionParameters(
-    host=os.environ.get("ARTEMIS_HOST", "0.0.0.0"),  # noqa: S104
-    port=61616,
-    login="admin",
-    passcode=":=123",
-)
+server = stompman.ConnectionParameters(host="0.0.0.0", port=61616, login="admin", passcode=":=123")  # noqa: S104
 
 
 async def handle_message(message_frame: stompman.MessageFrame) -> None:

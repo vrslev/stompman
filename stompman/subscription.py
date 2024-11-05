@@ -1,5 +1,6 @@
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import Any
 from uuid import uuid4
 
 from stompman.connection import AbstractConnection
@@ -21,9 +22,9 @@ class Subscription:
     id: str = field(default_factory=lambda: _make_subscription_id(), init=False)  # noqa: PLW0108
     destination: str
     headers: dict[str, str] | None
-    handler: Callable[[MessageFrame], Coroutine[None, None, None]]
+    handler: Callable[[MessageFrame], Awaitable[Any]]
     ack: AckMode
-    on_suppressed_exception: Callable[[Exception, MessageFrame], None]
+    on_suppressed_exception: Callable[[Exception, MessageFrame], Any]
     suppressed_exception_classes: tuple[type[Exception], ...]
     _connection_manager: ConnectionManager
     _active_subscriptions: ActiveSubscriptions

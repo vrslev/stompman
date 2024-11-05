@@ -1,12 +1,12 @@
 import asyncio
 import inspect
-from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from functools import partial
 from ssl import SSLContext
 from types import TracebackType
-from typing import ClassVar, Literal, Self
+from typing import Any, ClassVar, Literal, Self
 
 from stompman.config import ConnectionParameters, Heartbeat
 from stompman.connection import AbstractConnection, Connection
@@ -30,8 +30,8 @@ class Client:
     PROTOCOL_VERSION: ClassVar = "1.2"  # https://stomp.github.io/stomp-specification-1.2.html
 
     servers: list[ConnectionParameters] = field(kw_only=False)
-    on_error_frame: Callable[[ErrorFrame], None] | None = None
-    on_heartbeat: Callable[[], None] | Callable[[], Awaitable[None]] | None = None
+    on_error_frame: Callable[[ErrorFrame], Any] | None = None
+    on_heartbeat: Callable[[], Any] | Callable[[], Awaitable[Any]] | None = None
 
     heartbeat: Heartbeat = field(default=Heartbeat(1000, 1000))
     ssl: Literal[True] | SSLContext | None = None
@@ -146,11 +146,11 @@ class Client:
     async def subscribe(
         self,
         destination: str,
-        handler: Callable[[MessageFrame], Coroutine[None, None, None]],
+        handler: Callable[[MessageFrame], Awaitable[Any]],
         *,
         ack: AckMode = "client-individual",
         headers: dict[str, str] | None = None,
-        on_suppressed_exception: Callable[[Exception, MessageFrame], None],
+        on_suppressed_exception: Callable[[Exception, MessageFrame], Any],
         suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
     ) -> "Subscription":
         subscription = Subscription(

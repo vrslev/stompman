@@ -1,9 +1,8 @@
 import asyncio
-import os
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from itertools import starmap
-from typing import Final
+from typing import Final, cast
 from uuid import uuid4
 
 import pytest
@@ -21,23 +20,29 @@ from stompman.serde import (
     parse_header,
 )
 
-pytestmark = pytest.mark.anyio
-
-CONNECTION_PARAMETERS: Final = stompman.ConnectionParameters(
-    host=os.environ["ARTEMIS_HOST"], port=61616, login="admin", passcode=":=123"
-)
 DESTINATION: Final = "DLQ"
 
 
+@pytest.fixture(
+    params=[
+        stompman.ConnectionParameters(host="activemq-artemis", port=61616, login="admin", passcode=":=123"),
+        stompman.ConnectionParameters(host="activemq-classic", port=61613, login="admin", passcode=":=123"),
+    ]
+)
+def connection_parameters(request: pytest.FixtureRequest) -> stompman.ConnectionParameters:
+    return cast(stompman.ConnectionParameters, request.param)
+
+
 @asynccontextmanager
-async def create_client() -> AsyncGenerator[stompman.Client, None]:
+async def create_client(connection_parameters: stompman.ConnectionParameters) -> AsyncGenerator[stompman.Client, None]:
     async with stompman.Client(
-        servers=[CONNECTION_PARAMETERS], read_timeout=10, connection_confirmation_timeout=10
+        servers=[connection_parameters], read_timeout=10, connection_confirmation_timeout=10
     ) as client:
         yield client
 
 
-async def test_ok() -> None:
+@pytest.mark.anyio
+async def test_ok(connection_parameters: stompman.ConnectionParameters) -> None:
     async def produce() -> None:
         for message in messages[200:]:
             await producer.send(body=message, destination=DESTINATION, headers={"hello": "from outside transaction"})
@@ -65,7 +70,11 @@ async def test_ok() -> None:
 
     messages = [str(uuid4()).encode() for _ in range(10000)]
 
-    async with create_client() as consumer, create_client() as producer, asyncio.TaskGroup() as task_group:
+    async with (
+        create_client(connection_parameters) as consumer,
+        create_client(connection_parameters) as producer,
+        asyncio.TaskGroup() as task_group,
+    ):
         task_group.create_task(consume())
         task_group.create_task(produce())
 
