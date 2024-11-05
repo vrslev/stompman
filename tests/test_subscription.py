@@ -223,11 +223,11 @@ async def test_client_listen_unsubscribe_before_ack_or_nack(
 async def test_client_listen_ack_nack_sent(
     monkeypatch: pytest.MonkeyPatch, faker: faker.Faker, ack: AckMode, *, ok: bool
 ) -> None:
-    subscription_id, destination, ack_id = faker.pystr(), faker.pystr(), faker.pystr()
+    subscription_id, destination, message_id = faker.pystr(), faker.pystr(), faker.pystr()
     monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
 
     message_frame = build_dataclass(
-        MessageFrame, headers={"destination": destination, "ack": ack_id, "subscription": subscription_id}
+        MessageFrame, headers={"destination": destination, "message-id": message_id, "subscription": subscription_id}
     )
     connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([message_frame]))
     message_handler = mock.AsyncMock(side_effect=None if ok else SomeError)
@@ -244,9 +244,9 @@ async def test_client_listen_ack_nack_sent(
     assert collected_frames == enrich_expected_frames(
         SubscribeFrame(headers={"id": subscription_id, "destination": destination, "ack": ack}),
         message_frame,
-        AckFrame(headers={"id": ack_id, "subscription": subscription_id})
+        AckFrame(headers={"id": message_id, "subscription": subscription_id})
         if ok
-        else NackFrame(headers={"id": ack_id, "subscription": subscription_id}),
+        else NackFrame(headers={"id": message_id, "subscription": subscription_id}),
         UnsubscribeFrame(headers={"id": subscription_id}),
     )
 
