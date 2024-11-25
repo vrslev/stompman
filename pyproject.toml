@@ -28,7 +28,7 @@ dev = [
     "polyfactory==2.17.0",
     "pytest==8.3.3",
     "pytest-cov==6.0.0",
-    "ruff==0.7.1",
+    "ruff==0.8.0",
     "uvloop==0.21.0",
 ]
 
@@ -46,7 +46,6 @@ warn_unused_ignores = true
 strict = true
 
 [tool.ruff]
-target-version = "py311"
 fix = true
 unsafe-fixes = true
 line-length = 120

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from stompman.config import ConnectionParameters  # noqa: TCH001
+from stompman.config import ConnectionParameters  # noqa: TC001
 from stompman.frames import ErrorFrame, HeartbeatFrame, MessageFrame, ReceiptFrame
 
 
