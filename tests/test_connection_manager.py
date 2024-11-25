@@ -255,7 +255,7 @@ SIDE_EFFECTS = [(None,), (ConnectionLostError(), None), (ConnectionLostError(), 
 
 
 @pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
-async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[ConnectionLostError | None, ...]) -> None:
     write_heartbeat_mock = mock.Mock(side_effect=side_effect)
 
     class MockConnection(BaseMockConnection):
@@ -269,7 +269,7 @@ async def test_write_heartbeat_reconnecting_ok(side_effect: tuple[None | Connect
 
 
 @pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
-async def test_write_frame_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+async def test_write_frame_reconnecting_ok(side_effect: tuple[ConnectionLostError | None, ...]) -> None:
     write_frame_mock = mock.AsyncMock(side_effect=side_effect)
 
     class MockConnection(BaseMockConnection):
@@ -283,7 +283,7 @@ async def test_write_frame_reconnecting_ok(side_effect: tuple[None | ConnectionL
 
 
 @pytest.mark.parametrize("side_effect", SIDE_EFFECTS)
-async def test_read_frames_reconnecting_ok(side_effect: tuple[None | ConnectionLostError, ...]) -> None:
+async def test_read_frames_reconnecting_ok(side_effect: tuple[ConnectionLostError | None, ...]) -> None:
     frames: list[AnyServerFrame] = [
         build_dataclass(ConnectedFrame),
         build_dataclass(MessageFrame),
