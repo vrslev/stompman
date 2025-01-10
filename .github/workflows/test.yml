@@ -19,7 +19,6 @@ jobs:
       - uses: extractions/setup-just@v2
       - uses: astral-sh/setup-uv@v5
         with:
-          enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
       - run: just check-types
 
@@ -30,7 +29,6 @@ jobs:
       - uses: extractions/setup-just@v2
       - uses: astral-sh/setup-uv@v5
         with:
-          enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
       - run: just lint
 
@@ -48,7 +46,6 @@ jobs:
       - uses: extractions/setup-just@v2
       - uses: astral-sh/setup-uv@v5
         with:
-          enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
       - run: just test -vv
