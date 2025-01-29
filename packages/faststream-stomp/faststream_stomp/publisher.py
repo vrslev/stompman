@@ -22,8 +22,8 @@ class StompProducer(ProducerProto):
 
     async def publish(  # type: ignore[override]
         self,
-        *,
         message: SendableMessage,
+        *,
         destination: str,
         correlation_id: str | None,
         headers: dict[str, str] | None,

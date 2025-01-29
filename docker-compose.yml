@@ -5,7 +5,7 @@ services:
       ARTEMIS_USER: admin
       ARTEMIS_PASSWORD: ":=123"
     ports:
-      - 9001:61616
+      - 9000:61616
 
   activemq-classic:
     image: apache/activemq-classic:6.1.2
@@ -13,4 +13,4 @@ services:
       ACTIVEMQ_CONNECTION_USER: admin
       ACTIVEMQ_CONNECTION_PASSWORD: ":=123"
     ports:
-      - 9000:61613
+      - 9001:61613

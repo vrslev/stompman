@@ -2,7 +2,7 @@ import asyncio
 
 import stompman
 
-server = stompman.ConnectionParameters(host="0.0.0.0", port=61616, login="admin", passcode=":=123")  # noqa: S104
+server = stompman.ConnectionParameters(host="127.0.0.1", port=9000, login="admin", passcode=":=123")
 
 
 async def handle_message(message_frame: stompman.MessageFrame) -> None:
