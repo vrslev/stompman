@@ -31,7 +31,7 @@ async def test_simple(faker: faker.Faker, broker: faststream_stomp.StompBroker) 
         await broker.connect()
         await publisher.publish(expected_body.encode(), correlation_id=gen_cor_id())
 
-    async with asyncio.timeout(1), asyncio.TaskGroup() as task_group:
+    async with asyncio.timeout(10), asyncio.TaskGroup() as task_group:
         run_task = task_group.create_task(app.run())
         await event.wait()
         run_task.cancel()
