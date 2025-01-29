@@ -34,7 +34,7 @@ class StompProducer(ProducerProto):
             all_headers["correlation-id"] = correlation_id
         await self.client.send(body, destination, content_type=content_type, headers=all_headers)
 
-    async def request(  # type: ignore[override]  # noqa: PLR6301
+    async def request(  # type: ignore[override]
         self, message: SendableMessage, *, correlation_id: str | None, headers: dict[str, str] | None
     ) -> typing.Any:  # noqa: ANN401
         msg = "`StompProducer` can be used only to publish a response for `reply-to` or `RPC` messages."

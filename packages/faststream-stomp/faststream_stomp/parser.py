@@ -10,10 +10,10 @@ async def parse_message(message: stompman.MessageFrame) -> StreamMessage[stompma
     return StreamMessage(
         raw_message=message,
         body=message.body,
-        headers=typing.cast(dict[str, str], message.headers),
+        headers=typing.cast("dict[str, str]", message.headers),
         content_type=message.headers.get("content-type"),
         message_id=message.headers.get("message-id", gen_cor_id()),
-        correlation_id=typing.cast(str, message.headers.get("correlation-id", gen_cor_id())),
+        correlation_id=typing.cast("str", message.headers.get("correlation-id", gen_cor_id())),
     )
 
 

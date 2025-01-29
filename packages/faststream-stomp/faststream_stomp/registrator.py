@@ -38,7 +38,7 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
         include_in_schema: bool = True,
     ) -> StompSubscriber:
         subscriber = typing.cast(
-            StompSubscriber,
+            "StompSubscriber",
             super().subscriber(
                 StompSubscriber(
                     destination=destination,
@@ -74,7 +74,7 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
         include_in_schema: bool = True,
     ) -> StompPublisher:
         return typing.cast(
-            StompPublisher,
+            "StompPublisher",
             super().publisher(
                 StompPublisher(
                     destination,

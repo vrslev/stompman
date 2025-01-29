@@ -21,4 +21,4 @@ def anyio_backend(request: pytest.FixtureRequest) -> object:
     ]
 )
 def connection_parameters(request: pytest.FixtureRequest) -> stompman.ConnectionParameters:
-    return cast(stompman.ConnectionParameters, request.param)
+    return cast("stompman.ConnectionParameters", request.param)

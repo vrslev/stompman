@@ -85,7 +85,7 @@ def dump_frame(frame: AnyClientFrame | AnyRealServerFrame) -> bytes:
     dumped_headers = (
         (f"{key}:{value}\n".encode() for key, value in sorted_headers)
         if isinstance(frame, ConnectFrame)
-        else (dump_header(key, cast(str, value)) for key, value in sorted_headers)
+        else (dump_header(key, cast("str", value)) for key, value in sorted_headers)
     )
     lines = (
         FRAMES_TO_COMMANDS[type(frame)],
@@ -138,7 +138,7 @@ def parse_header(buffer: bytearray) -> tuple[str, str] | None:
 
 def make_frame_from_parts(*, command: bytes, headers: dict[str, str], body: bytes) -> AnyClientFrame | AnyServerFrame:
     frame_type = COMMANDS_TO_FRAMES[command]
-    headers_ = cast(Any, headers)
+    headers_ = cast("Any", headers)
     return frame_type(headers=headers_, body=body) if frame_type in FRAMES_WITH_BODY else frame_type(headers=headers_)  # type: ignore[call-arg]
 
 
