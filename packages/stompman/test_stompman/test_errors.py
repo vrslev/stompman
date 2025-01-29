@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 import stompman
-from tests.conftest import build_dataclass
+from test_stompman.conftest import build_dataclass
 
 
 @pytest.mark.parametrize(

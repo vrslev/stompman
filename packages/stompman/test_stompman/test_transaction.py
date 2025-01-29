@@ -13,7 +13,7 @@ from stompman import (
     CommitFrame,
     SendFrame,
 )
-from tests.conftest import (
+from test_stompman.conftest import (
     CONNECT_FRAME,
     CONNECTED_FRAME,
     EnrichedClient,

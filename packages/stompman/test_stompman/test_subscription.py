@@ -21,7 +21,7 @@ from stompman import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from tests.conftest import (
+from test_stompman.conftest import (
     CONNECT_FRAME,
     CONNECTED_FRAME,
     EnrichedClient,
