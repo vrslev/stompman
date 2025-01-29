@@ -1,4 +1,5 @@
-import typing
+from collections.abc import Awaitable, Callable, Iterable, Sequence
+from typing import Any
 
 import stompman
 from fast_depends.dependencies import Depends
@@ -19,8 +20,8 @@ class StompRoutePublisher(ArgsContainer):
         self,
         destination: str,
         *,
-        middlewares: typing.Sequence[PublisherMiddleware] = (),
-        schema_: typing.Any | None = None,  # noqa: ANN401
+        middlewares: Sequence[PublisherMiddleware] = (),
+        schema_: Any | None = None,  # noqa: ANN401
         title_: str | None = None,
         description_: str | None = None,
         include_in_schema: bool = True,
@@ -43,21 +44,19 @@ class StompRoute(SubscriberRoute):
 
     def __init__(
         self,
-        call: typing.Callable[..., SendableMessage] | typing.Callable[..., typing.Awaitable[SendableMessage]],
+        call: Callable[..., SendableMessage] | Callable[..., Awaitable[SendableMessage]],
         destination: str,
         *,
         ack: stompman.AckMode = "client-individual",
         headers: dict[str, str] | None = None,
-        on_suppressed_exception: typing.Callable[
-            [Exception, stompman.MessageFrame], typing.Any
-        ] = noop_handle_suppressed_exception,
+        on_suppressed_exception: Callable[[Exception, stompman.MessageFrame], Any] = noop_handle_suppressed_exception,
         suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
         # other args
-        publishers: typing.Iterable[StompRoutePublisher] = (),
-        dependencies: typing.Iterable[Depends] = (),
+        publishers: Iterable[StompRoutePublisher] = (),
+        dependencies: Iterable[Depends] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
-        middlewares: typing.Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
+        middlewares: Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
         retry: bool = False,
         title: str | None = None,
         description: str | None = None,
@@ -88,10 +87,10 @@ class StompRouter(StompRegistrator, BrokerRouter[stompman.MessageFrame]):
     def __init__(
         self,
         prefix: str = "",
-        handlers: typing.Iterable[StompRoute] = (),
+        handlers: Iterable[StompRoute] = (),
         *,
-        dependencies: typing.Iterable[Depends] = (),
-        middlewares: typing.Sequence[BrokerMiddleware[stompman.MessageFrame]] = (),
+        dependencies: Iterable[Depends] = (),
+        middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
         include_in_schema: bool | None = None,

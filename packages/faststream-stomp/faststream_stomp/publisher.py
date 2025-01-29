@@ -1,6 +1,7 @@
-import functools
-import itertools
-import typing
+from collections.abc import Sequence
+from functools import partial
+from itertools import chain
+from typing import Any
 
 import stompman
 from faststream.asyncapi.schema import Channel, CorrelationId, Message, Operation
@@ -36,7 +37,7 @@ class StompProducer(ProducerProto):
 
     async def request(  # type: ignore[override]
         self, message: SendableMessage, *, correlation_id: str | None, headers: dict[str, str] | None
-    ) -> typing.Any:  # noqa: ANN401
+    ) -> Any:  # noqa: ANN401
         msg = "`StompProducer` can be used only to publish a response for `reply-to` or `RPC` messages."
         raise NotImplementedError(msg)
 
@@ -48,9 +49,9 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
         self,
         destination: str,
         *,
-        broker_middlewares: typing.Sequence[BrokerMiddleware[stompman.MessageFrame]],
-        middlewares: typing.Sequence[PublisherMiddleware],
-        schema_: typing.Any | None,  # noqa: ANN401
+        broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
+        middlewares: Sequence[PublisherMiddleware],
+        schema_: Any | None,  # noqa: ANN401
         title_: str | None,
         description_: str | None,
         include_in_schema: bool,
@@ -73,27 +74,27 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
         *,
         correlation_id: str | None = None,
         headers: dict[str, str] | None = None,
-        _extra_middlewares: typing.Sequence[PublisherMiddleware] = (),
+        _extra_middlewares: Sequence[PublisherMiddleware] = (),
     ) -> None:
         assert self._producer, NOT_CONNECTED_YET  # noqa: S101
 
         call: AsyncFunc = self._producer.publish
 
-        for one_middleware in itertools.chain(
+        for one_middleware in chain(
             self._middlewares[::-1],  # type: ignore[arg-type]
             (
                 _extra_middlewares  # type: ignore[arg-type]
                 or (one_middleware(None).publish_scope for one_middleware in self._broker_middlewares[::-1])
             ),
         ):
-            call = functools.partial(one_middleware, call)  # type: ignore[operator, arg-type, misc]
+            call = partial(one_middleware, call)  # type: ignore[operator, arg-type, misc]
         await self._producer.publish(
             message=message, destination=self.destination, correlation_id=correlation_id, headers=headers or {}
         )
 
     async def request(  # type: ignore[override]
         self, message: SendableMessage, *, correlation_id: str | None = None, headers: dict[str, str] | None = None
-    ) -> typing.Any:  # noqa: ANN401
+    ) -> Any:  # noqa: ANN401
         assert self._producer, NOT_CONNECTED_YET  # noqa: S101
         return await self._producer.request(message, correlation_id=correlation_id, headers=headers)
 

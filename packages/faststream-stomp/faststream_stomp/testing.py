@@ -1,9 +1,7 @@
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock
 
-import stompman
-import stompman.frames
 from faststream.broker.message import encode_message
 from faststream.testing.broker import TestBroker
 from faststream.types import SendableMessage
@@ -12,6 +10,9 @@ from stompman import MessageFrame
 from faststream_stomp.broker import StompBroker
 from faststream_stomp.publisher import StompProducer, StompPublisher
 from faststream_stomp.subscriber import StompSubscriber
+
+if TYPE_CHECKING:
+    from stompman.frames import MessageHeaders
 
 
 class TestStompBroker(TestBroker[StompBroker]):
@@ -56,7 +57,7 @@ class FakeStompProducer(StompProducer):
         headers: dict[str, str] | None,
     ) -> None:
         body, content_type = encode_message(message)
-        all_headers: stompman.frames.MessageHeaders = (headers.copy() if headers else {}) | {  # type: ignore[assignment]
+        all_headers: MessageHeaders = (headers.copy() if headers else {}) | {  # type: ignore[assignment]
             "destination": destination,
             "message-id": str(uuid.uuid4()),
             "subscription": str(uuid.uuid4()),

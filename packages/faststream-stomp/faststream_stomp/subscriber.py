@@ -1,4 +1,5 @@
-import typing
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
 
 import stompman
 from fast_depends.dependencies import Depends
@@ -21,11 +22,11 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         destination: str,
         ack: stompman.AckMode = "client-individual",
         headers: dict[str, str] | None = None,
-        on_suppressed_exception: typing.Callable[[Exception, stompman.MessageFrame], typing.Any],
+        on_suppressed_exception: Callable[[Exception, stompman.MessageFrame], Any],
         suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
         retry: bool | int,
-        broker_dependencies: typing.Iterable[Depends],
-        broker_middlewares: typing.Sequence[BrokerMiddleware[stompman.MessageFrame]],
+        broker_dependencies: Iterable[Depends],
+        broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
         default_parser: AsyncCallable = parser.parse_message,
         default_decoder: AsyncCallable = parser.decode_message,
         # AsyncAPI information
@@ -63,8 +64,8 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         broker_decoder: CustomCallable | None,
         apply_types: bool,
         is_validate: bool,
-        _get_dependant: typing.Callable[..., typing.Any] | None,
-        _call_decorators: typing.Iterable[Decorator],
+        _get_dependant: Callable[..., Any] | None,
+        _call_decorators: Iterable[Decorator],
     ) -> None:
         self.client = client
         return super().setup(
@@ -97,7 +98,7 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
 
     async def get_one(self, *, timeout: float = 5) -> None: ...
 
-    def _make_response_publisher(self, message: StreamMessage[stompman.MessageFrame]) -> typing.Sequence[FakePublisher]:
+    def _make_response_publisher(self, message: StreamMessage[stompman.MessageFrame]) -> Sequence[FakePublisher]:
         return (  # pragma: no cover
             (FakePublisher(self._producer.publish, publish_kwargs={"destination": message.reply_to}),)
             if self._producer

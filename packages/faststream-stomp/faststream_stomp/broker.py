@@ -1,6 +1,7 @@
 import logging
 import types
-import typing
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any
 
 import anyio
 import stompman
@@ -30,8 +31,8 @@ class StompSecurity(BaseSecurity):
 
 
 class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompman.Client]):
-    _subscribers: typing.Mapping[int, StompSubscriber]
-    _publishers: typing.Mapping[int, StompPublisher]
+    _subscribers: Mapping[int, StompSubscriber]
+    _publishers: Mapping[int, StompPublisher]
     __max_msg_id_ln = 10
     _max_channel_name = 4
 
@@ -41,8 +42,8 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
         *,
         decoder: CustomCallable | None = None,
         parser: CustomCallable | None = None,
-        dependencies: typing.Iterable[Depends] = (),
-        middlewares: typing.Sequence[BrokerMiddleware[stompman.MessageFrame]] = (),
+        dependencies: Iterable[Depends] = (),
+        middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]] = (),
         graceful_timeout: float | None = 15.0,
         # Logging args
         logger: LoggerProto | None = None,
@@ -51,11 +52,11 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
         # FastDepends args
         apply_types: bool = True,
         validate: bool = True,
-        _get_dependant: typing.Callable[..., typing.Any] | None = None,
-        _call_decorators: typing.Iterable[Decorator] = (),
+        _get_dependant: Callable[..., Any] | None = None,
+        _call_decorators: Iterable[Decorator] = (),
         # AsyncAPI kwargs,
         description: str | None = None,
-        tags: typing.Iterable[Tag | TagDict] | None = None,
+        tags: Iterable[Tag | TagDict] | None = None,
     ) -> None:
         super().__init__(
             client=client,  # **connection_kwargs
@@ -156,9 +157,9 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
 
     async def request(  # type: ignore[override]
         self,
-        msg: typing.Any,  # noqa: ANN401
+        msg: Any,  # noqa: ANN401
         *,
         correlation_id: str | None = None,
         headers: dict[str, str] | None = None,
-    ) -> typing.Any:  # noqa: ANN401
+    ) -> Any:  # noqa: ANN401
         return await super().request(msg, producer=self._producer, correlation_id=correlation_id, headers=headers)

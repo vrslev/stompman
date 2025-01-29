@@ -1,4 +1,5 @@
-import typing
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any, cast
 
 import stompman
 from fast_depends.dependencies import Depends
@@ -14,8 +15,8 @@ def noop_handle_suppressed_exception(exception: Exception, message: stompman.Mes
 
 
 class StompRegistrator(ABCBroker[stompman.MessageFrame]):
-    _subscribers: typing.Mapping[int, StompSubscriber]
-    _publishers: typing.Mapping[int, StompPublisher]
+    _subscribers: Mapping[int, StompSubscriber]
+    _publishers: Mapping[int, StompPublisher]
 
     def subscriber(  # type: ignore[override]
         self,
@@ -23,21 +24,19 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
         *,
         ack: stompman.AckMode = "client-individual",
         headers: dict[str, str] | None = None,
-        on_suppressed_exception: typing.Callable[
-            [Exception, stompman.MessageFrame], typing.Any
-        ] = noop_handle_suppressed_exception,
+        on_suppressed_exception: Callable[[Exception, stompman.MessageFrame], Any] = noop_handle_suppressed_exception,
         suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
         # other args
-        dependencies: typing.Iterable[Depends] = (),
+        dependencies: Iterable[Depends] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
-        middlewares: typing.Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
+        middlewares: Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
         retry: bool = False,
         title: str | None = None,
         description: str | None = None,
         include_in_schema: bool = True,
     ) -> StompSubscriber:
-        subscriber = typing.cast(
+        subscriber = cast(
             "StompSubscriber",
             super().subscriber(
                 StompSubscriber(
@@ -67,13 +66,13 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
         self,
         destination: str,
         *,
-        middlewares: typing.Sequence[PublisherMiddleware] = (),
-        schema_: typing.Any | None = None,  # noqa: ANN401
+        middlewares: Sequence[PublisherMiddleware] = (),
+        schema_: Any | None = None,  # noqa: ANN401
         title_: str | None = None,
         description_: str | None = None,
         include_in_schema: bool = True,
     ) -> StompPublisher:
-        return typing.cast(
+        return cast(
             "StompPublisher",
             super().publisher(
                 StompPublisher(
