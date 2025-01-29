@@ -36,10 +36,16 @@ async def test_testing(faker: faker.Faker, broker: StompBroker) -> None:
         handle.mock.assert_called_once_with(expected_body)
 
 
-async def test_request_not_implemented(faker: faker.Faker, broker: StompBroker) -> None:
+async def test_broker_request_not_implemented(faker: faker.Faker, broker: StompBroker) -> None:
     async with TestStompBroker(broker):
         with pytest.raises(NotImplementedError):
             await broker.request(faker.pystr())
+
+
+async def test_publisher_request_not_implemented(faker: faker.Faker, broker: StompBroker) -> None:
+    async with TestStompBroker(broker):
+        with pytest.raises(NotImplementedError):
+            await broker.publisher(faker.pystr()).request(faker.pystr())
 
 
 def test_get_fmt(broker: StompBroker) -> None:
