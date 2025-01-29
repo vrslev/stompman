@@ -106,7 +106,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
             await self._connection.__aexit__(exc_type, exc_val, exc_tb)
         return await super()._close(exc_type, exc_val, exc_tb)
 
-    async def ping(self, timeout: float | None = None) -> bool:  # TODO: test
+    async def ping(self, timeout: float | None = None) -> bool:
         sleep_time = (timeout or 10) / 10
         with anyio.move_on_after(timeout) as cancel_scope:
             if self._connection is None:
@@ -119,9 +119,9 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
                 if self._connection._connection_manager._active_connection_state:  # noqa: SLF001
                     return True
 
-                await anyio.sleep(sleep_time)
+                await anyio.sleep(sleep_time)  # pragma: no cover
 
-        return False
+        return False  # pragma: no cover
 
     def get_fmt(self) -> str:  # TODO: test
         return (

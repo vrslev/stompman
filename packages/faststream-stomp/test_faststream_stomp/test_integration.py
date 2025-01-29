@@ -57,3 +57,18 @@ async def test_router(connection_parameters: stompman.ConnectionParameters) -> N
 async def test_broker_close(connection_parameters: stompman.ConnectionParameters) -> None:
     async with StompBroker(stompman.Client([connection_parameters])):
         pass
+
+
+async def test_ping_ok(connection_parameters: stompman.ConnectionParameters) -> None:
+    async with StompBroker(stompman.Client([connection_parameters])) as broker:
+        assert await broker.ping()
+
+
+async def test_ping_no_connection(connection_parameters: stompman.ConnectionParameters) -> None:
+    broker = StompBroker(stompman.Client([connection_parameters]))
+    assert not await broker.ping()
+
+
+async def test_ping_timeout(connection_parameters: stompman.ConnectionParameters) -> None:
+    async with StompBroker(stompman.Client([connection_parameters])) as broker:
+        assert not await broker.ping(0)
