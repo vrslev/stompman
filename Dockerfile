@@ -17,5 +17,5 @@ COPY packages/faststream-stomp/faststream_stomp/__init__.py packages/faststream-
 
 ENV SETUPTOOLS_SCM_PRETEND_VERSION=0
 RUN --mount=type=cache,target=~/.cache/uv \
-    ls packages/faststream-stomp && uv lock && uv sync
+    uv lock && uv sync --all-extras --all-packages --frozen
 COPY . .

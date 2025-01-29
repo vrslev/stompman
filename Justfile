@@ -1,4 +1,4 @@
-default: install lint check-types test test-integration
+default: install lint check-types test
 
 install:
     uv lock --upgrade
@@ -11,13 +11,16 @@ lint:
 check-types:
     uv run mypy .
 
-test *args:
-    uv run pytest {{args}}
+test-fast *args:
+    uv run pytest \
+        --ignore=packages/stompman/test_stompman/test_integration.py \
+        --ignore=packages/faststream-stomp/test_faststream_stomp/test_integration.py {{args}}
 
-test-integration *args:
+test *args:
     #!/bin/bash
     trap 'echo; docker compose down --remove-orphans' EXIT
-    docker compose run --build --rm app .venv/bin/pytest packages/stompman/test_stompman/integration.py --no-cov {{args}}
+    docker compose up -d
+    uv run pytest {{args}}
 
 run-artemis:
     #!/bin/bash

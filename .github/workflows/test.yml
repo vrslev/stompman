@@ -49,19 +49,3 @@ jobs:
           cache-dependency-glob: "**/pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
       - run: just install test -vv
-
-  test-integration:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version:
-          - "3.11"
-          - "3.12"
-          - "3.13"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: extractions/setup-just@v2
-      - run: just test-integration
-        env:
-          PYTHON_IMAGE: python:${{ matrix.python-version }}-slim-bullseye

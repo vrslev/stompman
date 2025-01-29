@@ -130,6 +130,10 @@ Also, I want to pointed out that:
 - stompman is tested and used with [ActiveMQ Artemis](https://activemq.apache.org/components/artemis/) and [ActiveMQ Classic](https://activemq.apache.org/components/classic/).
 - Specification says that headers in CONNECT and CONNECTED frames shouldn't be escaped for backwards compatibility. stompman escapes headers in CONNECT frame (outcoming), but does not unescape headers in CONNECTED (outcoming).
 
+### FastStream STOMP broker
+
+[An implementation of STOMP broker for FastStream.](packages/faststream-stomp/README.md)
+
 ### Examples
 
-See producer and consumer examples in [examples/](examples).
+See examples in [examples/](examples).

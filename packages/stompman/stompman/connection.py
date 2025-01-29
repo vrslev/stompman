@@ -101,5 +101,5 @@ class Connection(AbstractConnection):
                     self._read_non_empty_bytes(self.read_max_chunk_size), timeout=self.read_timeout
                 )
 
-            for frame in cast(Iterator[AnyServerFrame], parser.parse_frames_from_chunk(raw_frames)):
+            for frame in cast("Iterator[AnyServerFrame]", parser.parse_frames_from_chunk(raw_frames)):
                 yield frame

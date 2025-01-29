@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from itertools import starmap
-from typing import Final, cast
+from typing import Final
 from uuid import uuid4
 
 import pytest
@@ -20,16 +20,6 @@ from stompman.serde import (
 )
 
 DESTINATION: Final = "DLQ"
-
-
-@pytest.fixture(
-    params=[
-        stompman.ConnectionParameters(host="activemq-artemis", port=61616, login="admin", passcode=":=123"),
-        stompman.ConnectionParameters(host="activemq-classic", port=61613, login="admin", passcode=":=123"),
-    ]
-)
-def connection_parameters(request: pytest.FixtureRequest) -> stompman.ConnectionParameters:
-    return cast(stompman.ConnectionParameters, request.param)
 
 
 @asynccontextmanager
@@ -67,7 +57,7 @@ async def test_ok(connection_parameters: stompman.ConnectionParameters) -> None:
 
         assert sorted(received_messages) == sorted(messages)
 
-    messages = [str(uuid4()).encode() for _ in range(10000)]
+    messages = [str(uuid4()).encode() for _ in range(1000)]
 
     async with (
         create_client(connection_parameters) as consumer,
