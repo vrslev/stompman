@@ -7,9 +7,12 @@ from faststream_stomp import StompBroker, StompRoute, StompRouter
 
 pytestmark = pytest.mark.anyio
 
+@pytest.fixture
+def broker(connection_parameters: stompman.ConnectionParameters) -> StompBroker:
+    return StompBroker(stompman.Client([connection_parameters]))
 
-async def test_simple(connection_parameters: stompman.ConnectionParameters) -> None:
-    app = FastStream(broker := StompBroker(stompman.Client([connection_parameters])))
+async def test_simple(broker: StompBroker) -> None:
+    app = FastStream(broker)
     publisher = broker.publisher(destination := "test-test")
     event = asyncio.Event()
 
@@ -29,7 +32,7 @@ async def test_simple(connection_parameters: stompman.ConnectionParameters) -> N
         run_task.cancel()
 
 
-async def test_router(connection_parameters: stompman.ConnectionParameters) -> None:
+async def test_router(broker: StompBroker) -> None:
     def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == "hi"
         event.set()
@@ -38,7 +41,6 @@ async def test_router(connection_parameters: stompman.ConnectionParameters) -> N
     router = StompRouter(prefix="hi-", handlers=(StompRoute(route, destination),))
     publisher = router.publisher(destination)
 
-    broker = StompBroker(stompman.Client([connection_parameters]))
     broker.include_router(router)
     app = FastStream(broker)
     event = asyncio.Event()
@@ -54,21 +56,20 @@ async def test_router(connection_parameters: stompman.ConnectionParameters) -> N
         run_task.cancel()
 
 
-async def test_broker_close(connection_parameters: stompman.ConnectionParameters) -> None:
-    async with StompBroker(stompman.Client([connection_parameters])):
+async def test_broker_close(broker: StompBroker) -> None:
+    async with broker:
         pass
 
 
-async def test_ping_ok(connection_parameters: stompman.ConnectionParameters) -> None:
-    async with StompBroker(stompman.Client([connection_parameters])) as broker:
+async def test_ping_ok(broker: StompBroker) -> None:
+    async with broker:
         assert await broker.ping()
 
 
-async def test_ping_no_connection(connection_parameters: stompman.ConnectionParameters) -> None:
-    broker = StompBroker(stompman.Client([connection_parameters]))
+async def test_ping_no_connection(broker: StompBroker) -> None:
     assert not await broker.ping()
 
 
-async def test_ping_timeout(connection_parameters: stompman.ConnectionParameters) -> None:
-    async with StompBroker(stompman.Client([connection_parameters])) as broker:
+async def test_ping_timeout(broker: StompBroker) -> None:
+    async with broker:
         assert not await broker.ping(0)
