@@ -24,16 +24,36 @@ def broker(fake_connection_params: stompman.ConnectionParameters) -> StompBroker
 
 
 async def test_testing(faker: faker.Faker, broker: StompBroker) -> None:
-    expected_body, destination, correlation_id = faker.pystr(), faker.pystr(), gen_cor_id()
+    expected_body, first_destination, second_destination, third_destination, correlation_id = (
+        faker.pystr(),
+        faker.pystr(),
+        faker.pystr(),
+        faker.pystr(),
+        gen_cor_id(),
+    )
 
-    @broker.subscriber(destination)
-    def handle(body: str) -> None:
+    second_publisher = broker.publisher(second_destination)
+    third_publisher = broker.publisher(third_destination)
+
+    @broker.subscriber(first_destination)
+    @second_publisher
+    @third_publisher
+    def first_handle(body: str) -> str:
+        assert body == expected_body
+        return body
+
+    @broker.subscriber(second_destination)
+    def second_handle(body: str) -> None:
         assert body == expected_body
 
     async with TestStompBroker(broker) as br:
-        await br.publish(expected_body, destination, correlation_id=correlation_id)
-        assert handle.mock
-        handle.mock.assert_called_once_with(expected_body)
+        await br.publish(expected_body, first_destination, correlation_id=correlation_id)
+        assert first_handle.mock
+        first_handle.mock.assert_called_once_with(expected_body)
+        assert second_publisher.mock
+        second_publisher.mock.assert_called_once_with(expected_body)
+        assert third_publisher.mock
+        third_publisher.mock.assert_called_once_with(expected_body)
 
 
 async def test_broker_request_not_implemented(faker: faker.Faker, broker: StompBroker) -> None:

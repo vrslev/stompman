@@ -19,19 +19,19 @@ class TestStompBroker(TestBroker[StompBroker]):
     def create_publisher_fake_subscriber(
         broker: StompBroker, publisher: StompPublisher
     ) -> tuple[StompSubscriber, bool]:
-        sub: StompSubscriber | None = None  # TODO: test
+        subscriber: StompSubscriber | None = None
         for handler in broker._subscribers.values():  # noqa: SLF001
             if handler.destination == publisher.destination:
-                sub = handler
+                subscriber = handler
                 break
 
-        if sub is None:
+        if subscriber is None:
             is_real = False
-            sub = broker.subscriber(publisher.destination)
+            subscriber = broker.subscriber(publisher.destination)
         else:
             is_real = True
 
-        return sub, is_real
+        return subscriber, is_real
 
     @staticmethod
     async def _fake_connect(
