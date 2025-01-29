@@ -91,13 +91,13 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
             suppressed_exception_classes=self.suppressed_exception_classes,
         )
 
-    async def close(self) -> None:
+    async def close(self) -> None: # todo: test
         await self._subscription.unsubscribe()
         await super().close()
 
     async def get_one(self, *, timeout: float = 5) -> None: ...
 
-    def _make_response_publisher(self, message: StreamMessage[stompman.MessageFrame]) -> typing.Sequence[FakePublisher]:
+    def _make_response_publisher(self, message: StreamMessage[stompman.MessageFrame]) -> typing.Sequence[FakePublisher]: # todo: test
         return (
             (FakePublisher(self._producer.publish, publish_kwargs={"destination": message.reply_to}),)
             if self._producer
@@ -110,10 +110,10 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
     def add_prefix(self, prefix: str) -> None:
         self.destination = f"{prefix}{self.destination}"
 
-    def get_name(self) -> str:
+    def get_name(self) -> str: # todo: test
         return f"{self.destination}:{self.call_name}"
 
-    def get_schema(self) -> dict[str, Channel]:
+    def get_schema(self) -> dict[str, Channel]:  # todo: test
         payloads = self.get_payloads()
 
         return {

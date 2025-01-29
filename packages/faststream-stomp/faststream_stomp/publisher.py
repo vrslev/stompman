@@ -28,7 +28,7 @@ class StompProducer(ProducerProto):
     ) -> None:
         body, content_type = encode_message(message)
         all_headers = headers.copy() if headers else {}
-        if correlation_id:
+        if correlation_id: # todo: test
             all_headers["correlation-id"] = correlation_id
         await self.client.send(body, destination, content_type=content_type, headers=all_headers)
 
@@ -82,10 +82,10 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
     def __hash__(self) -> int:
         return hash(f"publisher:{self.destination}")
 
-    def get_name(self) -> str:
+    def get_name(self) -> str: # todo: test
         return f"{self.destination}:Publisher"
 
-    def get_schema(self) -> dict[str, Channel]:
+    def get_schema(self) -> dict[str, Channel]:  # todo: test
         payloads = self.get_payloads()
 
         return {
