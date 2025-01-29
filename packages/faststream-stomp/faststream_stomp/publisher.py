@@ -30,7 +30,7 @@ class StompProducer(ProducerProto):
     ) -> None:
         body, content_type = encode_message(message)
         all_headers = headers.copy() if headers else {}
-        if correlation_id:  # TODO: test
+        if correlation_id:
             all_headers["correlation-id"] = correlation_id
         await self.client.send(body, destination, content_type=content_type, headers=all_headers)
 

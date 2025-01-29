@@ -9,7 +9,7 @@ from faststream.types import SendableMessage
 from faststream_stomp.registrator import StompRegistrator, noop_handle_suppressed_exception
 
 
-class StompRoutePublisher(ArgsContainer): # todo: test
+class StompRoutePublisher(ArgsContainer):
     """Delayed StompPublisher registration object.
 
     Just a copy of StompRegistrator.publisher(...) arguments.
