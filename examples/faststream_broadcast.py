@@ -1,11 +1,11 @@
 import asyncio
 
 import faststream
+import faststream_stomp
 import stompman
-from faststream_stomp.broker import StompBroker
 
 server = stompman.ConnectionParameters(host="127.0.0.1", port=9000, login="admin", passcode=":=123")
-broker = StompBroker(stompman.Client([server]))
+broker = faststream_stomp.StompBroker(stompman.Client([server]))
 
 
 @broker.subscriber("first")
