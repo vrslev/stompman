@@ -3,7 +3,7 @@ import asyncio
 import faker
 import pytest
 import stompman
-from faststream import Context, FastStream
+from faststream import BaseMiddleware, Context, FastStream
 from faststream.broker.message import gen_cor_id
 from faststream_stomp import StompBroker, StompRoute, StompRouter
 
@@ -32,6 +32,34 @@ async def test_simple(faker: faker.Faker, broker: StompBroker) -> None:
         await publisher.publish(expected_body.encode(), correlation_id=gen_cor_id())
 
     async with asyncio.timeout(1), asyncio.TaskGroup() as task_group:
+        run_task = task_group.create_task(app.run())
+        await event.wait()
+        run_task.cancel()
+
+
+async def test_republish(faker: faker.Faker, broker: StompBroker) -> None:
+    app = FastStream(broker)
+    broker.add_middleware(BaseMiddleware)
+    expected_body, first_destination, second_destination = faker.pystr(), faker.pystr(), faker.pystr()
+    first_publisher, second_publisher = broker.publisher(first_destination), broker.publisher(second_destination)
+    event = asyncio.Event()
+
+    @broker.subscriber(first_destination)
+    @second_publisher
+    def _(body: str) -> str:
+        return body
+
+    @broker.subscriber(second_destination)
+    def _(body: str) -> None:
+        assert body == expected_body
+        event.set()
+
+    @app.after_startup
+    async def _() -> None:
+        await broker.connect()
+        await first_publisher.publish(expected_body.encode())
+
+    async with asyncio.timeout(10), asyncio.TaskGroup() as task_group:
         run_task = task_group.create_task(app.run())
         await event.wait()
         run_task.cancel()

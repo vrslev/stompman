@@ -1,3 +1,5 @@
+import functools
+import itertools
 import typing
 
 import stompman
@@ -8,7 +10,7 @@ from faststream.broker.publisher.proto import ProducerProto
 from faststream.broker.publisher.usecase import PublisherUsecase
 from faststream.broker.types import AsyncCallable, BrokerMiddleware, PublisherMiddleware
 from faststream.exceptions import NOT_CONNECTED_YET
-from faststream.types import SendableMessage
+from faststream.types import AsyncFunc, SendableMessage
 
 
 class StompProducer(ProducerProto):
@@ -66,9 +68,25 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
     create = __init__  # type: ignore[assignment]
 
     async def publish(  # type: ignore[override]
-        self, message: SendableMessage, *, correlation_id: str | None = None, headers: dict[str, str] | None = None
+        self,
+        message: SendableMessage,
+        *,
+        correlation_id: str | None = None,
+        headers: dict[str, str] | None = None,
+        _extra_middlewares: typing.Sequence[PublisherMiddleware] = (),
     ) -> None:
         assert self._producer, NOT_CONNECTED_YET  # noqa: S101
+
+        call: AsyncFunc = self._producer.publish
+
+        for one_middleware in itertools.chain(
+            self._middlewares[::-1],  # type: ignore[arg-type]
+            (
+                _extra_middlewares  # type: ignore[arg-type]
+                or (one_middleware(None).publish_scope for one_middleware in self._broker_middlewares[::-1])
+            ),
+        ):
+            call = functools.partial(one_middleware, call)  # type: ignore[operator, arg-type, misc]
         await self._producer.publish(
             message=message, destination=self.destination, correlation_id=correlation_id, headers=headers or {}
         )
