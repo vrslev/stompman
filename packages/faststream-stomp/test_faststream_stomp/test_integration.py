@@ -15,20 +15,21 @@ def broker(connection_parameters: stompman.ConnectionParameters) -> StompBroker:
     return StompBroker(stompman.Client([connection_parameters]))
 
 
-async def test_simple(broker: StompBroker) -> None:
+async def test_simple(faker: faker.Faker, broker: StompBroker) -> None:
     app = FastStream(broker)
-    publisher = broker.publisher(destination := "test-test")
+    expected_body, destination = faker.pystr(), faker.pystr()
+    publisher = broker.publisher(destination)
     event = asyncio.Event()
 
     @broker.subscriber(destination)
     def _(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
-        assert body == "hi"
+        assert body == expected_body
         event.set()
 
     @app.after_startup
     async def _() -> None:
         await broker.connect()
-        await publisher.publish(b"hi", correlation_id=gen_cor_id())
+        await publisher.publish(expected_body.encode(), correlation_id=gen_cor_id())
 
     async with asyncio.timeout(1), asyncio.TaskGroup() as task_group:
         run_task = task_group.create_task(app.run())
@@ -36,13 +37,14 @@ async def test_simple(broker: StompBroker) -> None:
         run_task.cancel()
 
 
-async def test_router(broker: StompBroker) -> None:
+async def test_router(faker: faker.Faker, broker: StompBroker) -> None:
+    expected_body, prefix, destination = faker.pystr(), faker.pystr(), faker.pystr()
+
     def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
-        assert body == "hi"
+        assert body == expected_body
         event.set()
 
-    destination = "test-test"
-    router = StompRouter(prefix="hi-", handlers=(StompRoute(route, destination),))
+    router = StompRouter(prefix=prefix, handlers=(StompRoute(route, destination),))
     publisher = router.publisher(destination)
 
     broker.include_router(router)
@@ -52,7 +54,7 @@ async def test_router(broker: StompBroker) -> None:
     @app.after_startup
     async def _() -> None:
         await broker.connect()
-        await publisher.publish(b"hi")
+        await publisher.publish(expected_body)
 
     async with asyncio.timeout(1), asyncio.TaskGroup() as task_group:
         run_task = task_group.create_task(app.run())
@@ -65,7 +67,7 @@ async def test_broker_close(broker: StompBroker) -> None:
         pass
 
 
-async def test_lifespan(faker: faker.Faker, broker: StompBroker) -> None:
+async def test_subscriber_lifespan(faker: faker.Faker, broker: StompBroker) -> None:
     @broker.subscriber(faker.pystr())
     def _() -> None: ...
 
