@@ -19,7 +19,7 @@ class TestStompBroker(TestBroker[StompBroker]):
     def create_publisher_fake_subscriber(
         broker: StompBroker, publisher: StompPublisher
     ) -> tuple[StompSubscriber, bool]:
-        sub: StompSubscriber | None = None # todo: test
+        sub: StompSubscriber | None = None  # TODO: test
         for handler in broker._subscribers.values():  # noqa: SLF001
             if handler.destination == publisher.destination:
                 sub = handler
@@ -61,7 +61,7 @@ class FakeStompProducer(StompProducer):
             "message-id": str(uuid.uuid4()),
             "subscription": str(uuid.uuid4()),
         }
-        if correlation_id: # todo: test
+        if correlation_id:
             all_headers["correlation-id"] = correlation_id  # type: ignore[typeddict-unknown-key]
         if content_type:
             all_headers["content-type"] = content_type
