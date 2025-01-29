@@ -1,9 +1,10 @@
 import asyncio
+from typing import cast
 
 import pytest
 import stompman
 from faststream import Context, FastStream
-from faststream_stomp import StompBroker, StompRoute, StompRouter, TestStompBroker
+from faststream_stomp import StompBroker, StompRoute, StompRouter
 
 
 @pytest.fixture
@@ -11,12 +12,19 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-connection_params = stompman.ConnectionParameters(host="0.0.0.0", port=61616, login="admin", passcode=":=123")  # noqa: S104
+@pytest.fixture(
+    params=[
+        stompman.ConnectionParameters(host="activemq-artemis", port=61616, login="admin", passcode=":=123"),
+        stompman.ConnectionParameters(host="activemq-classic", port=61613, login="admin", passcode=":=123"),
+    ]
+)
+def connection_parameters(request: pytest.FixtureRequest) -> stompman.ConnectionParameters:
+    return cast(stompman.ConnectionParameters, request.param)
 
 
 @pytest.mark.anyio
-async def test_integration_simple() -> None:
-    app = FastStream(broker := StompBroker(stompman.Client([connection_params])))
+async def test_integration_simple(connection_parameters: stompman.ConnectionParameters) -> None:
+    app = FastStream(broker := StompBroker(stompman.Client([connection_parameters])))
     publisher = broker.publisher(destination := "test-test")
     event = asyncio.Event()
 
@@ -37,7 +45,7 @@ async def test_integration_simple() -> None:
 
 
 @pytest.mark.anyio
-async def test_integration_router() -> None:
+async def test_integration_router(connection_parameters: stompman.ConnectionParameters) -> None:
     def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == "hi"
         event.set()
@@ -46,7 +54,7 @@ async def test_integration_router() -> None:
     router = StompRouter(prefix="hi-", handlers=(StompRoute(route, destination),))
     publisher = router.publisher(destination)
 
-    broker = StompBroker(stompman.Client([connection_params]))
+    broker = StompBroker(stompman.Client([connection_parameters]))
     broker.include_router(router)
     app = FastStream(broker)
     event = asyncio.Event()
@@ -60,18 +68,3 @@ async def test_integration_router() -> None:
         run_task = task_group.create_task(app.run())
         await event.wait()
         run_task.cancel()
-
-
-@pytest.mark.anyio
-async def test_testing() -> None:
-    broker = StompBroker(stompman.Client([connection_params]))
-    destination = "test-test"
-
-    @broker.subscriber(destination)
-    def handle(body: str) -> None:
-        assert body == "hi"
-
-    async with TestStompBroker(broker) as br:
-        await br.publish("hi", destination)
-        assert handle.mock
-        handle.mock.assert_called_once_with("hi")
