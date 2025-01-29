@@ -6,6 +6,8 @@ FROM ${PYTHON_IMAGE}
 RUN pip install uv
 
 WORKDIR /app
+
+# Copy rarely changing files first
 COPY pyproject.toml README.md ./
 COPY packages/stompman/stompman/__init__.py packages/stompman/stompman/__init__.py
 COPY packages/stompman/pyproject.toml packages/stompman/pyproject.toml
