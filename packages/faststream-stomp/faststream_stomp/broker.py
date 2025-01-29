@@ -123,7 +123,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
 
         return False  # pragma: no cover
 
-    def get_fmt(self) -> str:  # TODO: test
+    def get_fmt(self) -> str:
         return (
             "%(asctime)s %(levelname)-8s - "
             f"%(channel)-{self._max_channel_name}s | "
