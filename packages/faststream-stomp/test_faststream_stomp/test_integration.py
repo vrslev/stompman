@@ -7,9 +7,11 @@ from faststream_stomp import StompBroker, StompRoute, StompRouter
 
 pytestmark = pytest.mark.anyio
 
+
 @pytest.fixture
 def broker(connection_parameters: stompman.ConnectionParameters) -> StompBroker:
     return StompBroker(stompman.Client([connection_parameters]))
+
 
 async def test_simple(broker: StompBroker) -> None:
     app = FastStream(broker)
@@ -61,15 +63,14 @@ async def test_broker_close(broker: StompBroker) -> None:
         pass
 
 
-async def test_ping_ok(broker: StompBroker) -> None:
-    async with broker:
-        assert await broker.ping()
+class TestPing:
+    async def test_ok(self, broker: StompBroker) -> None:
+        async with broker:
+            assert await broker.ping()
 
+    async def test_no_connection(self, broker: StompBroker) -> None:
+        assert not await broker.ping()
 
-async def test_ping_no_connection(broker: StompBroker) -> None:
-    assert not await broker.ping()
-
-
-async def test_ping_timeout(broker: StompBroker) -> None:
-    async with broker:
-        assert not await broker.ping(0)
+    async def test_timeout(self, broker: StompBroker) -> None:
+        async with broker:
+            assert not await broker.ping(0)
