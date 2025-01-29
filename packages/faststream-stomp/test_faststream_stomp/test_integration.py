@@ -1,21 +1,21 @@
 import asyncio
 
 import faker
+import faststream_stomp
 import pytest
 import stompman
 from faststream import BaseMiddleware, Context, FastStream
 from faststream.broker.message import gen_cor_id
-from faststream_stomp import StompBroker, StompRoute, StompRouter
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def broker(connection_parameters: stompman.ConnectionParameters) -> StompBroker:
-    return StompBroker(stompman.Client([connection_parameters]))
+def broker(connection_parameters: stompman.ConnectionParameters) -> faststream_stomp.StompBroker:
+    return faststream_stomp.StompBroker(stompman.Client([connection_parameters]))
 
 
-async def test_simple(faker: faker.Faker, broker: StompBroker) -> None:
+async def test_simple(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
     app = FastStream(broker)
     expected_body, destination = faker.pystr(), faker.pystr()
     publisher = broker.publisher(destination)
@@ -37,7 +37,7 @@ async def test_simple(faker: faker.Faker, broker: StompBroker) -> None:
         run_task.cancel()
 
 
-async def test_republish(faker: faker.Faker, broker: StompBroker) -> None:
+async def test_republish(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
     app = FastStream(broker)
     broker.add_middleware(BaseMiddleware)
     expected_body, first_destination, second_destination = faker.pystr(), faker.pystr(), faker.pystr()
@@ -65,14 +65,14 @@ async def test_republish(faker: faker.Faker, broker: StompBroker) -> None:
         run_task.cancel()
 
 
-async def test_router(faker: faker.Faker, broker: StompBroker) -> None:
+async def test_router(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
     expected_body, prefix, destination = faker.pystr(), faker.pystr(), faker.pystr()
 
     def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == expected_body
         event.set()
 
-    router = StompRouter(prefix=prefix, handlers=(StompRoute(route, destination),))
+    router = faststream_stomp.StompRouter(prefix=prefix, handlers=(faststream_stomp.StompRoute(route, destination),))
     publisher = router.publisher(destination)
 
     broker.include_router(router)
@@ -90,12 +90,12 @@ async def test_router(faker: faker.Faker, broker: StompBroker) -> None:
         run_task.cancel()
 
 
-async def test_broker_close(broker: StompBroker) -> None:
+async def test_broker_close(broker: faststream_stomp.StompBroker) -> None:
     async with broker:
         pass
 
 
-async def test_subscriber_lifespan(faker: faker.Faker, broker: StompBroker) -> None:
+async def test_subscriber_lifespan(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
     @broker.subscriber(faker.pystr())
     def _() -> None: ...
 
@@ -104,13 +104,13 @@ async def test_subscriber_lifespan(faker: faker.Faker, broker: StompBroker) -> N
 
 
 class TestPing:
-    async def test_ok(self, broker: StompBroker) -> None:
+    async def test_ok(self, broker: faststream_stomp.StompBroker) -> None:
         async with broker:
             assert await broker.ping()
 
-    async def test_no_connection(self, broker: StompBroker) -> None:
+    async def test_no_connection(self, broker: faststream_stomp.StompBroker) -> None:
         assert not await broker.ping()
 
-    async def test_timeout(self, broker: StompBroker) -> None:
+    async def test_timeout(self, broker: faststream_stomp.StompBroker) -> None:
         async with broker:
             assert not await broker.ping(0)
