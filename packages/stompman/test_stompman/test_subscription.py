@@ -5,7 +5,6 @@ from unittest import mock
 
 import faker
 import pytest
-
 import stompman.subscription
 from stompman import (
     AckFrame,
@@ -21,7 +20,8 @@ from stompman import (
     SubscribeFrame,
     UnsubscribeFrame,
 )
-from tests.conftest import (
+
+from test_stompman.conftest import (
     CONNECT_FRAME,
     CONNECTED_FRAME,
     EnrichedClient,

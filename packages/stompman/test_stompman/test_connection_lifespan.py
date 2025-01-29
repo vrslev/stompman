@@ -6,7 +6,6 @@ from unittest import mock
 
 import faker
 import pytest
-
 import stompman.connection_lifespan
 from stompman import (
     AnyServerFrame,
@@ -22,7 +21,8 @@ from stompman import (
     ReceiptFrame,
     UnsupportedProtocolVersion,
 )
-from tests.conftest import (
+
+from test_stompman.conftest import (
     BaseMockConnection,
     EnrichedClient,
     build_dataclass,

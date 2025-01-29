@@ -1,5 +1,4 @@
 import pytest
-
 from stompman import (
     AckFrame,
     AnyClientFrame,

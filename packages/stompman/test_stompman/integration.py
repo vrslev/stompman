@@ -6,9 +6,8 @@ from typing import Final, cast
 from uuid import uuid4
 
 import pytest
-from hypothesis import given, strategies
-
 import stompman
+from hypothesis import given, strategies
 from stompman.serde import (
     COMMANDS_TO_FRAMES,
     NEWLINE,

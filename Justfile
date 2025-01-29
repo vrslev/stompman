@@ -13,7 +13,7 @@ test *args:
 test-integration *args:
     #!/bin/bash
     trap 'echo; docker compose down --remove-orphans' EXIT
-    docker compose run --build --rm app .venv/bin/pytest tests/integration.py --no-cov {{args}}
+    docker compose run --build --rm app .venv/bin/pytest packages/stompman/test_stompman/integration.py --no-cov {{args}}
 
 run-artemis:
     #!/bin/bash
@@ -26,7 +26,7 @@ run-consumer:
 run-producer:
     uv run examples/producer.py
 
-publish:
+publish package:
     rm -rf dist
-    uv build
+    uv build --package {{package}}
     uv publish --token $PYPI_TOKEN

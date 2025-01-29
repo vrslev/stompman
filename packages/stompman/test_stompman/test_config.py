@@ -2,9 +2,8 @@ from typing import TypedDict
 
 import faker
 import pytest
-from polyfactory.factories.typed_dict_factory import TypedDictFactory
-
 import stompman
+from polyfactory.factories.typed_dict_factory import TypedDictFactory
 from stompman.config import MultiHostHostLike
 
 

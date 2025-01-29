@@ -6,7 +6,6 @@ from typing import Any
 from unittest import mock
 
 import pytest
-
 from stompman import (
     AnyServerFrame,
     BeginFrame,
