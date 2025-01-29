@@ -31,7 +31,6 @@ async def test_testing(faker: faker.Faker, broker: StompBroker) -> None:
         faker.pystr(),
         gen_cor_id(),
     )
-
     second_publisher = broker.publisher(second_destination)
     third_publisher = broker.publisher(third_destination)
 
