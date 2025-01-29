@@ -1,8 +1,8 @@
 from typing import Any
 
 import pytest
-
 import stompman
+
 from test_stompman.conftest import build_dataclass
 
 

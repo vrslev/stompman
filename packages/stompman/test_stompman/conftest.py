@@ -5,9 +5,8 @@ from ssl import SSLContext
 from typing import Any, Literal, Self, TypeVar
 
 import pytest
-from polyfactory.factories.dataclass_factory import DataclassFactory
-
 import stompman
+from polyfactory.factories.dataclass_factory import DataclassFactory
 from stompman.connection import AbstractConnection
 from stompman.connection_lifespan import AbstractConnectionLifespan
 from stompman.connection_manager import ConnectionManager
