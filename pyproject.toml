@@ -1,23 +1,7 @@
 [project]
-name = "stompman"
-description = "Python STOMP client with pleasant API"
-authors = [{ name = "Lev Vereshchagin", email = "mail@vrslev.com" }]
-dependencies = []
+name = "stompman-workspace"
 requires-python = ">=3.11"
-readme = "README.md"
-license = { text = "MIT" }
-keywords = ["stomp", "artemis", "activemq", "messaging", "jms"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Natural Language :: English",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Topic :: System :: Networking",
-    "Typing :: Typed",
-]
-dynamic = ["version"]
-
-[project.urls]
-repository = "https://github.com/vrslev/stompman"
+version = "0"
 
 [dependency-groups]
 dev = [
@@ -32,12 +16,14 @@ dev = [
     "uvloop==0.21.0",
 ]
 
-[build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+[tool.uv]
+package = false
 
-[tool.hatch.version]
-source = "vcs"
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+stompman = { workspace = true }
 
 
 [tool.mypy]

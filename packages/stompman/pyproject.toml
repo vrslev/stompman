@@ -1,0 +1,37 @@
+[project]
+name = "stompman"
+description = "Python STOMP client with pleasant API"
+authors = [{ name = "Lev Vereshchagin", email = "mail@vrslev.com" }]
+dependencies = []
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["stomp", "artemis", "activemq", "messaging", "jms"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Natural Language :: English",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: System :: Networking",
+    "Typing :: Typed",
+]
+dynamic = ["version", "readme"]
+
+[project.urls]
+repository = "https://github.com/vrslev/stompman"
+
+[build-system]
+requires = ["hatchling", "hatch-vcs", "hatch-fancy-pypi-readme"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+raw-options.root = "../.."
+fallback-version = "0"
+
+[tool.hatch.build]
+include = ["stompman"]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "../../README.md"

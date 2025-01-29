@@ -26,7 +26,7 @@ run-consumer:
 run-producer:
     uv run examples/producer.py
 
-publish:
+publish package:
     rm -rf dist
-    uv build
+    uv build --package {{package}}
     uv publish --token $PYPI_TOKEN

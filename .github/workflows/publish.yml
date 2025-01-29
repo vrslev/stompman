@@ -1,4 +1,4 @@
-name: Publish
+name: publish
 
 on:
   release:
@@ -12,8 +12,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: extractions/setup-just@v2
       - uses: astral-sh/setup-uv@v5
-        with:
-          cache-dependency-glob: "**/pyproject.toml"
-      - run: just publish
+      - if: startsWith(github.ref_name, 'stompman')
+        run: just publish stompman
+        env:
+          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+
+      - if: startsWith(github.ref_name, 'faststream-stomp')
+        run: just publish faststream-stomp
         env:
           PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
