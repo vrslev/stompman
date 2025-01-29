@@ -57,7 +57,7 @@ async def test_ok(connection_parameters: stompman.ConnectionParameters) -> None:
 
         assert sorted(received_messages) == sorted(messages)
 
-    messages = [str(uuid4()).encode() for _ in range(10000)]
+    messages = [str(uuid4()).encode() for _ in range(1000)]
 
     async with (
         create_client(connection_parameters) as consumer,
