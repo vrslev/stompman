@@ -16,8 +16,8 @@ def anyio_backend(request: pytest.FixtureRequest) -> object:
 
 @pytest.fixture(
     params=[
-        stompman.ConnectionParameters(host="activemq-artemis", port=61616, login="admin", passcode=":=123"),
-        stompman.ConnectionParameters(host="activemq-classic", port=61613, login="admin", passcode=":=123"),
+        stompman.ConnectionParameters(host="127.0.0.1", port=9000, login="admin", passcode=":=123"),
+        stompman.ConnectionParameters(host="127.0.0.1", port=9001, login="admin", passcode=":=123"),
     ]
 )
 def connection_parameters(request: pytest.FixtureRequest) -> stompman.ConnectionParameters:

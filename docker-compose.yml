@@ -1,26 +1,16 @@
 services:
-  app:
-    build:
-      context: .
-      args:
-        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.13-slim-bullseye}
-    depends_on:
-      activemq-artemis:
-        condition: service_started
-      activemq-classic:
-        condition: service_started
-
   activemq-artemis:
     image: apache/activemq-artemis:2.37.0-alpine
     environment:
       ARTEMIS_USER: admin
       ARTEMIS_PASSWORD: ":=123"
     ports:
-      - 8161:8161
-      - 61616:61616
+      - 9001:61616
 
   activemq-classic:
     image: apache/activemq-classic:6.1.2
     environment:
       ACTIVEMQ_CONNECTION_USER: admin
       ACTIVEMQ_CONNECTION_PASSWORD: ":=123"
+    ports:
+      - 9000:61613
