@@ -1,5 +1,6 @@
 import asyncio
 
+import faker
 import pytest
 import stompman
 from faststream import Context, FastStream
@@ -29,7 +30,7 @@ async def test_simple(broker: StompBroker) -> None:
         await broker.connect()
         await publisher.publish(b"hi", correlation_id=gen_cor_id())
 
-    async with asyncio.timeout(10), asyncio.TaskGroup() as task_group:
+    async with asyncio.timeout(1), asyncio.TaskGroup() as task_group:
         run_task = task_group.create_task(app.run())
         await event.wait()
         run_task.cancel()
@@ -53,7 +54,7 @@ async def test_router(broker: StompBroker) -> None:
         await broker.connect()
         await publisher.publish(b"hi")
 
-    async with asyncio.timeout(10), asyncio.TaskGroup() as task_group:
+    async with asyncio.timeout(1), asyncio.TaskGroup() as task_group:
         run_task = task_group.create_task(app.run())
         await event.wait()
         run_task.cancel()
@@ -62,6 +63,14 @@ async def test_router(broker: StompBroker) -> None:
 async def test_broker_close(broker: StompBroker) -> None:
     async with broker:
         pass
+
+
+async def test_lifespan(faker: faker.Faker, broker: StompBroker) -> None:
+    @broker.subscriber(faker.pystr())
+    def _() -> None: ...
+
+    await broker.start()
+    await broker.close()
 
 
 class TestPing:
