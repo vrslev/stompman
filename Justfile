@@ -1,4 +1,8 @@
-default: lint check-types test test-integration
+default: install lint check-types test test-integration
+
+install:
+    uv lock --upgrade
+    uv sync --all-extras --all-packages --frozen
 
 lint:
     uv run ruff check .

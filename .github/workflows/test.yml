@@ -20,7 +20,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           cache-dependency-glob: "**/pyproject.toml"
-      - run: just check-types
+      - run: just install check-types
 
   lint:
     runs-on: ubuntu-latest
@@ -30,7 +30,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           cache-dependency-glob: "**/pyproject.toml"
-      - run: just lint
+      - run: just install lint
 
   test:
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
         with:
           cache-dependency-glob: "**/pyproject.toml"
       - run: uv python install ${{ matrix.python-version }}
-      - run: just test -vv
+      - run: just install test -vv
 
   test-integration:
     runs-on: ubuntu-latest
