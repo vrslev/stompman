@@ -11,8 +11,12 @@ def fake_connection_params() -> stompman.ConnectionParameters:
     return stompman.ConnectionParameters(host="0.0.0.0", port=61616, login="admin", passcode=":=123")  # noqa: S104
 
 
-async def test_testing(fake_connection_params: stompman.ConnectionParameters) -> None:
-    broker = StompBroker(stompman.Client([fake_connection_params]))
+@pytest.fixture
+def broker(fake_connection_params: stompman.ConnectionParameters) -> StompBroker:
+    return StompBroker(stompman.Client([fake_connection_params]))
+
+
+async def test_testing(broker: StompBroker) -> None:
     destination = "test-test"
     correlation_id = gen_cor_id()
 
@@ -26,9 +30,11 @@ async def test_testing(fake_connection_params: stompman.ConnectionParameters) ->
         handle.mock.assert_called_once_with("hi")
 
 
-async def test_request_not_implemented(fake_connection_params: stompman.ConnectionParameters) -> None:
-    broker = StompBroker(stompman.Client([fake_connection_params]))
-
+async def test_request_not_implemented(broker: StompBroker) -> None:
     async with TestStompBroker(broker):
         with pytest.raises(NotImplementedError):
             await broker.request("")
+
+
+def test_get_fmt(broker: StompBroker) -> None:
+    broker.get_fmt()
