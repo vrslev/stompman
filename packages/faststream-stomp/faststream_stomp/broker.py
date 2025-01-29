@@ -154,7 +154,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
             headers=headers,
         )
 
-    async def request(  # type: ignore[override] # todo: test
+    async def request(  # type: ignore[override]
         self,
         msg: typing.Any,  # noqa: ANN401
         *,
