@@ -2,18 +2,13 @@ import pytest
 import stompman
 from faststream_stomp import StompBroker, TestStompBroker
 
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
+pytestmark = pytest.mark.anyio
 
 
-connection_params = stompman.ConnectionParameters(host="0.0.0.0", port=61616, login="admin", passcode=":=123")  # noqa: S104
-
-
-@pytest.mark.anyio
 async def test_testing() -> None:
-    broker = StompBroker(stompman.Client([connection_params]))
+    broker = StompBroker(
+        stompman.Client([stompman.ConnectionParameters(host="0.0.0.0", port=61616, login="admin", passcode=":=123")])  # noqa: S104
+    )
     destination = "test-test"
 
     @broker.subscriber(destination)

@@ -1,28 +1,13 @@
 import asyncio
-from typing import cast
 
 import pytest
 import stompman
 from faststream import Context, FastStream
 from faststream_stomp import StompBroker, StompRoute, StompRouter
 
-
-@pytest.fixture
-def anyio_backend() -> str:
-    return "asyncio"
+pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture(
-    params=[
-        stompman.ConnectionParameters(host="activemq-artemis", port=61616, login="admin", passcode=":=123"),
-        stompman.ConnectionParameters(host="activemq-classic", port=61613, login="admin", passcode=":=123"),
-    ]
-)
-def connection_parameters(request: pytest.FixtureRequest) -> stompman.ConnectionParameters:
-    return cast(stompman.ConnectionParameters, request.param)
-
-
-@pytest.mark.anyio
 async def test_integration_simple(connection_parameters: stompman.ConnectionParameters) -> None:
     app = FastStream(broker := StompBroker(stompman.Client([connection_parameters])))
     publisher = broker.publisher(destination := "test-test")
@@ -44,7 +29,6 @@ async def test_integration_simple(connection_parameters: stompman.ConnectionPara
         run_task.cancel()
 
 
-@pytest.mark.anyio
 async def test_integration_router(connection_parameters: stompman.ConnectionParameters) -> None:
     def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == "hi"
