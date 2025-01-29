@@ -102,11 +102,11 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
         exc_val: BaseException | None = None,
         exc_tb: types.TracebackType | None = None,
     ) -> None:
-        if self._connection: # todo: test
+        if self._connection:
             await self._connection.__aexit__(exc_type, exc_val, exc_tb)
         return await super()._close(exc_type, exc_val, exc_tb)
 
-    async def ping(self, timeout: float | None = None) -> bool: # todo: test
+    async def ping(self, timeout: float | None = None) -> bool:  # TODO: test
         sleep_time = (timeout or 10) / 10
         with anyio.move_on_after(timeout) as cancel_scope:
             if self._connection is None:
@@ -123,7 +123,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
 
         return False
 
-    def get_fmt(self) -> str: # todo: test
+    def get_fmt(self) -> str:  # TODO: test
         return (
             "%(asctime)s %(levelname)-8s - "
             f"%(channel)-{self._max_channel_name}s | "

@@ -8,7 +8,7 @@ from faststream_stomp import StompBroker, StompRoute, StompRouter
 pytestmark = pytest.mark.anyio
 
 
-async def test_integration_simple(connection_parameters: stompman.ConnectionParameters) -> None:
+async def test_simple(connection_parameters: stompman.ConnectionParameters) -> None:
     app = FastStream(broker := StompBroker(stompman.Client([connection_parameters])))
     publisher = broker.publisher(destination := "test-test")
     event = asyncio.Event()
@@ -29,7 +29,7 @@ async def test_integration_simple(connection_parameters: stompman.ConnectionPara
         run_task.cancel()
 
 
-async def test_integration_router(connection_parameters: stompman.ConnectionParameters) -> None:
+async def test_router(connection_parameters: stompman.ConnectionParameters) -> None:
     def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == "hi"
         event.set()
@@ -52,3 +52,8 @@ async def test_integration_router(connection_parameters: stompman.ConnectionPara
         run_task = task_group.create_task(app.run())
         await event.wait()
         run_task.cancel()
+
+
+async def test_broker_close(connection_parameters: stompman.ConnectionParameters) -> None:
+    async with StompBroker(stompman.Client([connection_parameters])):
+        pass
