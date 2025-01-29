@@ -1,5 +1,7 @@
+import faststream
 import pytest
 import stompman
+from faststream.asyncapi import get_app_schema
 from faststream.broker.message import gen_cor_id
 from faststream_stomp import StompBroker, TestStompBroker
 
@@ -38,3 +40,7 @@ async def test_request_not_implemented(broker: StompBroker) -> None:
 
 def test_get_fmt(broker: StompBroker) -> None:
     broker.get_fmt()
+
+
+def test_asyncapi_schema(broker: StompBroker) -> None:
+    get_app_schema(faststream.FastStream(broker))
