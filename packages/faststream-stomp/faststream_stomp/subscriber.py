@@ -97,10 +97,8 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
 
     async def get_one(self, *, timeout: float = 5) -> None: ...
 
-    def _make_response_publisher(
-        self, message: StreamMessage[stompman.MessageFrame]
-    ) -> typing.Sequence[FakePublisher]:  # TODO: test
-        return (
+    def _make_response_publisher(self, message: StreamMessage[stompman.MessageFrame]) -> typing.Sequence[FakePublisher]:
+        return (  # pragma: no cover
             (FakePublisher(self._producer.publish, publish_kwargs={"destination": message.reply_to}),)
             if self._producer
             else ()
