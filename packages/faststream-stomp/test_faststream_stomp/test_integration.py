@@ -3,6 +3,7 @@ import asyncio
 import pytest
 import stompman
 from faststream import Context, FastStream
+from faststream.broker.message import gen_cor_id
 from faststream_stomp import StompBroker, StompRoute, StompRouter
 
 pytestmark = pytest.mark.anyio
@@ -26,7 +27,7 @@ async def test_simple(broker: StompBroker) -> None:
     @app.after_startup
     async def _() -> None:
         await broker.connect()
-        await publisher.publish(b"hi")
+        await publisher.publish(b"hi", correlation_id=gen_cor_id())
 
     async with asyncio.timeout(10), asyncio.TaskGroup() as task_group:
         run_task = task_group.create_task(app.run())

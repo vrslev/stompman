@@ -73,7 +73,7 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
             message=message, destination=self.destination, correlation_id=correlation_id, headers=headers or {}
         )
 
-    async def request(  # type: ignore[override]  # TODO: test
+    async def request(  # type: ignore[override]
         self, message: SendableMessage, *, correlation_id: str | None = None, headers: dict[str, str] | None = None
     ) -> typing.Any:  # noqa: ANN401
         assert self._producer, NOT_CONNECTED_YET  # noqa: S101
