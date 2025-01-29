@@ -67,7 +67,7 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
 
     create = __init__  # type: ignore[assignment]
 
-    async def publish(  # type: ignore[override]
+    async def publish(
         self,
         message: SendableMessage,
         *,

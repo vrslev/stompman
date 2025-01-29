@@ -70,7 +70,7 @@ class StompRoute(SubscriberRoute):
             headers=headers,
             on_suppressed_exception=on_suppressed_exception,
             suppressed_exception_classes=suppressed_exception_classes,
-            publishers=publishers,  # type: ignore[arg-type]
+            publishers=publishers,
             dependencies=dependencies,
             parser=parser,
             decoder=decoder,

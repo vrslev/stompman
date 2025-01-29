@@ -57,8 +57,8 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
         )
         return subscriber.add_call(
             filter_=default_filter,
-            parser_=parser or self._parser,  # type: ignore[arg-type]
-            decoder_=decoder or self._decoder,  # type: ignore[arg-type]
+            parser_=parser or self._parser,
+            decoder_=decoder or self._decoder,
             dependencies_=dependencies,
             middlewares_=middlewares,
         )
