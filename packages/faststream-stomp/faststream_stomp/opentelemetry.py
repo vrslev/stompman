@@ -27,11 +27,13 @@ class StompTelemetrySettingsProvider(TelemetrySettingsProvider[stompman.MessageF
         return msg.raw_message.headers["destination"]
 
     def get_publish_attrs_from_kwargs(self, kwargs: StompProducerPublishKwargs) -> AnyDict:  # type: ignore[override]
-        return {
+        publish_attrs = {
             SpanAttributes.MESSAGING_SYSTEM: self.messaging_system,
             SpanAttributes.MESSAGING_DESTINATION_NAME: kwargs["destination"],
-            SpanAttributes.MESSAGING_MESSAGE_CONVERSATION_ID: kwargs["correlation_id"],
         }
+        if kwargs["correlation_id"]:
+            publish_attrs[SpanAttributes.MESSAGING_MESSAGE_CONVERSATION_ID] = kwargs["correlation_id"]
+        return publish_attrs
 
     def get_publish_destination_name(self, kwargs: StompProducerPublishKwargs) -> str:  # type: ignore[override]  # noqa: PLR6301
         return kwargs["destination"]
