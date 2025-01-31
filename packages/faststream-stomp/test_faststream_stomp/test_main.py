@@ -7,6 +7,11 @@ import stompman
 from faststream import FastStream
 from faststream.asyncapi import get_app_schema
 from faststream.broker.message import gen_cor_id
+from faststream_stomp.opentelemetry import StompTelemetryMiddleware
+from faststream_stomp.prometheus import StompPrometheusMiddleware
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.trace import TracerProvider
+from prometheus_client import CollectorRegistry
 from test_stompman.conftest import build_dataclass
 
 pytestmark = pytest.mark.anyio
@@ -81,3 +86,25 @@ def test_asyncapi_schema(faker: faker.Faker, broker: faststream_stomp.StompBroke
         )
     )
     get_app_schema(FastStream(broker))
+
+
+async def test_opentelemetry_publish(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
+    broker.add_middleware(StompTelemetryMiddleware(tracer_provider=TracerProvider(), meter_provider=MeterProvider()))
+
+    @broker.subscriber(destination := faker.pystr())
+    def _() -> None: ...
+
+    async with faststream_stomp.TestStompBroker(broker):
+        await broker.start()
+        await broker.publish(faker.pystr(), destination, correlation_id=gen_cor_id())
+
+
+async def test_prometheus_publish(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
+    broker.add_middleware(StompPrometheusMiddleware(registry=CollectorRegistry()))
+
+    @broker.subscriber(destination := faker.pystr())
+    def _() -> None: ...
+
+    async with faststream_stomp.TestStompBroker(broker):
+        await broker.start()
+        await broker.publish(faker.pystr(), destination, correlation_id=gen_cor_id())
