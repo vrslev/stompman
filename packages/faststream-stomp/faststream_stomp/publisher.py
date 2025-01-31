@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from functools import partial
 from itertools import chain
-from typing import Any
+from typing import Any, TypedDict, Unpack
 
 import stompman
 from faststream.asyncapi.schema import Channel, CorrelationId, Message, Operation
@@ -14,6 +14,12 @@ from faststream.exceptions import NOT_CONNECTED_YET
 from faststream.types import AsyncFunc, SendableMessage
 
 
+class StompProducerPublishKwargs(TypedDict):
+    destination: str
+    correlation_id: str | None
+    headers: dict[str, str] | None
+
+
 class StompProducer(ProducerProto):
     _parser: AsyncCallable
     _decoder: AsyncCallable
@@ -21,19 +27,12 @@ class StompProducer(ProducerProto):
     def __init__(self, client: stompman.Client) -> None:
         self.client = client
 
-    async def publish(  # type: ignore[override]
-        self,
-        message: SendableMessage,
-        *,
-        destination: str,
-        correlation_id: str | None,
-        headers: dict[str, str] | None,
-    ) -> None:
+    async def publish(self, message: SendableMessage, **kwargs: Unpack[StompProducerPublishKwargs]) -> None:  # type: ignore[override]
         body, content_type = encode_message(message)
-        all_headers = headers.copy() if headers else {}
-        if correlation_id:
-            all_headers["correlation-id"] = correlation_id
-        await self.client.send(body, destination, content_type=content_type, headers=all_headers)
+        all_headers = kwargs["headers"].copy() if kwargs["headers"] else {}
+        if kwargs["correlation_id"]:
+            all_headers["correlation-id"] = kwargs["correlation_id"]
+        await self.client.send(body, kwargs["destination"], content_type=content_type, headers=all_headers)
 
     async def request(  # type: ignore[override]
         self, message: SendableMessage, *, correlation_id: str | None, headers: dict[str, str] | None
