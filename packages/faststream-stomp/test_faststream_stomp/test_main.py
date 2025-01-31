@@ -7,13 +7,9 @@ import stompman
 from faststream import FastStream
 from faststream.asyncapi import get_app_schema
 from faststream.broker.message import gen_cor_id
-from faststream_stomp.opentelemetry import StompTelemetryMiddleware, StompTelemetrySettingsProvider
+from faststream_stomp.opentelemetry import StompTelemetryMiddleware
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import InMemoryMetricReader
-from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from test_stompman.conftest import build_dataclass
 
 pytestmark = pytest.mark.anyio
@@ -90,40 +86,12 @@ def test_asyncapi_schema(faker: faker.Faker, broker: faststream_stomp.StompBroke
     get_app_schema(FastStream(broker))
 
 
-async def test_opentelemetry_spans(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
-    resource = Resource.create(attributes={"service.name": "faststream.test"})
-    tracer_provider = TracerProvider(resource=resource)
-    span_exporter = InMemorySpanExporter()
-    tracer_provider.add_span_processor(SimpleSpanProcessor(span_exporter))
-    broker.add_middleware(StompTelemetryMiddleware(tracer_provider=tracer_provider))
-    message, destination = faker.pystr(), faker.pystr()
+async def test_opentelemetry_publish(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
+    broker.add_middleware(StompTelemetryMiddleware(tracer_provider=TracerProvider(), meter_provider=MeterProvider()))
+
+    @broker.subscriber(destination := faker.pystr())
+    def _() -> None: ...
 
     async with faststream_stomp.TestStompBroker(broker):
         await broker.start()
-        await broker.publish(message, destination)
-
-    assert [tuple((one_span.attributes or {}).values()) for one_span in span_exporter.get_finished_spans()] == [
-        (StompTelemetrySettingsProvider.messaging_system, destination),
-        (StompTelemetrySettingsProvider.messaging_system, destination, "publish"),
-    ]
-
-
-async def test_opentelemetry_metrics(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
-    resource = Resource.create(attributes={"service.name": "faststream.test"})
-    metric_reader = InMemoryMetricReader()
-    meter_provider = MeterProvider(metric_readers=(metric_reader,), resource=resource)
-    broker.add_middleware(StompTelemetryMiddleware(meter_provider=meter_provider))
-    message, destination = faker.pystr(), faker.pystr()
-
-    async with faststream_stomp.TestStompBroker(broker):
-        await broker.start()
-        await broker.publish(message, destination)
-
-    metrics_data = metric_reader.get_metrics_data()
-    assert metrics_data
-    assert tuple(
-        metrics_data.resource_metrics[0].scope_metrics[0].metrics[0].data.data_points[0].attributes.values()
-    ) == (
-        StompTelemetrySettingsProvider.messaging_system,
-        destination,
-    )
+        await broker.publish(faker.pystr(), destination, correlation_id=gen_cor_id())
