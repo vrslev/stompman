@@ -108,6 +108,20 @@ You can pass custom headers to `client.subscribe()`:
 await client.subscribe("DLQ", handle_message_from_dlq, ack="client", headers={"selector": "location = 'Europe'"}, on_suppressed_exception=print)
 ```
 
+#### Handling ACK/NACKs yourself
+
+If you want to send ACK and NACK frames yourself, you can use `client.subscribe_with_manual_ack()`:
+
+```python
+async def handle_message_from_dlq(message_frame: stompman.AckableMessageFrame) -> None:
+    print(message_frame.body)
+    await message_frame.ack()
+
+await client.subscribe_with_manual_ack("DLQ", handle_message_from_dlq, ack="client")
+```
+
+Note that this way exceptions won't be suppressed automatically.
+
 ### Cleaning Up
 
 stompman takes care of cleaning up resources automatically. When you leave the context of async context managers `stompman.Client()`, or `client.begin()`, the necessary frames will be sent to the server.

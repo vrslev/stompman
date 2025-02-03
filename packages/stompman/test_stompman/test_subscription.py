@@ -278,6 +278,35 @@ async def test_client_listen_auto_ack_nack(monkeypatch: pytest.MonkeyPatch, fake
     )
 
 
+async def test_client_listen_manual_ack_nack_ok(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
+    subscription_id, destination, message_id, ack_id = faker.pystr(), faker.pystr(), faker.pystr(), faker.pystr()
+    monkeypatch.setattr(stompman.subscription, "_make_subscription_id", mock.Mock(return_value=subscription_id))
+
+    message_frame = build_dataclass(
+        MessageFrame,
+        headers={"destination": destination, "message-id": message_id, "subscription": subscription_id, "ack": ack_id},
+    )
+    connection_class, collected_frames = create_spying_connection(*get_read_frames_with_lifespan([message_frame]))
+
+    async def handle_message(message: stompman.subscription.AckableMessageFrame) -> None:
+        await message.ack()
+        await message.nack()
+
+    async with EnrichedClient(connection_class=connection_class) as client:
+        subscription = await client.subscribe_with_manual_ack(destination, handle_message)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        await subscription.unsubscribe()
+
+    assert collected_frames == enrich_expected_frames(
+        SubscribeFrame(headers={"ack": "client-individual", "destination": destination, "id": subscription_id}),
+        message_frame,
+        AckFrame(headers={"subscription": subscription_id, "id": ack_id}),
+        NackFrame(headers={"subscription": subscription_id, "id": ack_id}),
+        UnsubscribeFrame(headers={"id": subscription_id}),
+    )
+
+
 async def test_client_listen_raises_on_aexit(monkeypatch: pytest.MonkeyPatch, faker: faker.Faker) -> None:
     monkeypatch.setattr("asyncio.sleep", partial(asyncio.sleep, 0))
 

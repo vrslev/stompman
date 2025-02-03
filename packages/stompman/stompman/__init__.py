@@ -31,16 +31,18 @@ from stompman.frames import (
     UnsubscribeFrame,
 )
 from stompman.serde import FrameParser, dump_frame
-from stompman.subscription import Subscription
+from stompman.subscription import AckableMessageFrame, AutoAckSubscription, ManualAckSubscription
 from stompman.transaction import Transaction
 
 __all__ = [
     "AbortFrame",
     "AckFrame",
     "AckMode",
+    "AckableMessageFrame",
     "AnyClientFrame",
     "AnyRealServerFrame",
     "AnyServerFrame",
+    "AutoAckSubscription",
     "BeginFrame",
     "Client",
     "CommitFrame",
@@ -57,13 +59,13 @@ __all__ = [
     "FrameParser",
     "Heartbeat",
     "HeartbeatFrame",
+    "ManualAckSubscription",
     "MessageFrame",
     "NackFrame",
     "ReceiptFrame",
     "SendFrame",
     "StompProtocolConnectionIssue",
     "SubscribeFrame",
-    "Subscription",
     "Transaction",
     "UnsubscribeFrame",
     "UnsupportedProtocolVersion",
