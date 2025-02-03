@@ -61,18 +61,6 @@ class AutoAckSubscription(BaseSubscription):
     def __post_init__(self) -> None:
         self._should_handle_ack_nack = self.ack in {"client", "client-individual"}
 
-    async def _subscribe(self) -> None:
-        await self._connection_manager.write_frame_reconnecting(
-            SubscribeFrame.build(
-                subscription_id=self.id, destination=self.destination, ack=self.ack, headers=self.headers
-            )
-        )
-        self._active_subscriptions[self.id] = self
-
-    async def unsubscribe(self) -> None:
-        del self._active_subscriptions[self.id]
-        await self._connection_manager.maybe_write_frame(UnsubscribeFrame(headers={"id": self.id}))
-
     async def _run_handler(self, *, frame: MessageFrame) -> None:
         try:
             await self.handler(frame)
