@@ -1,6 +1,6 @@
 import asyncio
 import inspect
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass, field
 from functools import partial
@@ -21,7 +21,7 @@ from stompman.frames import (
     ReceiptFrame,
     SendFrame,
 )
-from stompman.subscription import Subscription
+from stompman.subscription import AckableMessageFrame, ActiveSubscriptions, AutoAckSubscription, ManualAckSubscription
 from stompman.transaction import Transaction
 
 
@@ -47,7 +47,7 @@ class Client:
     connection_class: type[AbstractConnection] = Connection
 
     _connection_manager: ConnectionManager = field(init=False)
-    _active_subscriptions: dict[str, "Subscription"] = field(default_factory=dict, init=False)
+    _active_subscriptions: ActiveSubscriptions = field(default_factory=dict, init=False)
     _active_transactions: set[Transaction] = field(default_factory=set, init=False)
     _exit_stack: AsyncExitStack = field(default_factory=AsyncExitStack, init=False)
     _heartbeat_task: asyncio.Task[None] = field(init=False)
@@ -113,7 +113,15 @@ class Client:
                 match frame:
                     case MessageFrame():
                         if subscription := self._active_subscriptions.get(frame.headers["subscription"]):
-                            task_group.create_task(subscription._run_handler(frame=frame))  # noqa: SLF001
+                            task_group.create_task(
+                                subscription._run_handler(frame=frame)  # noqa: SLF001
+                                if isinstance(subscription, AutoAckSubscription)
+                                else subscription.handler(
+                                    AckableMessageFrame(
+                                        headers=frame.headers, body=frame.body, _subscription=subscription
+                                    )
+                                )
+                            )
                     case ErrorFrame():
                         if self.on_error_frame:
                             self.on_error_frame(frame)
@@ -152,14 +160,33 @@ class Client:
         headers: dict[str, str] | None = None,
         on_suppressed_exception: Callable[[Exception, MessageFrame], Any],
         suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
-    ) -> "Subscription":
-        subscription = Subscription(
+    ) -> "AutoAckSubscription":
+        subscription = AutoAckSubscription(
             destination=destination,
             handler=handler,
             headers=headers,
             ack=ack,
             on_suppressed_exception=on_suppressed_exception,
             suppressed_exception_classes=suppressed_exception_classes,
+            _connection_manager=self._connection_manager,
+            _active_subscriptions=self._active_subscriptions,
+        )
+        await subscription._subscribe()  # noqa: SLF001
+        return subscription
+
+    async def subscribe_with_manual_ack(
+        self,
+        destination: str,
+        handler: Callable[[MessageFrame], Coroutine[Any, Any, Any]],
+        *,
+        ack: AckMode = "client-individual",
+        headers: dict[str, str] | None = None,
+    ) -> "ManualAckSubscription":
+        subscription = ManualAckSubscription(
+            destination=destination,
+            handler=handler,
+            headers=headers,
+            ack=ack,
             _connection_manager=self._connection_manager,
             _active_subscriptions=self._active_subscriptions,
         )
