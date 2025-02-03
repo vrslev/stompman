@@ -177,7 +177,7 @@ class Client:
     async def subscribe_with_manual_ack(
         self,
         destination: str,
-        handler: Callable[[MessageFrame], Coroutine[Any, Any, Any]],
+        handler: Callable[[AckableMessageFrame], Coroutine[Any, Any, Any]],
         *,
         ack: AckMode = "client-individual",
         headers: dict[str, str] | None = None,
