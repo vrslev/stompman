@@ -77,8 +77,7 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
     ) -> None:
         assert self._producer, NOT_CONNECTED_YET  # noqa: S101
 
-        call: AsyncFunc = self._producer.publish
-
+        call = self._producer.publish
         for one_middleware in chain(
             self._middlewares[::-1],  # type: ignore[arg-type]
             (
@@ -87,8 +86,9 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
             ),
         ):
             call = partial(one_middleware, call)  # type: ignore[operator, arg-type, misc]
-        await self._producer.publish(
-            message=message, destination=self.destination, correlation_id=correlation_id, headers=headers or {}
+
+        return await call(
+            message, destination=self.destination, correlation_id=correlation_id, headers=headers or {}
         )
 
     async def request(  # type: ignore[override]
