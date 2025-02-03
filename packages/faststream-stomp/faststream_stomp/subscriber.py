@@ -39,6 +39,8 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         self.headers = headers
         self.on_suppressed_exception = on_suppressed_exception
         self.suppressed_exception_classes = suppressed_exception_classes
+        self._subscription: stompman.Subscription | None = None
+
         super().__init__(
             no_ack=self.ack == "auto",
             no_reply=True,
@@ -93,7 +95,8 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         )
 
     async def close(self) -> None:
-        await self._subscription.unsubscribe()
+        if self._subscription:
+            await self._subscription.unsubscribe()
         await super().close()
 
     async def get_one(self, *, timeout: float = 5) -> None: ...
