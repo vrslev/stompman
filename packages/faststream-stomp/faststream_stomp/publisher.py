@@ -11,7 +11,7 @@ from faststream.broker.publisher.proto import ProducerProto
 from faststream.broker.publisher.usecase import PublisherUsecase
 from faststream.broker.types import AsyncCallable, BrokerMiddleware, PublisherMiddleware
 from faststream.exceptions import NOT_CONNECTED_YET
-from faststream.types import AsyncFunc, SendableMessage
+from faststream.types import SendableMessage
 
 
 class StompProducerPublishKwargs(TypedDict):
@@ -77,8 +77,7 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
     ) -> None:
         assert self._producer, NOT_CONNECTED_YET  # noqa: S101
 
-        call: AsyncFunc = self._producer.publish
-
+        call = self._producer.publish
         for one_middleware in chain(
             self._middlewares[::-1],  # type: ignore[arg-type]
             (
@@ -87,9 +86,8 @@ class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
             ),
         ):
             call = partial(one_middleware, call)  # type: ignore[operator, arg-type, misc]
-        await self._producer.publish(
-            message=message, destination=self.destination, correlation_id=correlation_id, headers=headers or {}
-        )
+
+        return await call(message, destination=self.destination, correlation_id=correlation_id, headers=headers or {})
 
     async def request(  # type: ignore[override]
         self, message: SendableMessage, *, correlation_id: str | None = None, headers: dict[str, str] | None = None
