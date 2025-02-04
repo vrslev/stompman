@@ -1,11 +1,12 @@
 import uuid
 from typing import TYPE_CHECKING, Any
+from unittest import mock
 from unittest.mock import AsyncMock
 
+import stompman
 from faststream.broker.message import encode_message
 from faststream.testing.broker import TestBroker
 from faststream.types import SendableMessage
-from stompman import MessageFrame
 
 from faststream_stomp.broker import StompBroker
 from faststream_stomp.publisher import StompProducer, StompPublisher
@@ -44,6 +45,12 @@ class TestStompBroker(TestBroker[StompBroker]):
         broker._producer = FakeStompProducer(broker)  # noqa: SLF001
 
 
+class FakeAckableMessageFrame(stompman.AckableMessageFrame):
+    async def ack(self) -> None: ...
+
+    async def nack(self) -> None: ...
+
+
 class FakeStompProducer(StompProducer):
     def __init__(self, broker: StompBroker) -> None:
         self.broker = broker
@@ -66,7 +73,7 @@ class FakeStompProducer(StompProducer):
             all_headers["correlation-id"] = correlation_id  # type: ignore[typeddict-unknown-key]
         if content_type:
             all_headers["content-type"] = content_type
-        frame = MessageFrame(headers=all_headers, body=body)
+        frame = FakeAckableMessageFrame(headers=all_headers, body=body, _subscription=mock.AsyncMock())
 
         for handler in self.broker._subscribers.values():  # noqa: SLF001
             if handler.destination == destination:

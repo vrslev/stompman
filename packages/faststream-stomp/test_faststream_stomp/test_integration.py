@@ -1,4 +1,5 @@
 import asyncio
+from typing import Annotated
 
 import faker
 import faststream_stomp
@@ -6,13 +7,15 @@ import pytest
 import stompman
 from faststream import BaseMiddleware, Context, FastStream
 from faststream.broker.message import gen_cor_id
+from faststream.exceptions import AckMessage, NackMessage, RejectMessage
+from faststream_stomp.message import StompStreamMessage
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def broker(connection_parameters: stompman.ConnectionParameters) -> faststream_stomp.StompBroker:
-    return faststream_stomp.StompBroker(stompman.Client([connection_parameters]))
+def broker(first_server_connection_parameters: stompman.ConnectionParameters) -> faststream_stomp.StompBroker:
+    return faststream_stomp.StompBroker(stompman.Client([first_server_connection_parameters]))
 
 
 async def test_simple(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
@@ -114,3 +117,37 @@ class TestPing:
     async def test_timeout(self, broker: faststream_stomp.StompBroker) -> None:
         async with broker:
             assert not await broker.ping(0)
+
+
+@pytest.mark.parametrize("exception", [Exception, NackMessage, AckMessage, RejectMessage])
+async def test_ack_nack_reject_exception(
+    faker: faker.Faker, broker: faststream_stomp.StompBroker, exception: type[Exception]
+) -> None:
+    event = asyncio.Event()
+
+    @broker.subscriber(destination := faker.pystr())
+    def _() -> None:
+        event.set()
+        raise exception
+
+    async with broker:
+        await broker.start()
+        await broker.publish(faker.pystr(), destination)
+        await event.wait()
+
+
+@pytest.mark.parametrize("method_name", ["ack", "nack", "reject"])
+async def test_ack_nack_reject_method_call(
+    faker: faker.Faker, broker: faststream_stomp.StompBroker, method_name: str
+) -> None:
+    event = asyncio.Event()
+
+    @broker.subscriber(destination := faker.pystr())
+    async def _(message: Annotated[StompStreamMessage, Context()]) -> None:
+        await getattr(message, method_name)()
+        event.set()
+
+    async with broker:
+        await broker.start()
+        await broker.publish(faker.pystr(), destination)
+        await event.wait()

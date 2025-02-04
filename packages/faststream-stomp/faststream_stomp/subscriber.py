@@ -5,14 +5,15 @@ import stompman
 from fast_depends.dependencies import Depends
 from faststream.asyncapi.schema import Channel, CorrelationId, Message, Operation
 from faststream.asyncapi.utils import resolve_payloads
-from faststream.broker.message import StreamMessage
+from faststream.broker.message import StreamMessage, decode_message
 from faststream.broker.publisher.fake import FakePublisher
 from faststream.broker.publisher.proto import ProducerProto
 from faststream.broker.subscriber.usecase import SubscriberUsecase
 from faststream.broker.types import AsyncCallable, BrokerMiddleware, CustomCallable
 from faststream.types import AnyDict, Decorator, LoggerProto
+from faststream.utils.functions import to_async
 
-from faststream_stomp import parser
+from faststream_stomp.message import StompStreamMessage
 
 
 class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
@@ -20,29 +21,26 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         self,
         *,
         destination: str,
-        ack: stompman.AckMode = "client-individual",
-        headers: dict[str, str] | None = None,
-        on_suppressed_exception: Callable[[Exception, stompman.MessageFrame], Any],
-        suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
+        ack_mode: stompman.AckMode,
+        headers: dict[str, str] | None,
         retry: bool | int,
+        no_ack: bool,
         broker_dependencies: Iterable[Depends],
         broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
-        default_parser: AsyncCallable = parser.parse_message,
-        default_decoder: AsyncCallable = parser.decode_message,
+        default_parser: AsyncCallable = StompStreamMessage.from_frame,
+        default_decoder: AsyncCallable = to_async(decode_message),  # noqa: B008
         # AsyncAPI information
         title_: str | None,
         description_: str | None,
         include_in_schema: bool,
     ) -> None:
         self.destination = destination
-        self.ack = ack
+        self.ack_mode = ack_mode
         self.headers = headers
-        self.on_suppressed_exception = on_suppressed_exception
-        self.suppressed_exception_classes = suppressed_exception_classes
-        self._subscription: stompman.AutoAckSubscription | None = None
+        self._subscription: stompman.ManualAckSubscription | None = None
 
         super().__init__(
-            no_ack=self.ack == "auto",
+            no_ack=no_ack or self.ack_mode == "auto",
             no_reply=True,
             retry=retry,
             broker_dependencies=broker_dependencies,
@@ -85,13 +83,11 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
 
     async def start(self) -> None:
         await super().start()
-        self._subscription = await self.client.subscribe(
+        self._subscription = await self.client.subscribe_with_manual_ack(
             destination=self.destination,
             handler=self.consume,
-            ack=self.ack,
+            ack=self.ack_mode,
             headers=self.headers,
-            on_suppressed_exception=self.on_suppressed_exception,
-            suppressed_exception_classes=self.suppressed_exception_classes,
         )
 
     async def close(self) -> None:

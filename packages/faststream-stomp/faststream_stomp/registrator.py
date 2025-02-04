@@ -1,4 +1,4 @@
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, cast
 
 import stompman
@@ -11,9 +11,6 @@ from faststream_stomp.publisher import StompPublisher
 from faststream_stomp.subscriber import StompSubscriber
 
 
-def noop_handle_suppressed_exception(exception: Exception, message: stompman.MessageFrame) -> None: ...
-
-
 class StompRegistrator(ABCBroker[stompman.MessageFrame]):
     _subscribers: Mapping[int, StompSubscriber]
     _publishers: Mapping[int, StompPublisher]
@@ -22,12 +19,11 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
         self,
         destination: str,
         *,
-        ack: stompman.AckMode = "client-individual",
+        ack_mode: stompman.AckMode = "client-individual",
         headers: dict[str, str] | None = None,
-        on_suppressed_exception: Callable[[Exception, stompman.MessageFrame], Any] = noop_handle_suppressed_exception,
-        suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
         # other args
         dependencies: Iterable[Depends] = (),
+        no_ack: bool = False,
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
         middlewares: Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
@@ -41,11 +37,10 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
             super().subscriber(
                 StompSubscriber(
                     destination=destination,
-                    ack=ack,
+                    ack_mode=ack_mode,
                     headers=headers,
-                    on_suppressed_exception=on_suppressed_exception,
-                    suppressed_exception_classes=suppressed_exception_classes,
                     retry=retry,
+                    no_ack=no_ack,
                     broker_middlewares=self._middlewares,
                     broker_dependencies=self._dependencies,
                     title_=title,

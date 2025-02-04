@@ -7,7 +7,7 @@ from faststream.broker.router import ArgsContainer, BrokerRouter, SubscriberRout
 from faststream.broker.types import BrokerMiddleware, CustomCallable, PublisherMiddleware, SubscriberMiddleware
 from faststream.types import SendableMessage
 
-from faststream_stomp.registrator import StompRegistrator, noop_handle_suppressed_exception
+from faststream_stomp.registrator import StompRegistrator
 
 
 class StompRoutePublisher(ArgsContainer):
@@ -47,13 +47,12 @@ class StompRoute(SubscriberRoute):
         call: Callable[..., SendableMessage] | Callable[..., Awaitable[SendableMessage]],
         destination: str,
         *,
-        ack: stompman.AckMode = "client-individual",
+        ack_mode: stompman.AckMode = "client-individual",
         headers: dict[str, str] | None = None,
-        on_suppressed_exception: Callable[[Exception, stompman.MessageFrame], Any] = noop_handle_suppressed_exception,
-        suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
         # other args
         publishers: Iterable[StompRoutePublisher] = (),
         dependencies: Iterable[Depends] = (),
+        no_ack: bool = False,
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
         middlewares: Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
@@ -65,12 +64,11 @@ class StompRoute(SubscriberRoute):
         super().__init__(
             call=call,
             destination=destination,
-            ack=ack,
+            ack_mode=ack_mode,
             headers=headers,
-            on_suppressed_exception=on_suppressed_exception,
-            suppressed_exception_classes=suppressed_exception_classes,
             publishers=publishers,
             dependencies=dependencies,
+            no_ack=no_ack,
             parser=parser,
             decoder=decoder,
             middlewares=middlewares,
