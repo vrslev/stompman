@@ -30,7 +30,7 @@ class StompSecurity(BaseSecurity):
         return {"user-password": {"type": "userPassword"}}
 
 
-class StompBroker(StompRegistrator, BrokerUsecase[stompman.AckableMessageFrame, stompman.Client]):
+class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompman.Client]):
     _subscribers: Mapping[int, StompSubscriber]
     _publishers: Mapping[int, StompPublisher]
     __max_msg_id_ln = 10
@@ -43,7 +43,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.AckableMessageFrame, 
         decoder: CustomCallable | None = None,
         parser: CustomCallable | None = None,
         dependencies: Iterable[Depends] = (),
-        middlewares: Sequence[BrokerMiddleware[stompman.AckableMessageFrame]] = (),
+        middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]] = (),
         graceful_timeout: float | None = 15.0,
         # Logging args
         logger: LoggerProto | None = None,

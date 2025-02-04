@@ -16,7 +16,7 @@ from faststream.utils.functions import to_async
 from faststream_stomp.message import StompStreamMessage
 
 
-class StompSubscriber(SubscriberUsecase[stompman.AckableMessageFrame]):
+class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
     def __init__(
         self,
         *,
@@ -25,7 +25,7 @@ class StompSubscriber(SubscriberUsecase[stompman.AckableMessageFrame]):
         headers: dict[str, str] | None = None,
         retry: bool | int,
         broker_dependencies: Iterable[Depends],
-        broker_middlewares: Sequence[BrokerMiddleware[stompman.AckableMessageFrame]],
+        broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
         default_parser: AsyncCallable = StompStreamMessage.from_frame,
         default_decoder: AsyncCallable = to_async(decode_message),  # noqa: B008
         # AsyncAPI information
@@ -96,7 +96,7 @@ class StompSubscriber(SubscriberUsecase[stompman.AckableMessageFrame]):
 
     async def get_one(self, *, timeout: float = 5) -> None: ...
 
-    def _make_response_publisher(self, message: StreamMessage[stompman.AckableMessageFrame]) -> Sequence[FakePublisher]:
+    def _make_response_publisher(self, message: StreamMessage[stompman.MessageFrame]) -> Sequence[FakePublisher]:
         return (  # pragma: no cover
             (FakePublisher(self._producer.publish, publish_kwargs={"destination": message.reply_to}),)
             if self._producer

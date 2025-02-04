@@ -22,7 +22,7 @@ async def test_simple(faker: faker.Faker, broker: faststream_stomp.StompBroker) 
     event = asyncio.Event()
 
     @broker.subscriber(destination)
-    def _(body: str, message: stompman.AckableMessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
+    def _(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == expected_body
         event.set()
 
@@ -68,7 +68,7 @@ async def test_republish(faker: faker.Faker, broker: faststream_stomp.StompBroke
 async def test_router(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
     expected_body, prefix, destination = faker.pystr(), faker.pystr(), faker.pystr()
 
-    def route(body: str, message: stompman.AckableMessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
+    def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == expected_body
         event.set()
 
@@ -114,3 +114,28 @@ class TestPing:
     async def test_timeout(self, broker: faststream_stomp.StompBroker) -> None:
         async with broker:
             assert not await broker.ping(0)
+async def test_ack(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
+    app = FastStream(broker)
+    expected_body, destination = faker.pystr(), faker.pystr()
+    publisher = broker.publisher(destination)
+    event = asyncio.Event()
+
+    @broker.subscriber(destination)
+    def _(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
+        assert body == expected_body
+        event.set()
+
+    @app.after_startup
+    async def _() -> None:
+        await broker.connect()
+        await publisher.publish(expected_body.encode(), correlation_id=gen_cor_id())
+
+    async with asyncio.timeout(10), broker:
+        await broker.start()
+        await publisher.publish(expected_body.encode(), correlation_id=gen_cor_id())
+        assert
+
+    async with asyncio.timeout(10), asyncio.TaskGroup() as task_group:
+        run_task = task_group.create_task(app.run())
+        await event.wait()
+        run_task.cancel()

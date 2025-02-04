@@ -54,7 +54,7 @@ class StompRoute(SubscriberRoute):
         dependencies: Iterable[Depends] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
-        middlewares: Sequence[SubscriberMiddleware[stompman.AckableMessageFrame]] = (),
+        middlewares: Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
         retry: bool = False,
         title: str | None = None,
         description: str | None = None,
@@ -77,7 +77,7 @@ class StompRoute(SubscriberRoute):
         )
 
 
-class StompRouter(StompRegistrator, BrokerRouter[stompman.AckableMessageFrame]):
+class StompRouter(StompRegistrator, BrokerRouter[stompman.MessageFrame]):
     """Includable to StompBroker router."""
 
     def __init__(
@@ -86,7 +86,7 @@ class StompRouter(StompRegistrator, BrokerRouter[stompman.AckableMessageFrame]):
         handlers: Iterable[StompRoute] = (),
         *,
         dependencies: Iterable[Depends] = (),
-        middlewares: Sequence[BrokerMiddleware[stompman.AckableMessageFrame]] = (),
+        middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
         include_in_schema: bool | None = None,

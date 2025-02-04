@@ -11,7 +11,7 @@ from faststream_stomp.publisher import StompPublisher
 from faststream_stomp.subscriber import StompSubscriber
 
 
-class StompRegistrator(ABCBroker[stompman.AckableMessageFrame]):
+class StompRegistrator(ABCBroker[stompman.MessageFrame]):
     _subscribers: Mapping[int, StompSubscriber]
     _publishers: Mapping[int, StompPublisher]
 
@@ -25,7 +25,7 @@ class StompRegistrator(ABCBroker[stompman.AckableMessageFrame]):
         dependencies: Iterable[Depends] = (),
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
-        middlewares: Sequence[SubscriberMiddleware[stompman.AckableMessageFrame]] = (),
+        middlewares: Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
         retry: bool = False,
         title: str | None = None,
         description: str | None = None,

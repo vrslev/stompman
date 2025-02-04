@@ -18,10 +18,10 @@ if TYPE_CHECKING:
 __all__ = ["StompMetricsSettingsProvider", "StompPrometheusMiddleware"]
 
 
-class StompMetricsSettingsProvider(MetricsSettingsProvider[stompman.AckableMessageFrame]):
+class StompMetricsSettingsProvider(MetricsSettingsProvider[stompman.MessageFrame]):
     messaging_system = "stomp"
 
-    def get_consume_attrs_from_message(self, msg: StreamMessage[stompman.AckableMessageFrame]) -> ConsumeAttrs:  # noqa: PLR6301
+    def get_consume_attrs_from_message(self, msg: StreamMessage[stompman.MessageFrame]) -> ConsumeAttrs:  # noqa: PLR6301
         return {
             "destination_name": msg.raw_message.headers["destination"],
             "message_size": len(msg.body),

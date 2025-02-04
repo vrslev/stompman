@@ -45,7 +45,7 @@ class TestStompBroker(TestBroker[StompBroker]):
         broker._producer = FakeStompProducer(broker)  # noqa: SLF001
 
 
-class FakeAckableMessageFrame(stompman.AckableMessageFrame):
+class FakeAckableMessageFrame(stompman.MessageFrame):
     async def ack(self) -> None: ...
 
     async def nack(self) -> None: ...

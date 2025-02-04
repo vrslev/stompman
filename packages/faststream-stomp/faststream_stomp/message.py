@@ -9,6 +9,7 @@ class StompStreamMessage(StreamMessage[stompman.AckableMessageFrame]):
     async def ack(self) -> None:
         await self.raw_message.ack()
         return await super().ack()
+
     # TODO: test ack/nack
     async def nack(self) -> None:
         await self.raw_message.nack()
