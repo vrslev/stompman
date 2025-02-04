@@ -19,10 +19,11 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
         self,
         destination: str,
         *,
-        ack: stompman.AckMode = "client-individual",
+        ack_mode: stompman.AckMode = "client-individual",
         headers: dict[str, str] | None = None,
         # other args
         dependencies: Iterable[Depends] = (),
+        no_ack: bool = False,
         parser: CustomCallable | None = None,
         decoder: CustomCallable | None = None,
         middlewares: Sequence[SubscriberMiddleware[stompman.MessageFrame]] = (),
@@ -36,9 +37,10 @@ class StompRegistrator(ABCBroker[stompman.MessageFrame]):
             super().subscriber(
                 StompSubscriber(
                     destination=destination,
-                    ack=ack,
+                    ack_mode=ack_mode,
                     headers=headers,
                     retry=retry,
+                    no_ack=no_ack,
                     broker_middlewares=self._middlewares,
                     broker_dependencies=self._dependencies,
                     title_=title,

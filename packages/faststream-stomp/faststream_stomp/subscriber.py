@@ -21,9 +21,10 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         self,
         *,
         destination: str,
-        ack: stompman.AckMode = "client-individual",
-        headers: dict[str, str] | None = None,
+        ack_mode: stompman.AckMode,
+        headers: dict[str, str] | None,
         retry: bool | int,
+        no_ack: bool,
         broker_dependencies: Iterable[Depends],
         broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
         default_parser: AsyncCallable = StompStreamMessage.from_frame,
@@ -34,12 +35,12 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         include_in_schema: bool,
     ) -> None:
         self.destination = destination
-        self.ack = ack
+        self.ack_mode = ack_mode
         self.headers = headers
         self._subscription: stompman.ManualAckSubscription | None = None
 
         super().__init__(
-            no_ack=self.ack == "auto",
+            no_ack=no_ack or self.ack_mode == "auto",
             no_reply=True,
             retry=retry,
             broker_dependencies=broker_dependencies,
@@ -85,7 +86,7 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         self._subscription = await self.client.subscribe_with_manual_ack(
             destination=self.destination,
             handler=self.consume,
-            ack=self.ack,
+            ack=self.ack_mode,
             headers=self.headers,
         )
 
