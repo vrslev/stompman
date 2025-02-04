@@ -5,14 +5,15 @@ import stompman
 from fast_depends.dependencies import Depends
 from faststream.asyncapi.schema import Channel, CorrelationId, Message, Operation
 from faststream.asyncapi.utils import resolve_payloads
-from faststream.broker.message import StreamMessage
+from faststream.broker.message import StreamMessage, decode_message
 from faststream.broker.publisher.fake import FakePublisher
 from faststream.broker.publisher.proto import ProducerProto
 from faststream.broker.subscriber.usecase import SubscriberUsecase
 from faststream.broker.types import AsyncCallable, BrokerMiddleware, CustomCallable
 from faststream.types import AnyDict, Decorator, LoggerProto
+from faststream.utils.functions import to_async
 
-from faststream_stomp import message
+from faststream_stomp.message import StompStreamMessage
 
 
 class StompSubscriber(SubscriberUsecase[stompman.AckableMessageFrame]):
@@ -25,8 +26,8 @@ class StompSubscriber(SubscriberUsecase[stompman.AckableMessageFrame]):
         retry: bool | int,
         broker_dependencies: Iterable[Depends],
         broker_middlewares: Sequence[BrokerMiddleware[stompman.AckableMessageFrame]],
-        default_parser: AsyncCallable = message.parse_message,
-        default_decoder: AsyncCallable = message.decode_message,
+        default_parser: AsyncCallable = StompStreamMessage.from_frame,
+        default_decoder: AsyncCallable = to_async(decode_message),  # noqa: B008
         # AsyncAPI information
         title_: str | None,
         description_: str | None,
