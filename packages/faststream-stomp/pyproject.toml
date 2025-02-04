@@ -17,7 +17,7 @@ classifiers = [
 dynamic = ["version"]
 
 [project.urls]
-repository = "https://github.com/vrslev/stompman"
+repository = "https://github.com/community-of-python/stompman"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
