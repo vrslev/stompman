@@ -14,6 +14,11 @@ def anyio_backend(request: pytest.FixtureRequest) -> object:
     return request.param
 
 
+@pytest.fixture
+def first_server_connection_parameters() -> stompman.ConnectionParameters:
+    return stompman.ConnectionParameters(host="127.0.0.1", port=9000, login="admin", passcode=":=123")
+
+
 @pytest.fixture(
     params=[
         stompman.ConnectionParameters(host="127.0.0.1", port=9000, login="admin", passcode=":=123"),

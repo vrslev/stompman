@@ -48,3 +48,7 @@ if __name__ == "__main__":
 ```
 
 Also there are `StompRouter` and `TestStompBroker` for testing. It works similarly to built-in brokers from FastStream, I recommend to read the original [FastStream documentation](https://faststream.airt.ai/latest/getting-started).
+
+### Caveats
+
+- When exception is raised in consumer handler, the message will be nacked (FastStream doesn't do this by default)

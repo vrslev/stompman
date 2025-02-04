@@ -7,13 +7,19 @@ from faststream.broker.message import StreamMessage, gen_cor_id
 
 class StompStreamMessage(StreamMessage[stompman.AckableMessageFrame]):
     async def ack(self) -> None:
-        await self.raw_message.ack()
+        if not self.committed:
+            await self.raw_message.ack()
         return await super().ack()
 
-    # TODO: test ack/nack
     async def nack(self) -> None:
-        await self.raw_message.nack()
+        if not self.committed:
+            await self.raw_message.nack()
         return await super().nack()
+
+    async def reject(self) -> None:
+        if not self.committed:
+            await self.raw_message.nack()
+        return await super().reject()
 
     @classmethod
     async def from_frame(cls, message: stompman.AckableMessageFrame) -> typing.Self:
