@@ -22,7 +22,7 @@ async def test_simple(faker: faker.Faker, broker: faststream_stomp.StompBroker) 
     event = asyncio.Event()
 
     @broker.subscriber(destination)
-    def _(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
+    def _(body: str, message: stompman.AckableMessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == expected_body
         event.set()
 
@@ -68,7 +68,7 @@ async def test_republish(faker: faker.Faker, broker: faststream_stomp.StompBroke
 async def test_router(faker: faker.Faker, broker: faststream_stomp.StompBroker) -> None:
     expected_body, prefix, destination = faker.pystr(), faker.pystr(), faker.pystr()
 
-    def route(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
+    def route(body: str, message: stompman.AckableMessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == expected_body
         event.set()
 

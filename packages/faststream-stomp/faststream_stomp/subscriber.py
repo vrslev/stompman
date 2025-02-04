@@ -24,7 +24,7 @@ class StompSubscriber(SubscriberUsecase[stompman.AckableMessageFrame]):
         headers: dict[str, str] | None = None,
         retry: bool | int,
         broker_dependencies: Iterable[Depends],
-        broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
+        broker_middlewares: Sequence[BrokerMiddleware[stompman.AckableMessageFrame]],
         default_parser: AsyncCallable = message.parse_message,
         default_decoder: AsyncCallable = message.decode_message,
         # AsyncAPI information

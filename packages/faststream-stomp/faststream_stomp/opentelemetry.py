@@ -11,10 +11,10 @@ from opentelemetry.trace import TracerProvider
 from faststream_stomp.publisher import StompProducerPublishKwargs
 
 
-class StompTelemetrySettingsProvider(TelemetrySettingsProvider[stompman.MessageFrame]):
+class StompTelemetrySettingsProvider(TelemetrySettingsProvider[stompman.AckableMessageFrame]):
     messaging_system = "stomp"
 
-    def get_consume_attrs_from_message(self, msg: StreamMessage[stompman.MessageFrame]) -> "AnyDict":
+    def get_consume_attrs_from_message(self, msg: StreamMessage[stompman.AckableMessageFrame]) -> "AnyDict":
         return {
             SpanAttributes.MESSAGING_SYSTEM: self.messaging_system,
             SpanAttributes.MESSAGING_MESSAGE_ID: msg.message_id,
@@ -23,7 +23,7 @@ class StompTelemetrySettingsProvider(TelemetrySettingsProvider[stompman.MessageF
             MESSAGING_DESTINATION_PUBLISH_NAME: msg.raw_message.headers["destination"],
         }
 
-    def get_consume_destination_name(self, msg: StreamMessage[stompman.MessageFrame]) -> str:  # noqa: PLR6301
+    def get_consume_destination_name(self, msg: StreamMessage[stompman.AckableMessageFrame]) -> str:  # noqa: PLR6301
         return msg.raw_message.headers["destination"]
 
     def get_publish_attrs_from_kwargs(self, kwargs: StompProducerPublishKwargs) -> AnyDict:  # type: ignore[override]

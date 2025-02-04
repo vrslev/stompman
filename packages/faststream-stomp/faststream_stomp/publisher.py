@@ -41,14 +41,14 @@ class StompProducer(ProducerProto):
         raise NotImplementedError(msg)
 
 
-class StompPublisher(PublisherUsecase[stompman.MessageFrame]):
+class StompPublisher(PublisherUsecase[stompman.AckableMessageFrame]):
     _producer: StompProducer | None
 
     def __init__(
         self,
         destination: str,
         *,
-        broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
+        broker_middlewares: Sequence[BrokerMiddleware[stompman.AckableMessageFrame]],
         middlewares: Sequence[PublisherMiddleware],
         schema_: Any | None,  # noqa: ANN401
         title_: str | None,
