@@ -6,8 +6,18 @@ from faststream.broker.message import decode_message as decode_message_sync
 from faststream.utils.functions import to_async
 
 
-async def parse_message(message: stompman.MessageFrame) -> StreamMessage[stompman.MessageFrame]:  # noqa: RUF029
-    return StreamMessage(
+class StompStreamMessage(StreamMessage[stompman.AckableMessageFrame]):
+    async def ack(self) -> None:
+        await self.raw_message.ack()
+        return await super().ack()
+
+    async def nack(self) -> None:
+        await self.raw_message.nack()
+        return await super().nack()
+# TODO: Refactor
+
+async def parse_message(message: stompman.AckableMessageFrame) -> StompStreamMessage:  # noqa: RUF029
+    return StompStreamMessage(
         raw_message=message,
         body=message.body,
         headers=cast("dict[str, str]", message.headers),

@@ -12,23 +12,21 @@ from faststream.broker.subscriber.usecase import SubscriberUsecase
 from faststream.broker.types import AsyncCallable, BrokerMiddleware, CustomCallable
 from faststream.types import AnyDict, Decorator, LoggerProto
 
-from faststream_stomp import parser
+from faststream_stomp import message
 
 
-class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
+class StompSubscriber(SubscriberUsecase[stompman.AckableMessageFrame]):
     def __init__(
         self,
         *,
         destination: str,
         ack: stompman.AckMode = "client-individual",
         headers: dict[str, str] | None = None,
-        on_suppressed_exception: Callable[[Exception, stompman.MessageFrame], Any],
-        suppressed_exception_classes: tuple[type[Exception], ...] = (Exception,),
         retry: bool | int,
         broker_dependencies: Iterable[Depends],
         broker_middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]],
-        default_parser: AsyncCallable = parser.parse_message,
-        default_decoder: AsyncCallable = parser.decode_message,
+        default_parser: AsyncCallable = message.parse_message,
+        default_decoder: AsyncCallable = message.decode_message,
         # AsyncAPI information
         title_: str | None,
         description_: str | None,
@@ -37,9 +35,7 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
         self.destination = destination
         self.ack = ack
         self.headers = headers
-        self.on_suppressed_exception = on_suppressed_exception
-        self.suppressed_exception_classes = suppressed_exception_classes
-        self._subscription: stompman.AutoAckSubscription | None = None
+        self._subscription: stompman.ManualAckSubscription | None = None
 
         super().__init__(
             no_ack=self.ack == "auto",
@@ -85,13 +81,11 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
 
     async def start(self) -> None:
         await super().start()
-        self._subscription = await self.client.subscribe(
+        self._subscription = await self.client.subscribe_with_manual_ack(
             destination=self.destination,
             handler=self.consume,
             ack=self.ack,
             headers=self.headers,
-            on_suppressed_exception=self.on_suppressed_exception,
-            suppressed_exception_classes=self.suppressed_exception_classes,
         )
 
     async def close(self) -> None:
@@ -101,7 +95,7 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
 
     async def get_one(self, *, timeout: float = 5) -> None: ...
 
-    def _make_response_publisher(self, message: StreamMessage[stompman.MessageFrame]) -> Sequence[FakePublisher]:
+    def _make_response_publisher(self, message: StreamMessage[stompman.AckableMessageFrame]) -> Sequence[FakePublisher]:
         return (  # pragma: no cover
             (FakePublisher(self._producer.publish, publish_kwargs={"destination": message.reply_to}),)
             if self._producer
