@@ -1,6 +1,4 @@
 import asyncio
-import logging
-import os
 from typing import Annotated
 
 import faker
@@ -14,12 +12,9 @@ from faststream_stomp.message import StompStreamMessage
 
 pytestmark = pytest.mark.anyio
 
-logging.basicConfig(level=logging.INFO)
-
 
 @pytest.fixture
 def broker(first_server_connection_parameters: stompman.ConnectionParameters) -> faststream_stomp.StompBroker:
-    del os.environ["PYTEST_CURRENT_TEST"]
     return faststream_stomp.StompBroker(stompman.Client([first_server_connection_parameters]))
 
 
