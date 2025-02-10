@@ -25,7 +25,7 @@ async def test_simple(faker: faker.Faker, broker: faststream_stomp.StompBroker) 
     event = asyncio.Event()
 
     @broker.subscriber(destination)
-    def hello(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
+    def _(body: str, message: stompman.MessageFrame = Context("message.raw_message")) -> None:  # noqa: B008
         assert body == expected_body
         event.set()
 
