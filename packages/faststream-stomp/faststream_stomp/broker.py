@@ -87,10 +87,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
         await super().start()
 
         for handler in self._subscribers.values():
-            self._log(
-                f"`{handler.call_name}` waiting for messages",
-                extra=handler.get_log_context(None),  # type: ignore[arg-type]
-            )
+            self._log(f"`{handler.call_name}` waiting for messages", extra=handler.get_log_context(None))
             await handler.start()
 
     async def _connect(self, client: stompman.Client) -> stompman.Client:  # type: ignore[override]
