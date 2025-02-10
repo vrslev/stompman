@@ -1,5 +1,4 @@
-import typing
-from typing import cast
+from typing import Self, cast
 
 import stompman
 from faststream.broker.message import StreamMessage, gen_cor_id
@@ -22,7 +21,7 @@ class StompStreamMessage(StreamMessage[stompman.AckableMessageFrame]):
         return await super().reject()
 
     @classmethod
-    async def from_frame(cls, message: stompman.AckableMessageFrame) -> typing.Self:
+    async def from_frame(cls, message: stompman.AckableMessageFrame) -> Self:
         return cls(
             raw_message=message,
             body=message.body,

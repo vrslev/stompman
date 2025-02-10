@@ -1,5 +1,8 @@
 import asyncio
-from typing import Annotated
+import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Annotated
+from unittest import mock
 
 import faker
 import faststream_stomp
@@ -7,8 +10,12 @@ import pytest
 import stompman
 from faststream import BaseMiddleware, Context, FastStream
 from faststream.broker.message import gen_cor_id
+from faststream.broker.middlewares.logging import CriticalLogMiddleware
 from faststream.exceptions import AckMessage, NackMessage, RejectMessage
 from faststream_stomp.message import StompStreamMessage
+
+if TYPE_CHECKING:
+    from faststream_stomp.broker import StompBroker
 
 pytestmark = pytest.mark.anyio
 
@@ -151,3 +158,62 @@ async def test_ack_nack_reject_method_call(
         await broker.start()
         await broker.publish(faker.pystr(), destination)
         await event.wait()
+
+
+class TestLogging:
+    async def test_ok(
+        self, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest, faker: faker.Faker
+    ) -> None:
+        monkeypatch.delenv("PYTEST_CURRENT_TEST")
+        broker: StompBroker = request.getfixturevalue("broker")
+        assert broker.logger
+        broker.logger = mock.Mock(log=(log_mock := mock.Mock()))
+
+        @broker.subscriber(destination := faker.pystr())
+        def some_handler() -> None: ...
+
+        async with broker:
+            await broker.start()
+
+        assert log_mock.mock_calls == [
+            mock.call(
+                logging.INFO,
+                "`SomeHandler` waiting for messages",
+                extra={"destination": destination, "message_id": ""},
+                exc_info=None,
+            )
+        ]
+
+    async def test_raises(
+        self, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest, faker: faker.Faker
+    ) -> None:
+        monkeypatch.delenv("PYTEST_CURRENT_TEST")
+        broker: StompBroker = request.getfixturevalue("broker")
+        assert isinstance(broker._middlewares[0], CriticalLogMiddleware)
+        assert broker._middlewares[0].logger
+        broker._middlewares[0].logger = mock.Mock(log=(log_mock := mock.Mock()))
+        event = asyncio.Event()
+        message_id: str | None = None
+
+        @dataclass
+        class MyError(Exception): ...
+
+        @broker.subscriber(destination := faker.pystr())
+        def some_handler(message_frame: Annotated[stompman.MessageFrame, Context("message.raw_message")]) -> None:
+            nonlocal message_id
+            message_id = message_frame.headers["message-id"]
+            event.set()
+            raise MyError
+
+        async with broker:
+            await broker.start()
+            await broker.publish(faker.pystr(), destination)
+            await event.wait()
+
+        assert message_id
+        extra = {"destination": destination, "message_id": message_id}
+        assert log_mock.mock_calls == [
+            mock.call(logging.INFO, "Received", extra=extra),
+            mock.call(logging.ERROR, "MyError: ", extra=extra, exc_info=MyError()),
+            mock.call(logging.INFO, "Processed", extra=extra),
+        ]

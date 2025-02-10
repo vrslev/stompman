@@ -1,8 +1,7 @@
 import logging
 import types
-import typing
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Any
+from typing import Any, Unpack
 
 import anyio
 import stompman
@@ -134,7 +133,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
             "- %(message)s"
         )
 
-    def _setup_log_context(self, **log_context: typing.Unpack[StompLogContext]) -> None: ...  # type: ignore[override]
+    def _setup_log_context(self, **log_context: Unpack[StompLogContext]) -> None: ...  # type: ignore[override]
 
     @property
     def _subscriber_setup_extra(self) -> "AnyDict":
