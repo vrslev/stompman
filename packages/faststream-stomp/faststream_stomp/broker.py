@@ -1,5 +1,6 @@
 import logging
 import types
+import typing
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
@@ -11,11 +12,11 @@ from faststream.broker.core.usecase import BrokerUsecase
 from faststream.broker.types import BrokerMiddleware, CustomCallable
 from faststream.log.logging import get_broker_logger
 from faststream.security import BaseSecurity
-from faststream.types import AnyDict, Decorator, LoggerProto, SendableMessage
+from faststream.types import EMPTY, AnyDict, Decorator, LoggerProto, SendableMessage
 
 from faststream_stomp.publisher import StompProducer, StompPublisher
 from faststream_stomp.registrator import StompRegistrator
-from faststream_stomp.subscriber import StompSubscriber
+from faststream_stomp.subscriber import StompLogContext, StompSubscriber
 
 
 class StompSecurity(BaseSecurity):
@@ -46,7 +47,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
         middlewares: Sequence[BrokerMiddleware[stompman.MessageFrame]] = (),
         graceful_timeout: float | None = 15.0,
         # Logging args
-        logger: LoggerProto | None = None,
+        logger: LoggerProto | None = EMPTY,
         log_level: int = logging.INFO,
         log_fmt: str | None = None,
         # FastDepends args
@@ -89,7 +90,7 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
         for handler in self._subscribers.values():
             self._log(
                 f"`{handler.call_name}` waiting for messages",
-                extra=handler.get_log_context(None),
+                extra=handler.get_log_context(None),  # type: ignore[arg-type]
             )
             await handler.start()
 
@@ -125,15 +126,15 @@ class StompBroker(StompRegistrator, BrokerUsecase[stompman.MessageFrame, stompma
         return False  # pragma: no cover
 
     def get_fmt(self) -> str:
+        # `StompLogContext`
         return (
             "%(asctime)s %(levelname)-8s - "
-            f"%(channel)-{self._max_channel_name}s | "
+            f"%(destination)-{self._max_channel_name}s | "
             f"%(message_id)-{self.__max_msg_id_ln}s "
             "- %(message)s"
         )
 
-    def _setup_log_context(self, *, channel: str | None = None) -> None:
-        self._max_channel_name = max((self._max_channel_name, len(channel or "")))
+    def _setup_log_context(self, **log_context: typing.Unpack[StompLogContext]) -> None: ...  # type: ignore[override]
 
     @property
     def _subscriber_setup_extra(self) -> "AnyDict":

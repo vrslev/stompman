@@ -1,3 +1,4 @@
+import typing
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
@@ -14,6 +15,11 @@ from faststream.types import AnyDict, Decorator, LoggerProto
 from faststream.utils.functions import to_async
 
 from faststream_stomp.message import StompStreamMessage
+
+
+class StompLogContext(typing.TypedDict):
+    destination: str
+    message_id: str
 
 
 class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
@@ -128,3 +134,10 @@ class StompSubscriber(SubscriberUsecase[stompman.MessageFrame]):
                 ),
             )
         }
+
+    def get_log_context(self, message: StreamMessage[stompman.MessageFrame] | None) -> dict[str, str]:  # noqa: PLR6301
+        log_context: StompLogContext = {
+            "destination": message.raw_message.headers["destination"] if message else "",
+            "message_id": message.message_id if message else "",
+        }
+        return typing.cast("dict[str, str]", log_context)
